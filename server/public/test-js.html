@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test JavaScript</title>
+</head>
+<body>
+    <h1>Test JavaScript</h1>
+    <div id="status">Testing...</div>
+    
+    <script>
+        console.log('🧪 Test JavaScript...');
+        
+        // Tester la syntaxe de base
+        try {
+            console.log('✅ JavaScript de base fonctionne');
+            document.getElementById('status').textContent = 'JavaScript OK';
+            
+            // Tester une apostrophe
+            const message = "Test avec apostrophe dans string";
+            console.log('✅ String avec apostrophe:', message);
+            
+        } catch (error) {
+            console.error('❌ Erreur JavaScript:', error);
+            document.getElementById('status').textContent = 'Erreur: ' + error.message;
+        }
+    </script>
+    
+    <!-- Charger le fichier app.js pour tester -->
+    <script>
+        console.log('📥 Tentative de chargement app.js...');
+    </script>
+    <script src="app.js"></script>
+    <script>
+        console.log('✅ app.js chargé avec succès');
+    </script>
+</body>
+</html>

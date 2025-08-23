@@ -1,0 +1,299 @@
+{
+  "name": "Zoom Create Meeting",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zoom-create-meeting",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Create Meeting",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "zoom-create-meeting"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token, refresh_token, expires_at \nFROM zoom_tokens \nWHERE user_id = $1",
+        "additionalFields": {
+          "queryParameters": "={{ [$json.user_id] }}"
+        }
+      },
+      "id": "get-user-token",
+      "name": "Get User Token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "dateTime": [
+            {
+              "value1": "={{ DateTime.fromISO($json.expires_at) }}",
+              "operation": "before",
+              "value2": "={{ DateTime.now() }}"
+            }
+          ]
+        }
+      },
+      "id": "token-expired-check",
+      "name": "Token Expired?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://zoom.us/oauth/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "httpBasicAuth": "zoom-oauth-credentials",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json.refresh_token }}"
+            }
+          ]
+        }
+      },
+      "id": "refresh-expired-token",
+      "name": "Refresh Expired Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE zoom_tokens SET \n  access_token = $1,\n  refresh_token = COALESCE($2, refresh_token),\n  expires_at = NOW() + INTERVAL '{{ $json.expires_in }} seconds',\n  updated_at = NOW()\nWHERE user_id = $3\nRETURNING access_token",
+        "additionalFields": {
+          "queryParameters": "={{ [\n  $json.access_token,\n  $json.refresh_token || null,\n  $('Webhook Create Meeting').item.json.user_id\n] }}"
+        }
+      },
+      "id": "update-token-after-refresh",
+      "name": "Update Token After Refresh",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [1120, 200],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.zoom.us/v2/users/me/meetings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.access_token || $('Get User Token').item.json.access_token }}"
+            },
+            {
+              "name": "Content-Type", 
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ {\n  \"topic\": $('Webhook Create Meeting').item.json.topic,\n  \"type\": $('Webhook Create Meeting').item.json.type || 1,\n  \"duration\": $('Webhook Create Meeting').item.json.duration || 60,\n  \"password\": $('Webhook Create Meeting').item.json.password || undefined,\n  \"agenda\": $('Webhook Create Meeting').item.json.agenda || undefined,\n  \"settings\": $('Webhook Create Meeting').item.json.settings || {\n    \"host_video\": true,\n    \"participant_video\": true,\n    \"cn_meeting\": false,\n    \"in_meeting\": false,\n    \"join_before_host\": false,\n    \"mute_upon_entry\": false,\n    \"watermark\": false,\n    \"use_pmi\": false,\n    \"approval_type\": 2,\n    \"audio\": \"both\",\n    \"auto_recording\": \"none\"\n  }\n} }}"
+      },
+      "id": "create-zoom-meeting",
+      "name": "Create Zoom Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO zoom_meetings (\n  user_id,\n  meeting_id,\n  topic,\n  start_time,\n  duration,\n  join_url,\n  start_url,\n  password,\n  status,\n  created_at,\n  updated_at\n) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled', NOW(), NOW())",
+        "additionalFields": {
+          "queryParameters": "={{ [\n  $('Webhook Create Meeting').item.json.user_id,\n  $json.id,\n  $json.topic,\n  $json.start_time,\n  $json.duration,\n  $json.join_url,\n  $json.start_url,\n  $json.password\n] }}"
+        }
+      },
+      "id": "store-meeting-in-db",
+      "name": "Store Meeting in DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [1560, 300],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"meeting\": {\n    \"id\": $json.id,\n    \"topic\": $json.topic,\n    \"join_url\": $json.join_url,\n    \"start_url\": $json.start_url,\n    \"password\": $json.password,\n    \"start_time\": $json.start_time,\n    \"duration\": $json.duration\n  }\n} }}"
+      },
+      "id": "meeting-success-response",
+      "name": "Meeting Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 401,
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": \"No valid Zoom token found. Please authenticate with Zoom first.\",\n  \"user_id\": $('Webhook Create Meeting').item.json.user_id\n} }}"
+      },
+      "id": "no-token-error",
+      "name": "No Token Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 500,
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": \"Failed to create Zoom meeting\",\n  \"details\": $json.error || $json.message || \"Unknown error\",\n  \"zoom_response\": $json\n} }}"
+      },
+      "id": "meeting-error-response",
+      "name": "Meeting Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 500]
+    }
+  ],
+  "connections": {
+    "Webhook Create Meeting": {
+      "main": [
+        [
+          {
+            "node": "Get User Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Token": {
+      "main": [
+        [
+          {
+            "node": "Token Expired?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Token Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Expired?": {
+      "main": [
+        [
+          {
+            "node": "Refresh Expired Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Zoom Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Expired Token": {
+      "main": [
+        [
+          {
+            "node": "Update Token After Refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Token After Refresh": {
+      "main": [
+        [
+          {
+            "node": "Create Zoom Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Zoom Meeting": {
+      "main": [
+        [
+          {
+            "node": "Store Meeting in DB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meeting Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Meeting in DB": {
+      "main": [
+        [
+          {
+            "node": "Meeting Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": ["zoom", "meeting", "creation"],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-22T15:00:00.000Z",
+  "versionId": "1.0"
+}

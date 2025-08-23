@@ -1,0 +1,628 @@
+{
+  "name": "Zoom Unified Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "a27e69d1-9497-4816-adba-3dc85dd83f75",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Unified",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "a27e69d1-9497-4816-adba-3dc85dd83f75"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.action }}",
+              "operation": "equal",
+              "value2": "oauth_callback"
+            }
+          ]
+        }
+      },
+      "id": "oauth-action-check",
+      "name": "OAuth Action?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.action }}",
+              "operation": "equal",
+              "value2": "create_meeting"
+            }
+          ]
+        }
+      },
+      "id": "create-meeting-check",
+      "name": "Create Meeting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.action }}",
+              "operation": "equal",
+              "value2": "refresh_token"
+            }
+          ]
+        }
+      },
+      "id": "refresh-token-check",
+      "name": "Refresh Token?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 600]
+    },
+    {
+      "parameters": {
+        "url": "https://zoom.us/oauth/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "httpBasicAuth": "zoom-oauth-credentials",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "authorization_code"
+            },
+            {
+              "name": "code",
+              "value": "={{ $json.code }}"
+            },
+            {
+              "name": "redirect_uri",
+              "value": "={{ $json.redirect_uri }}"
+            }
+          ]
+        }
+      },
+      "id": "exchange-oauth-code",
+      "name": "Exchange OAuth Code",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 100]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO zoom_tokens (user_id, access_token, refresh_token, expires_at, created_at, updated_at)\nVALUES ($1, $2, $3, NOW() + INTERVAL '{{ $json.expires_in }} seconds', NOW(), NOW())\nON CONFLICT (user_id) \nDO UPDATE SET \n  access_token = EXCLUDED.access_token,\n  refresh_token = EXCLUDED.refresh_token,\n  expires_at = EXCLUDED.expires_at,\n  updated_at = NOW()",
+        "additionalFields": {
+          "queryParameters": "={{ [\n  $('Webhook Unified').item.json.user_id,\n  $json.access_token,\n  $json.refresh_token\n] }}"
+        }
+      },
+      "id": "store-oauth-tokens",
+      "name": "Store OAuth Tokens",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [900, 100],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token, refresh_token, expires_at \nFROM zoom_tokens \nWHERE user_id = $1",
+        "additionalFields": {
+          "queryParameters": "={{ [$json.user_id] }}"
+        }
+      },
+      "id": "get-user-token-meeting",
+      "name": "Get User Token for Meeting",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [680, 300],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "dateTime": [
+            {
+              "value1": "={{ DateTime.fromISO($json.expires_at) }}",
+              "operation": "before",
+              "value2": "={{ DateTime.now() }}"
+            }
+          ]
+        }
+      },
+      "id": "token-expired-meeting",
+      "name": "Token Expired for Meeting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://zoom.us/oauth/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "httpBasicAuth": "zoom-oauth-credentials",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json.refresh_token }}"
+            }
+          ]
+        }
+      },
+      "id": "refresh-for-meeting",
+      "name": "Refresh Token for Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE zoom_tokens SET \n  access_token = $1,\n  refresh_token = COALESCE($2, refresh_token),\n  expires_at = NOW() + INTERVAL '{{ $json.expires_in }} seconds',\n  updated_at = NOW()\nWHERE user_id = $3\nRETURNING access_token",
+        "additionalFields": {
+          "queryParameters": "={{ [\n  $json.access_token,\n  $json.refresh_token || null,\n  $('Webhook Unified').item.json.user_id\n] }}"
+        }
+      },
+      "id": "update-refreshed-meeting-token",
+      "name": "Update Refreshed Meeting Token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [1340, 200],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.zoom.us/v2/users/me/meetings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.access_token || $('Get User Token for Meeting').item.json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ $('Webhook Unified').item.json.meeting_data }}"
+      },
+      "id": "create-zoom-meeting",
+      "name": "Create Zoom Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO zoom_meetings (\n  user_id,\n  meeting_id,\n  topic,\n  start_time,\n  duration,\n  join_url,\n  start_url,\n  password,\n  status,\n  created_at,\n  updated_at\n) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled', NOW(), NOW())",
+        "additionalFields": {
+          "queryParameters": "={{ [\n  $('Webhook Unified').item.json.user_id,\n  $json.id,\n  $json.topic,\n  $json.start_time,\n  $json.duration,\n  $json.join_url,\n  $json.start_url,\n  $json.password\n] }}"
+        }
+      },
+      "id": "store-meeting-in-db",
+      "name": "Store Meeting in DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [1780, 300],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token, refresh_token FROM zoom_tokens WHERE user_id = $1",
+        "additionalFields": {
+          "queryParameters": "={{ [$json.user_id] }}"
+        }
+      },
+      "id": "get-refresh-token-standalone",
+      "name": "Get Refresh Token Standalone",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [680, 500],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://zoom.us/oauth/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "httpBasicAuth": "zoom-oauth-credentials",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json.refresh_token }}"
+            }
+          ]
+        }
+      },
+      "id": "refresh-token-standalone",
+      "name": "Refresh Token Standalone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE zoom_tokens SET \n  access_token = $1,\n  refresh_token = COALESCE($2, refresh_token),\n  expires_at = NOW() + INTERVAL '{{ $json.expires_in }} seconds',\n  updated_at = NOW()\nWHERE user_id = $3",
+        "additionalFields": {
+          "queryParameters": "={{ [\n  $json.access_token,\n  $json.refresh_token || null,\n  $('Webhook Unified').item.json.user_id\n] }}"
+        }
+      },
+      "id": "update-refreshed-standalone",
+      "name": "Update Refreshed Standalone",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [1120, 500],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"message\": \"OAuth tokens stored successfully\",\n  \"token_info\": {\n    \"expires_at\": $now.plus($json.expires_in * 1000).toISO(),\n    \"user_id\": $('Webhook Unified').item.json.user_id\n  }\n} }}"
+      },
+      "id": "oauth-success-response",
+      "name": "OAuth Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"meeting\": {\n    \"id\": $json.id,\n    \"topic\": $json.topic,\n    \"join_url\": $json.join_url,\n    \"start_url\": $json.start_url,\n    \"password\": $json.password,\n    \"start_time\": $json.start_time,\n    \"duration\": $json.duration\n  }\n} }}"
+      },
+      "id": "meeting-success-response",
+      "name": "Meeting Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"message\": \"Token refreshed successfully\",\n  \"token_info\": {\n    \"expires_at\": $now.plus($json.expires_in * 1000).toISO(),\n    \"user_id\": $('Webhook Unified').item.json.user_id\n  }\n} }}"
+      },
+      "id": "refresh-success-response",
+      "name": "Refresh Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 400,
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": \"Invalid action. Expected 'oauth_callback', 'create_meeting', or 'refresh_token'\",\n  \"received_action\": $json.action\n} }}"
+      },
+      "id": "invalid-action-response",
+      "name": "Invalid Action Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 800]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 401,
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": \"No valid Zoom token found. Please authenticate with Zoom first.\",\n  \"user_id\": $('Webhook Unified').item.json.user_id\n} }}"
+      },
+      "id": "no-token-error-response",
+      "name": "No Token Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 500,
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": \"Failed to create Zoom meeting\",\n  \"details\": $json.error || $json.message || \"Unknown error\",\n  \"zoom_response\": $json\n} }}"
+      },
+      "id": "meeting-error-response",
+      "name": "Meeting Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 700]
+    }
+  ],
+  "connections": {
+    "Webhook Unified": {
+      "main": [
+        [
+          {
+            "node": "OAuth Action?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Meeting?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Refresh Token?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OAuth Action?": {
+      "main": [
+        [
+          {
+            "node": "Exchange OAuth Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid Action Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Meeting?": {
+      "main": [
+        [
+          {
+            "node": "Get User Token for Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Token?": {
+      "main": [
+        [
+          {
+            "node": "Get Refresh Token Standalone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exchange OAuth Code": {
+      "main": [
+        [
+          {
+            "node": "Store OAuth Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store OAuth Tokens": {
+      "main": [
+        [
+          {
+            "node": "OAuth Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Token for Meeting": {
+      "main": [
+        [
+          {
+            "node": "Token Expired for Meeting?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Token Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Expired for Meeting?": {
+      "main": [
+        [
+          {
+            "node": "Refresh Token for Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Zoom Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Token for Meeting": {
+      "main": [
+        [
+          {
+            "node": "Update Refreshed Meeting Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Refreshed Meeting Token": {
+      "main": [
+        [
+          {
+            "node": "Create Zoom Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Zoom Meeting": {
+      "main": [
+        [
+          {
+            "node": "Store Meeting in DB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meeting Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Meeting in DB": {
+      "main": [
+        [
+          {
+            "node": "Meeting Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Refresh Token Standalone": {
+      "main": [
+        [
+          {
+            "node": "Refresh Token Standalone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Token Standalone": {
+      "main": [
+        [
+          {
+            "node": "Update Refreshed Standalone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Refreshed Standalone": {
+      "main": [
+        [
+          {
+            "node": "Refresh Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": ["zoom", "unified", "webhook"],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-22T16:00:00.000Z",
+  "versionId": "2.0"
+}

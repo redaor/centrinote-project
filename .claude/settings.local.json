@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm start)",
+      "Bash(node server.js)",
+      "Bash(grep:*)",
+      "Bash(chmod:*)",
+      "Bash(./test-new-url.sh:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": []
+  }
+}

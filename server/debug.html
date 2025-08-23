@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Centrinote Zoom OAuth</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto p-8">
+        <h1 class="text-2xl font-bold mb-6">🔧 Debug - Serveur Zoom OAuth</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Status Serveur</h2>
+            <div id="server-status" class="text-gray-600">Testing...</div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Tests Endpoints</h2>
+            <div id="endpoints-test" class="text-gray-600">Testing...</div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Console Logs</h2>
+            <div id="console-logs" class="bg-gray-900 text-green-400 p-4 rounded text-sm font-mono max-h-96 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <script>
+        // Capturer les logs console
+        const originalLog = console.log;
+        const originalError = console.error;
+        const logsDiv = document.getElementById('console-logs');
+        
+        function addLog(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type === 'error' ? 'text-red-400' : 'text-green-400';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+        
+        // Test du serveur
+        async function testServer() {
+            const baseUrl = window.location.origin;
+            const statusDiv = document.getElementById('server-status');
+            const endpointsDiv = document.getElementById('endpoints-test');
+            
+            console.log('🚀 Début des tests...');
+            console.log('Base URL:', baseUrl);
+            
+            // Test 1: Health check
+            try {
+                console.log('Testing /health...');
+                const response = await fetch(`${baseUrl}/health`);
+                const data = await response.json();
+                statusDiv.innerHTML = `✅ Serveur OK: ${JSON.stringify(data, null, 2)}`;
+                console.log('✅ Health check OK:', data);
+            } catch (error) {
+                statusDiv.innerHTML = `❌ Erreur serveur: ${error.message}`;
+                console.error('❌ Health check failed:', error);
+            }
+            
+            // Test 2: Auth endpoints
+            try {
+                console.log('Testing /auth/zoom...');
+                const response = await fetch(`${baseUrl}/auth/zoom`);
+                const data = await response.json();
+                
+                console.log('Testing /auth/me...');
+                const authResponse = await fetch(`${baseUrl}/auth/me`, {
+                    credentials: 'include'
+                });
+                const authData = await authResponse.json();
+                
+                endpointsDiv.innerHTML = `
+                    <div class="mb-2"><strong>/auth/zoom:</strong> ${data.success ? '✅' : '❌'}</div>
+                    <div><strong>/auth/me:</strong> ${authData.success ? '✅ Authentifié' : '⚠️ Non authentifié'}</div>
+                `;
+                
+                console.log('✅ Auth endpoints OK');
+            } catch (error) {
+                endpointsDiv.innerHTML = `❌ Erreur endpoints: ${error.message}`;
+                console.error('❌ Auth endpoints failed:', error);
+            }
+        }
+        
+        // Lancer les tests au chargement
+        testServer();
+        
+        // Test interface principale
+        console.log('🔄 Chargement de l\'interface principale...');
+        setTimeout(() => {
+            console.log('✅ Interface de debug chargée');
+        }, 100);
+    </script>
+</body>
+</html>

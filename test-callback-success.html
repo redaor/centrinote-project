@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Callback Success - Simulation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .info { background: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #0056b3; }
+        
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Simulation Callback Success</h1>
+        <p>Cette page simule un callback OAuth réussi pour tester la sauvegarde des tokens.</p>
+        
+        <div class="info">
+            <strong>🎯 Objectif:</strong> Simuler le comportement de la page de callback après un OAuth réussi
+        </div>
+        
+        <button onclick="simulateSuccess()">Simuler Callback Réussi</button>
+        <button onclick="checkStorage()">Vérifier localStorage</button>
+        <button onclick="clearStorage()">Nettoyer localStorage</button>
+        <button onclick="redirectToTest()">Aller vers Interface Test</button>
+        
+        <div id="results"></div>
+        
+        <h3>📋 Logs</h3>
+        <div id="logs" style="height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('logs');
+            const logLine = `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+            logElement.textContent += logLine;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${type}] ${message}`);
+        }
+
+        function simulateSuccess() {
+            log('🎬 Simulation d\'un callback OAuth réussi...');
+            
+            // Simuler les données d'un utilisateur authentifié
+            const mockUser = {
+                id: 'mock_zoom_user_12345',
+                email: 'test@example.com',
+                displayName: 'Test User Simulation',
+                accountId: 'mock_account_67890',
+                accountType: 1
+            };
+
+            const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ6b29tVXNlcklkIjoibW9ja191c2VyXzEyMzQ1IiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiZGlzcGxheU5hbWUiOiJUZXN0IFVzZXIgU2ltdWxhdGlvbiIsImFjY291bnRJZCI6Im1vY2tfYWNjb3VudF82Nzg5MCIsImlhdCI6MTc1NDk1NTY2MywiZXhwIjoxNzU1NTYwNDYzfQ.mock_signature_for_testing';
+
+            try {
+                // Sauvegarder dans localStorage exactement comme le fait zoom-callback.html
+                localStorage.setItem('zoom_user', JSON.stringify(mockUser));
+                localStorage.setItem('zoom_authenticated', 'true');
+                localStorage.setItem('auth_token', mockToken);
+                
+                log('✅ Données utilisateur sauvegardées dans localStorage', 'success');
+                log(`👤 Utilisateur: ${mockUser.displayName} (${mockUser.email})`, 'info');
+                log(`🔐 Token JWT sauvegardé`, 'success');
+                
+                // Afficher résultats
+                document.getElementById('results').innerHTML = `
+                    <div class="success">
+                        <h4>✅ Simulation réussie !</h4>
+                        <p><strong>Utilisateur:</strong> ${mockUser.displayName}</p>
+                        <p><strong>Email:</strong> ${mockUser.email}</p>
+                        <p><strong>ID Zoom:</strong> ${mockUser.id}</p>
+                        <p><strong>Token stocké:</strong> Oui (${mockToken.substring(0, 50)}...)</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                log(`❌ Erreur sauvegarde: ${error.message}`, 'error');
+                document.getElementById('results').innerHTML = `
+                    <div class="error">
+                        <h4>❌ Erreur de simulation</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function checkStorage() {
+            log('🔍 Vérification du localStorage...');
+            
+            const zoomUser = localStorage.getItem('zoom_user');
+            const isAuthenticated = localStorage.getItem('zoom_authenticated');
+            const authToken = localStorage.getItem('auth_token');
+            
+            let results = '<h4>📊 État du localStorage:</h4>';
+            
+            if (zoomUser) {
+                const user = JSON.parse(zoomUser);
+                results += `<p><strong>✅ Utilisateur:</strong> ${user.displayName} (${user.email})</p>`;
+                log(`✅ Utilisateur trouvé: ${user.displayName}`, 'success');
+            } else {
+                results += '<p><strong>❌ Utilisateur:</strong> Non trouvé</p>';
+                log('❌ Aucun utilisateur dans localStorage', 'error');
+            }
+            
+            if (isAuthenticated === 'true') {
+                results += '<p><strong>✅ Authentifié:</strong> Oui</p>';
+                log('✅ État authentifié confirmé', 'success');
+            } else {
+                results += '<p><strong>❌ Authentifié:</strong> Non</p>';
+                log('❌ Non authentifié', 'error');
+            }
+            
+            if (authToken) {
+                results += `<p><strong>✅ Token JWT:</strong> ${authToken.substring(0, 50)}...</p>`;
+                log('✅ Token JWT trouvé', 'success');
+            } else {
+                results += '<p><strong>❌ Token JWT:</strong> Non trouvé</p>';
+                log('❌ Token JWT manquant', 'error');
+            }
+            
+            document.getElementById('results').innerHTML = `<div class="info">${results}</div>`;
+        }
+
+        function clearStorage() {
+            log('🧹 Nettoyage du localStorage...');
+            
+            localStorage.removeItem('zoom_user');
+            localStorage.removeItem('zoom_authenticated');
+            localStorage.removeItem('auth_token');
+            
+            log('✅ localStorage nettoyé', 'success');
+            document.getElementById('results').innerHTML = `
+                <div class="success">
+                    <h4>🧹 localStorage nettoyé</h4>
+                    <p>Toutes les données d'authentification ont été supprimées.</p>
+                </div>
+            `;
+        }
+
+        function redirectToTest() {
+            log('🔄 Redirection vers interface de test...');
+            window.location.href = 'http://localhost:5174/test';
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', () => {
+            log('🧪 Interface de simulation initialisée');
+            checkStorage();
+        });
+    </script>
+</body>
+</html>

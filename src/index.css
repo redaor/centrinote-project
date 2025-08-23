@@ -1,0 +1,209 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optimisations pour mobile */
+@layer base {
+  html {
+    /* Améliore le rendu des polices sur mobile */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Empêche le zoom sur les inputs sur iOS */
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  body {
+    /* Améliore les performances de défilement sur mobile */
+    -webkit-overflow-scrolling: touch;
+    /* Taille de police de base optimisée pour mobile */
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  
+  /* Améliore la zone de toucher pour les boutons */
+  button, 
+  [role="button"], 
+  input[type="submit"], 
+  input[type="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Optimise les inputs pour mobile */
+  input, 
+  textarea, 
+  select {
+    font-size: 16px; /* Empêche le zoom sur iOS */
+  }
+  
+  /* Améliore l'accessibilité des liens */
+  a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+@layer utilities {
+  /* Classe pour limiter le nombre de lignes affichées */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+  
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+  
+  /* Améliore les transitions pour mobile */
+  .touch-transition {
+    transition: all 0.2s ease-in-out;
+  }
+  
+  /* Zone de toucher étendue pour les petits éléments */
+  .touch-target {
+    position: relative;
+  }
+  
+  .touch-target::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Optimisations pour les grilles responsive */
+  .grid-responsive {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+  
+  @media (max-width: 640px) {
+    .grid-responsive {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+  }
+  
+  /* Améliore le défilement horizontal sur mobile */
+  .scroll-smooth-mobile {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Cache la scrollbar sur mobile tout en gardant la fonctionnalité */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Media queries pour les breakpoints personnalisés */
+@media (max-width: 480px) {
+  /* Très petits écrans */
+  .text-responsive {
+    font-size: 14px;
+  }
+  
+  .p-responsive {
+    padding: 0.75rem;
+  }
+  
+  .gap-responsive {
+    gap: 0.5rem;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  /* Tablettes en portrait */
+  .text-responsive {
+    font-size: 15px;
+  }
+  
+  .p-responsive {
+    padding: 1rem;
+  }
+  
+  .gap-responsive {
+    gap: 0.75rem;
+  }
+}
+
+@media (min-width: 769px) {
+  /* Desktop et tablettes en paysage */
+  .text-responsive {
+    font-size: 16px;
+  }
+  
+  .p-responsive {
+    padding: 1.5rem;
+  }
+  
+  .gap-responsive {
+    gap: 1rem;
+  }
+}
+
+/* Améliore les performances d'animation sur mobile */
+@media (prefers-reduced-motion: no-preference) {
+  .animate-smooth {
+    animation-duration: 0.3s;
+    animation-timing-function: ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-smooth {
+    animation: none;
+  }
+}
+
+/* Optimise les modals pour mobile */
+@media (max-width: 640px) {
+  .modal-mobile {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    transform: none;
+  }
+}
+
+/* Améliore la lisibilité sur les petits écrans */
+@media (max-width: 640px) {
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.125rem; }
+  
+  .text-xs { font-size: 0.75rem; }
+  .text-sm { font-size: 0.875rem; }
+  .text-base { font-size: 1rem; }
+  .text-lg { font-size: 1.125rem; }
+  .text-xl { font-size: 1.25rem; }
+}

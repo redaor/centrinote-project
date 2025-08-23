@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Authentification Zoom - Centrinote</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { 
+            background: #6c757d; 
+            cursor: not-allowed; 
+        }
+        
+        .user-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+        
+        .test-section {
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .test-section h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Test Authentification Zoom OAuth</h1>
+        <p>Cette page teste le flux complet d'authentification Zoom avec le serveur backend sur port 5174.</p>
+        
+        <div class="test-section">
+            <h3>🚀 Instructions de test</h3>
+            <ol>
+                <li><strong>Démarrer le serveur backend:</strong> <code>node server.js</code> (doit tourner sur port 5174)</li>
+                <li><strong>Ouvrir cette interface:</strong> 
+                    <ul>
+                        <li>Via serveur de test: <code>node test-server.js</code> puis <a href="http://localhost:8080">http://localhost:8080</a></li>
+                        <li>Via serveur backend: <a href="http://localhost:5174/test">http://localhost:5174/test</a></li>
+                    </ul>
+                </li>
+                <li><strong>Tester l'authentification:</strong> Cliquer "Démarrer Connexion Zoom"</li>
+                <li><strong>Vérifier le callback:</strong> Vous devriez être redirigé vers Zoom puis revenir ici authentifié</li>
+            </ol>
+        </div>
+        
+        <div id="status" class="status info">
+            Chargement...
+        </div>
+        
+        <div class="test-section">
+            <h3>🎯 État d'authentification</h3>
+            <div id="auth-status"></div>
+            <div id="user-info"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>⚡ Actions</h3>
+            <button id="check-status-btn" onclick="checkStatus()">Vérifier Statut Auth</button>
+            <button id="start-oauth-btn" onclick="startOAuth()">Démarrer Connexion Zoom</button>
+            <button id="logout-btn" onclick="logout()" disabled>Déconnexion</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>🧪 Tests API</h3>
+            <button id="test-me-btn" onclick="testMe()" disabled>Tester /auth/me</button>
+            <button id="test-meetings-btn" onclick="testMeetings()" disabled>Tester /api/meetings</button>
+            <div id="api-results"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📋 Logs</h3>
+            <div id="logs" style="height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Inclure le helper d'authentification -->
+    <script src="frontend-auth-helper.js"></script>
+    
+    <script>
+        let logs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+            
+            // Garder seulement les 50 derniers logs
+            if (logs.length > 50) {
+                logs = logs.slice(-50);
+            }
+            
+            document.getElementById('logs').innerHTML = logs.join('\n');
+            document.getElementById('logs').scrollTop = document.getElementById('logs').scrollHeight;
+            
+            console.log(`[${type}] ${message}`);
+        }
+        
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function updateAuthStatus() {
+            const isAuth = window.zoomAuth.isAuthenticated();
+            const user = window.zoomAuth.getUser();
+            
+            const authStatusEl = document.getElementById('auth-status');
+            const userInfoEl = document.getElementById('user-info');
+            
+            if (isAuth && user) {
+                authStatusEl.innerHTML = '<div class="success">✅ Authentifié</div>';
+                userInfoEl.innerHTML = `
+                    <div class="user-info">
+                        <strong>👤 Utilisateur connecté:</strong><br>
+                        <strong>ID:</strong> ${user.id}<br>
+                        <strong>Email:</strong> ${user.email}<br>
+                        <strong>Nom:</strong> ${user.displayName}<br>
+                        <strong>Compte ID:</strong> ${user.accountId}
+                    </div>
+                `;
+                
+                // Activer boutons authentifiés
+                document.getElementById('logout-btn').disabled = false;
+                document.getElementById('test-me-btn').disabled = false;
+                document.getElementById('test-meetings-btn').disabled = false;
+                document.getElementById('start-oauth-btn').disabled = true;
+            } else {
+                authStatusEl.innerHTML = '<div class="error">❌ Non authentifié</div>';
+                userInfoEl.innerHTML = '';
+                
+                // Désactiver boutons authentifiés
+                document.getElementById('logout-btn').disabled = true;
+                document.getElementById('test-me-btn').disabled = true;
+                document.getElementById('test-meetings-btn').disabled = true;
+                document.getElementById('start-oauth-btn').disabled = false;
+            }
+        }
+        
+        async function checkStatus() {
+            try {
+                log('Vérification du statut d\'authentification...');
+                const user = await window.zoomAuth.checkAuthStatus();
+                
+                if (user) {
+                    log(`Utilisateur authentifié: ${user.email}`, 'success');
+                    updateStatus('Authentification valide', 'success');
+                } else {
+                    log('Aucune authentification valide', 'warning');
+                    updateStatus('Non authentifié', 'warning');
+                }
+                
+                updateAuthStatus();
+            } catch (error) {
+                log(`Erreur vérification statut: ${error.message}`, 'error');
+                updateStatus('Erreur de vérification', 'error');
+                updateAuthStatus();
+            }
+        }
+        
+        async function startOAuth() {
+            try {
+                log('Démarrage du processus OAuth...');
+                updateStatus('Redirection vers Zoom...', 'info');
+                await window.zoomAuth.startOAuth();
+            } catch (error) {
+                log(`Erreur OAuth: ${error.message}`, 'error');
+                updateStatus('Erreur OAuth', 'error');
+            }
+        }
+        
+        async function logout() {
+            try {
+                log('Déconnexion...');
+                await window.zoomAuth.logout();
+                log('Déconnexion réussie', 'success');
+                updateStatus('Déconnecté', 'success');
+                updateAuthStatus();
+            } catch (error) {
+                log(`Erreur déconnexion: ${error.message}`, 'error');
+                updateStatus('Erreur déconnexion', 'error');
+            }
+        }
+        
+        async function testMe() {
+            try {
+                log('Test de l\'endpoint /auth/me...');
+                const response = await window.zoomAuth.authenticatedFetch('/auth/me');
+                const data = await response.json();
+                
+                document.getElementById('api-results').innerHTML = `
+                    <h4>Résultat /auth/me:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+                if (data.success) {
+                    log('Test /auth/me réussi', 'success');
+                } else {
+                    log(`Test /auth/me échoué: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`Erreur test /auth/me: ${error.message}`, 'error');
+                document.getElementById('api-results').innerHTML = `
+                    <h4>Erreur /auth/me:</h4>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+        
+        async function testMeetings() {
+            try {
+                log('Test de l\'endpoint /api/meetings...');
+                const response = await window.zoomAuth.authenticatedFetch('/api/meetings');
+                const data = await response.json();
+                
+                document.getElementById('api-results').innerHTML = `
+                    <h4>Résultat /api/meetings:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+                if (data.success) {
+                    log('Test /api/meetings réussi', 'success');
+                } else {
+                    log(`Test /api/meetings échoué: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`Erreur test /api/meetings: ${error.message}`, 'error');
+                document.getElementById('api-results').innerHTML = `
+                    <h4>Erreur /api/meetings:</h4>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+        
+        // Gestionnaires d'événements d'authentification
+        window.addEventListener('zoom-auth-success', (event) => {
+            log(`Authentification réussie: ${event.detail.email}`, 'success');
+            updateStatus('Authentification Zoom réussie !', 'success');
+            updateAuthStatus();
+        });
+        
+        window.addEventListener('zoom-auth-error', (event) => {
+            log(`Erreur authentification: ${event.detail}`, 'error');
+            updateStatus(`Erreur authentification: ${event.detail}`, 'error');
+            updateAuthStatus();
+        });
+        
+        // Diagnostic du serveur backend
+        async function diagnoseBackend() {
+            try {
+                log('Diagnostic du serveur backend...');
+                
+                // Test de connexion basique
+                const healthResponse = await fetch('http://localhost:5174/health', {
+                    mode: 'cors',
+                    credentials: 'include'
+                });
+                
+                if (healthResponse.ok) {
+                    const healthData = await healthResponse.json();
+                    log('✅ Serveur backend accessible et opérationnel', 'success');
+                    log(`📊 Statut: ${healthData.status}, Zoom configuré: ${healthData.zoom_configured}`, 'info');
+                    
+                    return true;
+                } else {
+                    log(`❌ Serveur backend répond avec erreur: ${healthResponse.status}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                log(`❌ Impossible de contacter le serveur backend: ${error.message}`, 'error');
+                log('💡 Vérifiez que le serveur backend tourne avec: node server.js', 'warning');
+                return false;
+            }
+        }
+        
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', async () => {
+            log('Interface de test initialisée');
+            updateStatus('Interface prête', 'info');
+            
+            // Diagnostic automatique au démarrage
+            const backendOk = await diagnoseBackend();
+            
+            if (backendOk) {
+                updateStatus('Serveur backend OK - Prêt pour tests', 'success');
+                updateAuthStatus();
+                
+                // Vérifier automatiquement le statut au chargement
+                setTimeout(checkStatus, 1000);
+            } else {
+                updateStatus('Serveur backend non accessible', 'error');
+                log('🚨 Impossible de continuer les tests sans serveur backend', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

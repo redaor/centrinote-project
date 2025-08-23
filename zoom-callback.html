@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zoom OAuth Callback</title>
+</head>
+<body>
+    <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h2>🔄 Traitement de l'authentification Zoom...</h2>
+        <p>Veuillez patienter pendant que nous finalisons votre connexion.</p>
+    </div>
+
+    <script>
+        // Cette page gère le callback OAuth de Zoom et redirige vers le serveur backend
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+        const error = urlParams.get('error');
+
+        console.log('🔗 Callback Zoom reçu:', { code: code?.substring(0, 10) + '...', state, error });
+
+        if (error) {
+            console.error('❌ Erreur OAuth:', error);
+            alert('Erreur lors de la connexion Zoom: ' + error);
+            // Rediriger vers l'interface de test avec erreur
+            window.location.href = 'http://localhost:5174/test?auth=error&message=' + encodeURIComponent(error);
+        } else if (code) {
+            // Rediriger vers le serveur backend avec les paramètres OAuth
+            console.log('🔄 Redirection vers serveur backend...');
+            
+            // POST AJAX vers backend port 5174
+            fetch('http://localhost:5174/auth/callback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ code, state })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Stocker info utilisateur et token dans localStorage pour partage entre ports
+                    if (data.user) {
+                        localStorage.setItem('zoom_user', JSON.stringify(data.user));
+                        localStorage.setItem('zoom_authenticated', 'true');
+                        console.log('✅ Info utilisateur sauvegardée:', data.user);
+                    }
+                    if (data.token) {
+                        localStorage.setItem('auth_token', data.token);
+                        console.log('✅ Token JWT sauvegardé');
+                    }
+                    
+                    // Rediriger vers l'interface de test avec succès
+                    window.location.href = 'http://localhost:5174/test?auth=success';
+                } else {
+                    console.error('❌ Erreur authentification:', data.error);
+                    alert('Erreur: ' + data.error);
+                    window.location.href = 'http://localhost:5174/test?auth=error&message=' + encodeURIComponent(data.error);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erreur connexion serveur:', error);
+                alert('Erreur de connexion au serveur');
+                window.location.href = 'http://localhost:5174/test?auth=error&message=connection_failed';
+            });
+            
+        } else {
+            console.error('❌ Paramètres OAuth manquants');
+            alert('Paramètres d authentification manquants');
+            window.location.href = 'http://localhost:5174/test?auth=error&message=missing_params';
+        }
+    </script>
+</body>
+</html>

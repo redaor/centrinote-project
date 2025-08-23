@@ -1,0 +1,332 @@
+{
+  "name": "Zoom OAuth Callback Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zoom-oauth-callback",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook OAuth Callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "zoom-oauth-callback"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.type }}",
+              "operation": "equal",
+              "value2": "oauth_callback"
+            }
+          ]
+        }
+      },
+      "id": "oauth-callback-condition",
+      "name": "OAuth Callback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.type }}",
+              "operation": "equal",
+              "value2": "refresh_token"
+            }
+          ]
+        }
+      },
+      "id": "refresh-token-condition", 
+      "name": "Refresh Token?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "url": "https://zoom.us/oauth/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "httpBasicAuth": "zoom-oauth-credentials",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "authorization_code"
+            },
+            {
+              "name": "code",
+              "value": "={{ $json.code }}"
+            },
+            {
+              "name": "redirect_uri",
+              "value": "={{ $json.redirect_uri }}"
+            }
+          ]
+        }
+      },
+      "id": "exchange-oauth-code",
+      "name": "Exchange OAuth Code",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO zoom_tokens (user_id, access_token, refresh_token, expires_at, created_at, updated_at)\nVALUES ($1, $2, $3, NOW() + INTERVAL '{{ $json.expires_in }} seconds', NOW(), NOW())\nON CONFLICT (user_id) \nDO UPDATE SET \n  access_token = EXCLUDED.access_token,\n  refresh_token = EXCLUDED.refresh_token,\n  expires_at = EXCLUDED.expires_at,\n  updated_at = NOW()",
+        "additionalFields": {
+          "queryParameters": "={{ [\n  $('Webhook OAuth Callback').item.json.user_id,\n  $json.access_token,\n  $json.refresh_token\n] }}"
+        }
+      },
+      "id": "store-tokens",
+      "name": "Store Tokens in DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [900, 200],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token, refresh_token FROM zoom_tokens WHERE user_id = $1",
+        "additionalFields": {
+          "queryParameters": "={{ [$json.user_id] }}"
+        }
+      },
+      "id": "get-refresh-token",
+      "name": "Get Refresh Token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [680, 500],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://zoom.us/oauth/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "httpBasicAuth": "zoom-oauth-credentials",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json.refresh_token }}"
+            }
+          ]
+        }
+      },
+      "id": "refresh-access-token",
+      "name": "Refresh Access Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE zoom_tokens SET \n  access_token = $1,\n  refresh_token = COALESCE($2, refresh_token),\n  expires_at = NOW() + INTERVAL '{{ $json.expires_in }} seconds',\n  updated_at = NOW()\nWHERE user_id = $3",
+        "additionalFields": {
+          "queryParameters": "={{ [\n  $json.access_token,\n  $json.refresh_token || null,\n  $('Webhook OAuth Callback').item.json.user_id\n] }}"
+        }
+      },
+      "id": "update-refreshed-tokens",
+      "name": "Update Refreshed Tokens",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [1120, 500],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"message\": \"OAuth tokens stored successfully\",\n  \"token_info\": {\n    \"expires_at\": $now.plus($json.expires_in * 1000).toISO(),\n    \"user_id\": $('Webhook OAuth Callback').item.json.user_id\n  }\n} }}"
+      },
+      "id": "oauth-success-response",
+      "name": "OAuth Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"message\": \"Token refreshed successfully\",\n  \"token_info\": {\n    \"expires_at\": $now.plus($json.expires_in * 1000).toISO(),\n    \"user_id\": $('Webhook OAuth Callback').item.json.user_id\n  }\n} }}"
+      },
+      "id": "refresh-success-response",
+      "name": "Refresh Success Response", 
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 400,
+        "responseBody": "={{ {\n  \"success\": false,\n  \"error\": \"Invalid request type. Expected 'oauth_callback' or 'refresh_token'\"\n} }}"
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 400]
+    }
+  ],
+  "connections": {
+    "Webhook OAuth Callback": {
+      "main": [
+        [
+          {
+            "node": "OAuth Callback?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Refresh Token?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OAuth Callback?": {
+      "main": [
+        [
+          {
+            "node": "Exchange OAuth Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Token?": {
+      "main": [
+        [
+          {
+            "node": "Get Refresh Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exchange OAuth Code": {
+      "main": [
+        [
+          {
+            "node": "Store Tokens in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Tokens in DB": {
+      "main": [
+        [
+          {
+            "node": "OAuth Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Refresh Token": {
+      "main": [
+        [
+          {
+            "node": "Refresh Access Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Access Token": {
+      "main": [
+        [
+          {
+            "node": "Update Refreshed Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Refreshed Tokens": {
+      "main": [
+        [
+          {
+            "node": "Refresh Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": ["zoom", "oauth", "authentication"],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-22T15:00:00.000Z",
+  "versionId": "1.0"
+}
