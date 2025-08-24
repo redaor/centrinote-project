@@ -3,9 +3,11 @@
   command = "npm run build"
 
 [[headers]]
-  for = "*.js"
+  for = "/*"
   [headers.values]
-    Content-Type = "application/javascript"
+    X-Content-Type-Options = "nosniff"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    Referrer-Policy = "strict-origin-when-cross-origin"
 
 [[redirects]]
   from = "/*"
