@@ -9,17 +9,23 @@ const ZoomOAuthCallback: React.FC = () => {
   useEffect(() => {
     const processCallback = async () => {
       try {
+        // Debug : log de l'URL complète
+        console.log('🔍 URL complète:', window.location.href);
+        console.log('🔍 Search params:', window.location.search);
+        
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
         const error = urlParams.get('error');
         const state = urlParams.get('state');
+
+        console.log('📝 Paramètres récupérés:', { code, error, state });
 
         if (error) {
           throw new Error(`Erreur OAuth: ${error}`);
         }
 
         if (!code || !state) {
-          throw new Error('Paramètres OAuth manquants');
+          throw new Error(`Paramètres OAuth manquants - Code: ${code ? '✅' : '❌'}, State: ${state ? '✅' : '❌'}`);
         }
 
         const stateData = JSON.parse(decodeURIComponent(state));
