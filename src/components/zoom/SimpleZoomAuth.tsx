@@ -100,7 +100,23 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
   const sendCodeToN8N = async (code: string, state: string) => {
     setLoading(true);
     try {
-      const stateData = JSON.parse(decodeURIComponent(state));
+      // Récupérer les données stockées en session avec le state
+      const savedState = sessionStorage.getItem('zoom_oauth_state');
+      const savedData = sessionStorage.getItem('zoom_oauth_data');
+      
+      if (!savedState || state !== savedState) {
+        throw new Error('State OAuth invalide - possible attaque CSRF');
+      }
+      
+      if (!savedData) {
+        throw new Error('Données OAuth manquantes dans le sessionStorage');
+      }
+      
+      const stateData = JSON.parse(savedData);
+      
+      // Nettoyer le sessionStorage
+      sessionStorage.removeItem('zoom_oauth_state');
+      sessionStorage.removeItem('zoom_oauth_data');
       
       const response = await fetch(SUPABASE_PROXY_URL, {
         method: 'POST',
