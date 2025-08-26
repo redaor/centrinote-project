@@ -128,13 +128,21 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
           action: 'oauth_callback',
           code,
           user_id: stateData.user_id,
-          redirect_uri: REDIRECT_URI
+          redirect_uri: REDIRECT_URI,
+          state: state, // Passer le state validé au proxy
+          timestamp: new Date().toISOString()
         })
       });
 
-      const result = await response.json();
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+      }
       
-      if (response.ok && result.success) {
+      const result = await response.json();
+      console.log('📡 Réponse du proxy N8N:', result);
+
+      if (result.success) {
         console.log('✅ Token OAuth enregistré avec succès');
         setIsConnected(true);
         setTokenInfo(result.token_info);
@@ -150,7 +158,7 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
           }, 2000);
         }
       } else {
-        throw new Error(result.error || 'Erreur lors de l\'enregistrement du token');
+        throw new Error(result.error || result.message || 'Erreur inconnue lors du traitement OAuth');
       }
     } catch (error) {
       console.error('❌ Erreur callback OAuth:', error);

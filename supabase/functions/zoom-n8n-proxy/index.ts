@@ -11,6 +11,9 @@ interface N8NProxyRequest {
   code?: string;
   user_id?: string;
   redirect_uri?: string;
+  state?: string; // Ajouter le support du state
+  timestamp?: string;
+  callback_url?: string;
   [key: string]: any;
 }
 
@@ -53,14 +56,17 @@ serve(async (req) => {
     // Lire le body de la requête
     const requestBody: N8NProxyRequest = await req.json()
     
-    console.log('📝 Données reçues:', {
+    console.log('📝 Données reçues par le proxy:', {
       action: requestBody.action,
       user_id: requestBody.user_id,
       code: requestBody.code ? `${requestBody.code.substring(0, 10)}...` : 'N/A',
-      redirect_uri: requestBody.redirect_uri
+      redirect_uri: requestBody.redirect_uri,
+      state: requestBody.state ? `${requestBody.state.substring(0, 16)}...` : 'N/A',
+      timestamp: requestBody.timestamp,
+      callback_url: requestBody.callback_url
     })
 
-    // Validation des données de base
+    // Validation renforcée des données OAuth
     if (!requestBody.action) {
       return new Response(
         JSON.stringify({ 
@@ -72,6 +78,53 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
+    }
+    
+    // Validation spécifique pour oauth_callback
+    if (requestBody.action === 'oauth_callback') {
+      if (!requestBody.code) {
+        console.error('❌ Code OAuth manquant');
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: 'Code d\'autorisation OAuth manquant' 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+      
+      if (!requestBody.state) {
+        console.error('❌ State OAuth manquant');
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: 'Paramètre state OAuth manquant - requis pour la sécurité' 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+      
+      if (!requestBody.user_id) {
+        console.error('❌ User ID manquant');
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: 'ID utilisateur manquant' 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+      
+      console.log('✅ Validation OAuth réussie - tous les paramètres présents');
     }
 
     // Relayer la requête vers N8N
@@ -120,15 +173,24 @@ serve(async (req) => {
     // Lire et relayer la réponse de N8N
     const n8nData = await n8nResponse.json()
     
-    console.log('✅ Réponse N8N:', {
+    console.log('✅ Réponse reçue de N8N:', {
       success: n8nData.success,
       hasError: !!n8nData.error,
-      hasTokenInfo: !!n8nData.token_info
+      hasTokenInfo: !!n8nData.token_info,
+      state: n8nData.state ? `${n8nData.state.substring(0, 16)}...` : 'N/A',
+      userId: n8nData.user_id
     })
+    
+    // S'assurer que le state est préservé dans la réponse
+    const responseData = {
+      ...n8nData,
+      state: requestBody.state, // Préserver le state original
+      processed_at: new Date().toISOString()
+    };
 
-    // Relayer la réponse exacte de N8N
+    // Relayer la réponse avec le state préservé
     return new Response(
-      JSON.stringify(n8nData),
+      JSON.stringify(responseData),
       { 
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
