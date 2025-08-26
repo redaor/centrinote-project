@@ -15,7 +15,7 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
   // Configuration OAuth Zoom
   const ZOOM_CLIENT_ID = import.meta.env.VITE_ZOOM_CLIENT_ID || 'XjtK5_JvQ7upfjYppAF1tw';
   const SUPABASE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zoom-n8n-proxy`;
-  const REDIRECT_URI = `${window.location.origin}/zoom-callback`;
+  const REDIRECT_URI = 'https://centrinote.fr/zoom-callback';
 
   useEffect(() => {
     if (user) {

@@ -9,7 +9,7 @@ export class ZoomOAuthAuth {
   constructor() {
     this.clientId = import.meta.env.VITE_ZOOM_CLIENT_ID || '';
     this.clientSecret = import.meta.env.VITE_ZOOM_CLIENT_SECRET || '';
-    this.redirectUri = import.meta.env.VITE_ZOOM_REDIRECT_URI || `${window.location.origin}/api/zoom/oauth-callback`;
+    this.redirectUri = 'https://centrinote.fr/zoom-callback';
   }
 
   /**

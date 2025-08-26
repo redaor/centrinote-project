@@ -25,7 +25,7 @@ export const ZoomConfigurationDebug: React.FC = () => {
     const clientId = import.meta.env.VITE_ZOOM_CLIENT_ID || 'NON_CONFIGURÉ';
     const redirectUri = import.meta.env.VITE_ZOOM_REDIRECT_URI || 'NON_CONFIGURÉ';
     const currentUrl = window.location.origin;
-    const expectedRedirectUri = `https://03526871154.ngrok-free.app/auth/callback`;
+    const expectedRedirectUri = `https://centrinote.fr/zoom-callback`;
 
     setConfig({
       clientId,

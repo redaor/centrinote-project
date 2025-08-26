@@ -65,7 +65,7 @@ const ZoomOAuthCallback: React.FC = () => {
             action: 'oauth_callback',
             code,
             user_id: stateData.user_id,
-            redirect_uri: `${window.location.origin}/zoom-callback`
+            redirect_uri: 'https://centrinote.fr/zoom-callback'
           })
         });
 
