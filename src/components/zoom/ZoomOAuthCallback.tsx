@@ -28,13 +28,39 @@ const ZoomOAuthCallback: React.FC = () => {
           throw new Error(`Paramètres OAuth manquants - Code: ${code ? '✅' : '❌'}, State: ${state ? '✅' : '❌'}`);
         }
 
-        const stateData = JSON.parse(decodeURIComponent(state));
+        // Valider le state sécurisé
+        const savedState = sessionStorage.getItem('zoom_oauth_state');
+        const savedData = sessionStorage.getItem('zoom_oauth_data');
         
-        // Envoyer vers n8n pour traitement
-        const N8N_OAUTH_WEBHOOK = import.meta.env.VITE_N8N_ZOOM_OAUTH_WEBHOOK || 'https://n8n.srv886297.hstgr.cloud/webhook/a27e69d1-9497-4816-adba-3dc85dd83f75';
-        const response = await fetch(N8N_OAUTH_WEBHOOK, {
+        console.log('🔐 Validation state:', { 
+          received: state.substring(0, 8) + '...', 
+          saved: savedState?.substring(0, 8) + '...',
+          match: state === savedState 
+        });
+
+        if (!savedState || state !== savedState) {
+          throw new Error('State OAuth invalide - possible attaque CSRF');
+        }
+
+        if (!savedData) {
+          throw new Error('Données OAuth manquantes dans le sessionStorage');
+        }
+
+        // Récupérer les données utilisateur stockées
+        const stateData = JSON.parse(savedData);
+        
+        // Nettoyer le sessionStorage
+        sessionStorage.removeItem('zoom_oauth_state');
+        sessionStorage.removeItem('zoom_oauth_data');
+        
+        // Envoyer vers Supabase Edge Function (proxy vers N8N)
+        const SUPABASE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zoom-n8n-proxy`;
+        const response = await fetch(SUPABASE_PROXY_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
           body: JSON.stringify({
             action: 'oauth_callback',
             code,

@@ -77,8 +77,9 @@ export class ZoomOAuthAuth {
    * Generate OAuth authorization URL
    */
   private generateOAuthURL(): string {
-    const state = Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('zoom_oauth_state', state);
+    // Générer un state sécurisé avec crypto.randomUUID()
+    const state = crypto.randomUUID();
+    sessionStorage.setItem('zoom_oauth_state', state);
 
     const params = new URLSearchParams({
       response_type: 'code',

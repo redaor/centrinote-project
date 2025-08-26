@@ -14,7 +14,7 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
 
   // Configuration OAuth Zoom
   const ZOOM_CLIENT_ID = import.meta.env.VITE_ZOOM_CLIENT_ID || 'XjtK5_JvQ7upfjYppAF1tw';
-  const N8N_OAUTH_WEBHOOK = import.meta.env.VITE_N8N_ZOOM_OAUTH_WEBHOOK || 'https://n8n.srv886297.hstgr.cloud/webhook/a27e69d1-9497-4816-adba-3dc85dd83f75';
+  const SUPABASE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zoom-n8n-proxy`;
   const REDIRECT_URI = `${window.location.origin}/zoom-callback`;
 
   useEffect(() => {
@@ -57,18 +57,25 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
       return;
     }
 
-    const state = JSON.stringify({ 
+    // Générer un state sécurisé
+    const secureState = crypto.randomUUID();
+    
+    // Stocker le state et les données utilisateur
+    const stateData = { 
       user_id: user.id,
       redirect_back: window.location.href 
-    });
+    };
+    
+    sessionStorage.setItem('zoom_oauth_state', secureState);
+    sessionStorage.setItem('zoom_oauth_data', JSON.stringify(stateData));
 
     const oauthUrl = `https://zoom.us/oauth/authorize?` + 
       `response_type=code&` +
       `client_id=${ZOOM_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-      `state=${encodeURIComponent(state)}`;
+      `state=${encodeURIComponent(secureState)}`;
 
-    console.log('🔄 Redirection vers Zoom OAuth:', oauthUrl);
+    console.log('🔄 Redirection vers Zoom OAuth avec state sécurisé');
     window.location.href = oauthUrl;
   };
 
@@ -89,15 +96,18 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
     }
   };
 
-  // Envoyer le code OAuth vers n8n
+  // Envoyer le code OAuth vers Supabase Edge Function (proxy N8N)
   const sendCodeToN8N = async (code: string, state: string) => {
     setLoading(true);
     try {
       const stateData = JSON.parse(decodeURIComponent(state));
       
-      const response = await fetch(N8N_OAUTH_WEBHOOK, {
+      const response = await fetch(SUPABASE_PROXY_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
         body: JSON.stringify({
           action: 'oauth_callback',
           code,
@@ -134,14 +144,17 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
     }
   };
 
-  // Refresh token via n8n
+  // Refresh token via Supabase Edge Function (proxy N8N)
   const refreshToken = async () => {
     if (!user) return;
     
     try {
-      const response = await fetch(N8N_OAUTH_WEBHOOK, {
+      const response = await fetch(SUPABASE_PROXY_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
         body: JSON.stringify({
           action: 'refresh_token',
           user_id: user.id
