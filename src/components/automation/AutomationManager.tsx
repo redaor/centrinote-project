@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Plus, BarChart3 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { AutomationDashboard } from './AutomationDashboard';
+import { SimpleAutomationDashboard } from './SimpleAutomationDashboard';
 import { AutomationBuilder } from './AutomationBuilder';
 import { AutomationTemplates } from './AutomationTemplates';
 import { automationService } from '../../services/automationService';
@@ -156,13 +156,7 @@ export function AutomationManager() {
   const renderCurrentView = () => {
     switch (currentView) {
       case 'dashboard':
-        return (
-          <AutomationDashboard
-            onCreateAutomation={handleCreateAutomation}
-            onEditAutomation={handleEditAutomation}
-            onViewExecution={handleViewExecution}
-          />
-        );
+        return <SimpleAutomationDashboard />;
 
       case 'templates':
         return (
@@ -218,7 +212,7 @@ export function AutomationManager() {
       case 'execution':
         return 'Execution Details';
       default:
-        return 'Automation Center';
+        return 'Automatisations';
     }
   };
 
@@ -264,35 +258,7 @@ export function AutomationManager() {
         </AnimatePresence>
       </div>
 
-      {/* Quick Actions (only on dashboard) */}
-      {currentView === 'dashboard' && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3 }}
-          className="fixed bottom-6 right-6 flex flex-col space-y-3"
-        >
-          <button
-            onClick={handleCreateAutomation}
-            className="w-14 h-14 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group"
-            title="Create new automation"
-          >
-            <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
-          </button>
-
-          <button
-            onClick={() => {/* TODO: Add analytics view */}}
-            className={`w-12 h-12 ${
-              darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'
-            } border ${
-              darkMode ? 'border-gray-700' : 'border-gray-200'
-            } rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center`}
-            title="View analytics"
-          >
-            <BarChart3 className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
-          </button>
-        </motion.div>
-      )}
+      {/* Suppression des boutons d'actions complexes - interface simplifiée */}
     </div>
   );
 }
