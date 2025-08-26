@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion Zoom - Centrinote</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .success {
+            color: #27ae60;
+        }
+        
+        .error {
+            color: #e74c3c;
+        }
+        
+        .status-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .message {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        
+        .details {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #666;
+            text-align: left;
+        }
+        
+        .button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.2s;
+        }
+        
+        .button:hover {
+            background: #2980b9;
+        }
+        
+        .button.error {
+            background: #e74c3c;
+        }
+        
+        .button.error:hover {
+            background: #c0392b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading" style="display: block;">
+            <div class="spinner"></div>
+            <h2>🔄 Traitement de la connexion Zoom...</h2>
+            <p class="message">Veuillez patienter pendant que nous finalisons votre authentification.</p>
+        </div>
+        
+        <div id="success" style="display: none;">
+            <div class="status-icon">✅</div>
+            <h2 class="success">Connexion réussie à Zoom !</h2>
+            <p class="message">Votre compte Zoom a été connecté avec succès à Centrinote.</p>
+            <a href="/" class="button">Retourner à l'application</a>
+        </div>
+        
+        <div id="error" style="display: none;">
+            <div class="status-icon">❌</div>
+            <h2 class="error">Erreur de connexion</h2>
+            <p id="error-message" class="message"></p>
+            <div id="error-details" class="details" style="display: none;"></div>
+            <a href="/" class="button error">Retourner à l'application</a>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const BACKEND_ENDPOINT = '/.netlify/functions/zoom-auth';
+        
+        // Éléments DOM
+        const loadingDiv = document.getElementById('loading');
+        const successDiv = document.getElementById('success');
+        const errorDiv = document.getElementById('error');
+        const errorMessage = document.getElementById('error-message');
+        const errorDetails = document.getElementById('error-details');
+        
+        // Fonction utilitaire pour afficher les erreurs
+        function showError(message, details = null) {
+            console.error('❌ Erreur OAuth:', message, details);
+            
+            loadingDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            errorDiv.style.display = 'block';
+            
+            errorMessage.textContent = message;
+            
+            if (details) {
+                errorDetails.textContent = JSON.stringify(details, null, 2);
+                errorDetails.style.display = 'block';
+            }
+        }
+        
+        // Fonction utilitaire pour afficher le succès
+        function showSuccess() {
+            console.log('✅ Connexion Zoom réussie');
+            
+            loadingDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'block';
+        }
+        
+        // Fonction principale de traitement du callback
+        async function processOAuthCallback() {
+            try {
+                console.log('🔍 Début du traitement du callback OAuth');
+                console.log('🔗 URL complète:', window.location.href);
+                
+                // 1. Récupérer les paramètres de l'URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                const state = urlParams.get('state');
+                const error = urlParams.get('error');
+                const errorDescription = urlParams.get('error_description');
+                
+                console.log('📝 Paramètres OAuth reçus:', {
+                    code: code ? code.substring(0, 10) + '...' : null,
+                    state: state ? state.substring(0, 16) + '...' : null,
+                    error: error,
+                    errorDescription: errorDescription
+                });
+                
+                // 2. Vérifier s'il y a une erreur OAuth de Zoom
+                if (error) {
+                    const fullError = errorDescription ? `${error}: ${errorDescription}` : error;
+                    showError(`Erreur d'autorisation Zoom: ${fullError}`);
+                    return;
+                }
+                
+                // 3. Vérifier que les paramètres requis sont présents
+                if (!code) {
+                    showError('Code d\'autorisation manquant dans la réponse de Zoom');
+                    return;
+                }
+                
+                if (!state) {
+                    showError('Paramètre state manquant - possible problème de configuration OAuth');
+                    return;
+                }
+                
+                // 4. Récupérer le state sauvegardé en sessionStorage
+                const savedState = sessionStorage.getItem('zoom_oauth_state');
+                
+                console.log('🔐 Validation du state:', {
+                    received: state.substring(0, 16) + '...',
+                    saved: savedState ? savedState.substring(0, 16) + '...' : null,
+                    match: state === savedState
+                });
+                
+                // 5. Valider le state (protection CSRF)
+                if (!savedState) {
+                    showError(
+                        'Session OAuth expirée ou perdue - state manquant en sessionStorage',
+                        {
+                            tip: 'Veuillez recommencer le processus de connexion',
+                            sessionStorageKeys: Object.keys(sessionStorage)
+                        }
+                    );
+                    return;
+                }
+                
+                if (state !== savedState) {
+                    showError(
+                        'State OAuth invalide - possible tentative d\'attaque CSRF',
+                        {
+                            received: state.substring(0, 16) + '...',
+                            expected: savedState.substring(0, 16) + '...'
+                        }
+                    );
+                    return;
+                }
+                
+                console.log('✅ Validation du state réussie');
+                
+                // 6. Nettoyer le sessionStorage
+                sessionStorage.removeItem('zoom_oauth_state');
+                
+                // 7. Appeler le backend Netlify Function
+                console.log('🚀 Appel du backend Netlify:', BACKEND_ENDPOINT);
+                
+                const response = await fetch(BACKEND_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        state: state,
+                        redirect_uri: 'https://centrinote.fr/zoom-callback',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                console.log('📡 Réponse backend:', response.status, response.statusText);
+                
+                // 8. Traiter la réponse
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Erreur HTTP du backend:', response.status, errorText);
+                    showError(
+                        `Erreur du serveur (${response.status}): ${response.statusText}`,
+                        { details: errorText }
+                    );
+                    return;
+                }
+                
+                const result = await response.json();
+                console.log('📋 Résultat du backend:', result);
+                
+                if (result.success) {
+                    // Succès !
+                    showSuccess();
+                } else {
+                    // Erreur métier
+                    showError(
+                        'Erreur lors de l\'échange du token',
+                        { error: result.error, details: result.details }
+                    );
+                }
+                
+            } catch (err) {
+                console.error('❌ Erreur inattendue:', err);
+                showError(
+                    'Erreur inattendue lors du traitement OAuth',
+                    {
+                        error: err.message,
+                        stack: err.stack
+                    }
+                );
+            }
+        }
+        
+        // Démarrer le traitement au chargement de la page
+        document.addEventListener('DOMContentLoaded', processOAuthCallback);
+        
+        // Fallback au cas où DOMContentLoaded ne se déclenche pas
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', processOAuthCallback);
+        } else {
+            processOAuthCallback();
+        }
+    </script>
+</body>
+</html>
