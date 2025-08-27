@@ -20,10 +20,10 @@
   to = "/index.html"
   status = 200
 
-# 🚀 Redirige /zoom-callback vers le fichier statique
+# 🚀 Redirige /zoom/callback vers React (pour que SimpleZoomAuth puisse gérer le state)
 [[redirects]]
-  from = "/zoom-callback"
-  to = "/zoom-callback.html"
+  from = "/zoom/callback"
+  to = "/index.html"
   status = 200
 
 # 📌 Catch-all : toutes les autres routes vont vers React

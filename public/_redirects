@@ -2,8 +2,8 @@
 /auth/confirm-email    /index.html   200
 /auth/confirm-signup   /index.html   200
 
-# 🚀 Redirection callback Zoom vers fichier statique
-/zoom-callback         /zoom-callback.html   200
+# 🚀 Redirection callback Zoom vers React (pour le state)
+/zoom/callback         /index.html   200
 
 # 📌 Catch-all pour React Router
 /*                     /index.html   200
