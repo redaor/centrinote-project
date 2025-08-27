@@ -9,6 +9,13 @@
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co https://api.supabase.co https://n8n.srv886297.hstgr.cloud"
     Referrer-Policy = "strict-origin-when-cross-origin"
 
+# 🚀 Redirige /zoom-callback vers le fichier statique
+[[redirects]]
+  from = "/zoom-callback"
+  to = "/zoom-callback.html"
+  status = 200
+
+# 📌 Catch-all : toutes les autres routes vont vers React
 [[redirects]]
   from = "/*"
   to = "/index.html"
