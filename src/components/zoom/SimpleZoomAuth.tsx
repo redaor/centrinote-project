@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { supabase } from '../../lib/supabase';
 
@@ -6,7 +6,11 @@ interface ZoomAuthProps {
   onTokenReceived?: (token: any) => void;
 }
 
-const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
+interface ZoomAuthRef {
+  refreshConnectionState: () => Promise<void>;
+}
+
+const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived }, ref) => {
   const { user } = useSupabaseAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -14,13 +18,12 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
 
   // Configuration OAuth Zoom
   const ZOOM_CLIENT_ID = import.meta.env.VITE_ZOOM_CLIENT_ID || 'XjtK5_JvQ7upfjYppAF1tw';
+  const REDIRECT_URI = import.meta.env.VITE_ZOOM_REDIRECT_URI || 'https://centrinote.fr/zoom/callback';
   const SUPABASE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zoom-n8n-proxy`;
-  const REDIRECT_URI = 'https://centrinote.fr/zoom/callback';
 
   useEffect(() => {
     if (user) {
       checkExistingToken();
-      handleCallbackIfPresent();
     }
   }, [user]);
 
@@ -50,6 +53,20 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
     }
   };
 
+  // Utilitaire pour gérer les cookies avec SameSite=Lax; Secure
+  const setCookie = (name: string, value: string, days = 1) => {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/; SameSite=Lax; Secure`;
+  };
+
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+  };
+
   // Démarrer le processus OAuth
   const connectToZoom = () => {
     if (!user) {
@@ -57,116 +74,50 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
       return;
     }
 
+    console.log('🚀 Début connexion Zoom pour utilisateur:', user.id);
+
     // Générer un state sécurisé
     const secureState = crypto.randomUUID();
     
     // Stocker le state et les données utilisateur
     const stateData = { 
       user_id: user.id,
-      redirect_back: window.location.href 
+      redirect_back: window.location.pathname,
+      timestamp: Date.now()
     };
     
+    // Double stockage : sessionStorage + cookie (protection contre perte)
     sessionStorage.setItem('zoom_oauth_state', secureState);
     sessionStorage.setItem('zoom_oauth_data', JSON.stringify(stateData));
+    setCookie('zoom_oauth_state', secureState);
+    setCookie('zoom_oauth_data', JSON.stringify(stateData));
 
+    // Construire l'URL OAuth avec les variables d'environnement
     const oauthUrl = `https://zoom.us/oauth/authorize?` + 
       `response_type=code&` +
-      `client_id=${ZOOM_CLIENT_ID}&` +
+      `client_id=${encodeURIComponent(ZOOM_CLIENT_ID)}&` +
       `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
       `state=${encodeURIComponent(secureState)}`;
 
-    console.log('🔄 Redirection vers Zoom OAuth avec state sécurisé');
-    window.location.href = oauthUrl;
+    console.log('🔐 State généré:', secureState);
+    console.log('📍 Redirect URI:', REDIRECT_URI);
+    console.log('🔄 Redirection vers Zoom OAuth (même onglet)');
+
+    // Redirection dans le même onglet (pas window.location.href)
+    window.location.assign(oauthUrl);
   };
 
-  // Gérer le retour du callback OAuth
-  const handleCallbackIfPresent = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-
-    if (code && state) {
-      console.log('📥 Callback OAuth reçu:', { code: code.substring(0, 10) + '...', state });
-      
-      // Envoyer le code vers n8n pour traitement
-      sendCodeToN8N(code, state);
-      
-      // Nettoyer l'URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+  // Méthode publique pour recharger l'état depuis la DB après callback
+  const refreshConnectionState = async () => {
+    if (user) {
+      await checkExistingToken();
     }
   };
 
-  // Envoyer le code OAuth vers Supabase Edge Function (proxy N8N)
-  const sendCodeToN8N = async (code: string, state: string) => {
-    setLoading(true);
-    try {
-      // Récupérer les données stockées en session avec le state
-      const savedState = sessionStorage.getItem('zoom_oauth_state');
-      const savedData = sessionStorage.getItem('zoom_oauth_data');
-      
-      if (!savedState || state !== savedState) {
-        throw new Error('State OAuth invalide - possible attaque CSRF');
-      }
-      
-      if (!savedData) {
-        throw new Error('Données OAuth manquantes dans le sessionStorage');
-      }
-      
-      const stateData = JSON.parse(savedData);
-      
-      // Nettoyer le sessionStorage
-      sessionStorage.removeItem('zoom_oauth_state');
-      sessionStorage.removeItem('zoom_oauth_data');
-      
-      const response = await fetch(SUPABASE_PROXY_URL, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
-          action: 'oauth_callback',
-          code,
-          user_id: stateData.user_id,
-          redirect_uri: REDIRECT_URI,
-          state: state, // Passer le state validé au proxy
-          timestamp: new Date().toISOString()
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
-      }
-      
-      const result = await response.json();
-      console.log('📡 Réponse du proxy N8N:', result);
-
-      if (result.success) {
-        console.log('✅ Token OAuth enregistré avec succès');
-        setIsConnected(true);
-        setTokenInfo(result.token_info);
-        
-        if (onTokenReceived) {
-          onTokenReceived(result.token_info);
-        }
-        
-        // Rediriger vers la page d'origine si spécifiée
-        if (stateData.redirect_back && stateData.redirect_back !== window.location.href) {
-          setTimeout(() => {
-            window.location.href = stateData.redirect_back;
-          }, 2000);
-        }
-      } else {
-        throw new Error(result.error || result.message || 'Erreur inconnue lors du traitement OAuth');
-      }
-    } catch (error) {
-      console.error('❌ Erreur callback OAuth:', error);
-      alert('Erreur lors de la connexion à Zoom. Veuillez réessayer.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Exposer la méthode pour usage externe
+  useImperativeHandle(ref, () => ({
+    refreshConnectionState
+  }));
 
   // Refresh token via Supabase Edge Function (proxy N8N)
   const refreshToken = async () => {
@@ -289,6 +240,9 @@ const SimpleZoomAuth: React.FC<ZoomAuthProps> = ({ onTokenReceived }) => {
       )}
     </div>
   );
-};
+});
+
+SimpleZoomAuth.displayName = 'SimpleZoomAuth';
 
 export default SimpleZoomAuth;
+export type { ZoomAuthRef };

@@ -1,10 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 
 const ZoomOAuthCallback: React.FC = () => {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = useState('Traitement de la connexion Zoom...');
   const navigate = useNavigate();
+  const { user } = useSupabaseAuth();
+
+  // Utilitaire cookies (même logique que SimpleZoomAuth)
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+  };
+
+  const deleteCookie = (name: string) => {
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax; Secure`;
+  };
 
   useEffect(() => {
     const processCallback = async () => {
@@ -46,42 +60,43 @@ const ZoomOAuthCallback: React.FC = () => {
         
         console.log('✅ Paramètres OAuth valides reçus de Zoom');
 
-        // Validation renforcée du state sécurisé
-        const savedState = sessionStorage.getItem('zoom_oauth_state');
-        const savedData = sessionStorage.getItem('zoom_oauth_data');
+        // Validation du state avec fallback sessionStorage → cookies
+        let savedState = sessionStorage.getItem('zoom_oauth_state');
+        let savedData = sessionStorage.getItem('zoom_oauth_data');
         
-        console.log('🔐 Validation détaillée du state:', { 
+        // Fallback vers cookies si sessionStorage vide
+        if (!savedState) {
+          savedState = getCookie('zoom_oauth_state');
+          savedData = getCookie('zoom_oauth_data');
+          console.log('📋 Fallback vers cookies:', { hasState: !!savedState, hasData: !!savedData });
+        }
+        
+        console.log('🔐 Validation du state (sessionStorage + cookies):', { 
           received: state.substring(0, 16) + '...', 
           saved: savedState?.substring(0, 16) + '...',
           exactMatch: state === savedState,
           receivedLength: state.length,
           savedLength: savedState?.length || 0,
-          sessionStorageKeys: Object.keys(sessionStorage),
-          dataExists: !!savedData
+          dataExists: !!savedData,
+          source: sessionStorage.getItem('zoom_oauth_state') ? 'sessionStorage' : 'cookies'
         });
 
         if (!savedState) {
-          console.error('❌ Aucun state stocké en sessionStorage');
-          console.log('📋 SessionStorage actuel:', {
-            keys: Object.keys(sessionStorage),
-            zoomKeys: Object.keys(sessionStorage).filter(k => k.includes('zoom'))
-          });
-          throw new Error('Session OAuth expirée ou perdue - state manquant en sessionStorage');
+          console.error('❌ Aucun state trouvé (ni sessionStorage ni cookies)');
+          throw new Error('Session OAuth expirée - state manquant');
         }
         
         if (state !== savedState) {
-          console.error('❌ State ne correspond pas:', {
-            expected: savedState,
-            received: state,
-            expectedPreview: savedState.substring(0, 16) + '...',
-            receivedPreview: state.substring(0, 16) + '...'
+          console.error('❌ State invalide:', {
+            expected: savedState.substring(0, 16) + '...',
+            received: state.substring(0, 16) + '...'
           });
-          throw new Error('State OAuth invalide - possible attaque CSRF ou corruption de session');
+          throw new Error('State OAuth invalide - possible attaque CSRF');
         }
 
         if (!savedData) {
           console.error('❌ Données OAuth manquantes');
-          throw new Error('Données utilisateur OAuth manquantes dans le sessionStorage');
+          throw new Error('Données utilisateur OAuth manquantes');
         }
         
         console.log('✅ Validation du state réussie');
@@ -93,21 +108,26 @@ const ZoomOAuthCallback: React.FC = () => {
           console.log('📋 Données utilisateur récupérées:', {
             userId: stateData.user_id,
             hasRedirectBack: !!stateData.redirect_back,
-            createdAt: stateData.created_at,
-            clientId: stateData.client_id?.substring(0, 8) + '...'
+            timestamp: stateData.timestamp
           });
         } catch (parseError) {
           console.error('❌ Erreur parsing données OAuth:', parseError);
-          throw new Error('Données OAuth corrompues dans sessionStorage');
+          throw new Error('Données OAuth corrompues');
         }
         
-        if (!stateData.user_id) {
-          throw new Error('ID utilisateur manquant dans les données OAuth');
+        // Utiliser l'utilisateur connecté actuel ou celui stocké
+        const userId = user?.id || stateData.user_id;
+        if (!userId) {
+          throw new Error('ID utilisateur manquant - veuillez vous reconnecter');
         }
         
-        // Nettoyer le sessionStorage
+        // Nettoyer le stockage
         sessionStorage.removeItem('zoom_oauth_state');
         sessionStorage.removeItem('zoom_oauth_data');
+        deleteCookie('zoom_oauth_state');
+        deleteCookie('zoom_oauth_data');
+        
+        console.log('🚀 Envoi vers Edge Function pour user_id:', userId);
         
         // Envoyer vers Supabase Edge Function (proxy vers N8N)
         const SUPABASE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zoom-n8n-proxy`;
@@ -115,18 +135,18 @@ const ZoomOAuthCallback: React.FC = () => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
           },
           body: JSON.stringify({
             action: 'oauth_callback',
             code,
-            user_id: stateData.user_id,
-            redirect_uri: 'https://centrinote.fr/zoom-callback',
-            state: state, // Inclure le state validé dans l'appel
-            callback_url: window.location.href,
-            timestamp: new Date().toISOString()
+            state,
+            user_id: userId
           })
         });
+
+        console.log('📡 Response status:', response.status, response.statusText);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -141,11 +161,12 @@ const ZoomOAuthCallback: React.FC = () => {
           setStatus('success');
           setMessage('✅ Connexion Zoom réussie ! Redirection...');
           
+          // Attendre un peu puis rediriger
           setTimeout(() => {
-            // Rediriger vers la page d'origine ou dashboard
-            const redirectUrl = stateData.redirect_back || '/dashboard';
-            window.location.href = redirectUrl;
-          }, 2000);
+            const redirectPath = stateData.redirect_back || '/dashboard';
+            console.log('↩️ Redirection vers:', redirectPath);
+            navigate(redirectPath);
+          }, 1500);
         } else {
           console.error('❌ Échec du traitement OAuth:', result);
           throw new Error(result.error || result.message || 'Erreur inconnue lors du traitement OAuth');

@@ -10,7 +10,8 @@
       "Bash(grep:*)",
       "Bash(chmod:*)",
       "Bash(./test-new-url.sh:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(supabase status:*)"
     ],
     "deny": []
   }
