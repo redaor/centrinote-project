@@ -129,9 +129,9 @@ const ZoomOAuthCallback: React.FC = () => {
         
         console.log('🚀 Envoi vers Edge Function pour user_id:', userId);
         
-        // Envoyer vers Supabase Edge Function (proxy vers N8N)
-        const SUPABASE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zoom-n8n-proxy`;
-        const response = await fetch(SUPABASE_PROXY_URL, {
+        // Envoyer vers Supabase Edge Function dédiée
+        const EXCHANGE_CODE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exchange-zoom-code`;
+        const response = await fetch(EXCHANGE_CODE_URL, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -139,7 +139,6 @@ const ZoomOAuthCallback: React.FC = () => {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
           },
           body: JSON.stringify({
-            action: 'oauth_callback',
             code,
             state,
             user_id: userId
