@@ -3,10 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 
 const ZoomOAuthCallback: React.FC = () => {
+  console.log('🚀 ZoomOAuthCallback - Composant monté');
+  
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = useState('Traitement de la connexion Zoom...');
   const navigate = useNavigate();
   const { user } = useSupabaseAuth();
+  
+  console.log('👤 User actuel:', user ? user.id : 'non connecté');
 
   // Utilitaire cookies (même logique que SimpleZoomAuth)
   const getCookie = (name: string): string | null => {
@@ -21,11 +25,16 @@ const ZoomOAuthCallback: React.FC = () => {
   };
 
   useEffect(() => {
+    console.log('🔄 useEffect démarré - processCallback va être appelé');
+    
     const processCallback = async () => {
+      console.log('📋 === DÉBUT processCallback ===');
       try {
         // Debug détaillé : log de l'URL complète avec analyse
         console.log('🔍 URL complète callback:', window.location.href);
         console.log('🔍 Search params bruts:', window.location.search);
+        console.log('🔍 Pathname:', window.location.pathname);
+        console.log('🔍 Host:', window.location.host);
         
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
@@ -50,11 +59,13 @@ const ZoomOAuthCallback: React.FC = () => {
 
         if (!code) {
           console.error('❌ Code d\'autorisation manquant');
+          console.error('❌ URL params disponibles:', Object.fromEntries(urlParams.entries()));
           throw new Error('Code d\'autorisation manquant dans la réponse Zoom');
         }
         
         if (!state) {
           console.error('❌ Paramètre state manquant - Zoom n\'a pas retourné le state');
+          console.error('❌ URL params disponibles:', Object.fromEntries(urlParams.entries()));
           throw new Error('Paramètre state manquant - possible problème de configuration Zoom');
         }
         
@@ -83,7 +94,20 @@ const ZoomOAuthCallback: React.FC = () => {
 
         if (!savedState) {
           console.error('❌ Aucun state trouvé (ni sessionStorage ni cookies)');
-          throw new Error('Session OAuth expirée - state manquant');
+          console.log('🧪 Mode TEST détecté - Création de données factices pour debug');
+          
+          // Mode test : si on a code=TEST et state=TEST, on créé des données factices
+          if (code === 'TEST' && state === 'TEST' && user) {
+            console.log('🧪 Création de state factice pour test');
+            savedState = 'TEST';
+            savedData = JSON.stringify({ 
+              user_id: user.id,
+              redirect_back: '/zoom',
+              timestamp: Date.now()
+            });
+          } else {
+            throw new Error('Session OAuth expirée - state manquant');
+          }
         }
         
         if (state !== savedState) {
@@ -128,9 +152,13 @@ const ZoomOAuthCallback: React.FC = () => {
         deleteCookie('zoom_oauth_data');
         
         console.log('🚀 Envoi vers Edge Function pour user_id:', userId);
+        console.log('🔗 VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
         
         // Envoyer vers Supabase Edge Function dédiée
         const EXCHANGE_CODE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exchange-zoom-code`;
+        console.log('🎯 URL complète Edge Function:', EXCHANGE_CODE_URL);
+        console.log('📦 Payload à envoyer:', { code, state, user_id: userId });
+        
         const response = await fetch(EXCHANGE_CODE_URL, {
           method: 'POST',
           headers: { 
@@ -172,8 +200,11 @@ const ZoomOAuthCallback: React.FC = () => {
         }
       } catch (err: any) {
         console.error('❌ Erreur callback OAuth:', err);
+        console.error('❌ Stack trace:', err.stack);
         setStatus('error');
         setMessage(`❌ ${err.message}`);
+      } finally {
+        console.log('📋 === FIN processCallback ===');
       }
     };
 
