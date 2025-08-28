@@ -16,7 +16,9 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
   const [loading, setLoading] = useState(false);
   const [tokenInfo, setTokenInfo] = useState<any>(null);
 
-  // Configuration OAuth Zoom (maintenant gérée par oauth.ts)
+  // Configuration OAuth Zoom
+  const ZOOM_CLIENT_ID = import.meta.env.VITE_ZOOM_CLIENT_ID || 'XjtK5_JvQ7upfjYppAF1tw';
+  const REDIRECT_URI = import.meta.env.VITE_ZOOM_REDIRECT_URI || 'https://centrinote.fr/zoom-callback';
   const SUPABASE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zoom-n8n-proxy`;
 
   useEffect(() => {
@@ -52,8 +54,22 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
   };
 
 
-  // Démarrer le processus OAuth avec la nouvelle implémentation PKCE + cookies
-  const connectToZoom = async () => {
+  // Utilitaire pour gérer les cookies avec SameSite=Lax; Secure
+  const setCookie = (name: string, value: string, days = 1) => {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/; SameSite=Lax; Secure`;
+  };
+
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+  };
+
+  // Démarrer le processus OAuth (version originale simplifiée)
+  const connectToZoom = () => {
     if (!user) {
       alert('Veuillez vous connecter d\'abord');
       return;
@@ -61,14 +77,35 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
 
     console.log('🚀 Début connexion Zoom pour utilisateur:', user.id);
 
-    try {
-      // Import dynamique de la nouvelle fonction OAuth
-      const { startZoomOAuth } = await import('../../utils/oauth');
-      await startZoomOAuth();
-    } catch (error) {
-      console.error('❌ Erreur lors du démarrage OAuth:', error);
-      alert('Erreur lors de la connexion à Zoom. Veuillez réessayer.');
-    }
+    // Générer un state sécurisé
+    const secureState = crypto.randomUUID();
+    
+    // Stocker le state et les données utilisateur
+    const stateData = { 
+      user_id: user.id,
+      redirect_back: window.location.pathname,
+      timestamp: Date.now()
+    };
+    
+    // Double stockage : sessionStorage + cookie (protection contre perte)
+    sessionStorage.setItem('zoom_oauth_state', secureState);
+    sessionStorage.setItem('zoom_oauth_data', JSON.stringify(stateData));
+    setCookie('zoom_oauth_state', secureState);
+    setCookie('zoom_oauth_data', JSON.stringify(stateData));
+
+    // Construire l'URL OAuth avec les variables d'environnement
+    const oauthUrl = `https://zoom.us/oauth/authorize?` + 
+      `response_type=code&` +
+      `client_id=${encodeURIComponent(ZOOM_CLIENT_ID)}&` +
+      `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+      `state=${encodeURIComponent(secureState)}`;
+
+    console.log('🔐 State généré:', secureState);
+    console.log('📍 Redirect URI:', REDIRECT_URI);
+    console.log('🔄 Redirection vers Zoom OAuth');
+
+    // Redirection vers Zoom
+    window.location.assign(oauthUrl);
   };
 
   // Méthode publique pour recharger l'état depuis la DB après callback

@@ -1,106 +1,87 @@
 // src/pages/ZoomOAuthCallback.tsx
-// Page de callback OAuth Zoom avec validation cookies et PKCE
+// Page de callback OAuth Zoom simplifiée avec flag VITE_OAUTH_STATE_STRICT
 
 import { useEffect, useState } from 'react';
 
-/**
- * Récupère une valeur de cookie par son nom
- */
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : null;
-}
-
 export default function ZoomOAuthCallback() {
-  const [message, setMessage] = useState('Connexion Zoom en cours…');
+  const [msg, setMsg] = useState('Connexion Zoom en cours…');
 
   useEffect(() => {
-    const processOAuthCallback = async () => {
-      console.log('📋 === ZoomOAuthCallback - Début du traitement ===');
-      console.log('🔍 URL callback:', window.location.href);
+    const processCallback = async () => {
+      console.log('📋 ZoomOAuthCallback - Début traitement');
+      console.log('🔍 URL:', window.location.href);
       
       const qs = new URLSearchParams(window.location.search);
       const code = qs.get('code');
-      const state = qs.get('state');
       const error = qs.get('error');
-      
-      console.log('📝 Paramètres reçus:', { 
+      const stateFromUrl = qs.get('state') ?? '';
+      const stateFromSession = sessionStorage.getItem('zoom_oauth_state') ?? '';
+      const strict = String(import.meta.env.VITE_OAUTH_STATE_STRICT) === 'true';
+
+      console.log('📝 Paramètres:', {
         code: code ? code.substring(0, 10) + '...' : null,
-        state: state ? state.substring(0, 16) + '...' : null,
-        error 
+        error,
+        stateFromUrl: stateFromUrl ? stateFromUrl.substring(0, 16) + '...' : null,
+        stateFromSession: stateFromSession ? stateFromSession.substring(0, 16) + '...' : null,
+        strict
       });
 
-      // Vérification d'erreur OAuth
+      // Gestion des erreurs OAuth
       if (error) {
-        console.error('❌ Erreur OAuth de Zoom:', error);
-        setMessage(`Erreur OAuth: ${error}`);
+        console.error('❌ Erreur OAuth:', error);
+        setMsg(`Erreur OAuth: ${error}`);
         return;
       }
 
-      // Vérification du code
       if (!code) {
         console.error('❌ Code OAuth manquant');
-        setMessage('Code OAuth manquant.');
+        setMsg('Code OAuth manquant');
         return;
       }
 
-      // Récupération des cookies
-      const cookieState = getCookie('zoom_oauth_state');
-      const codeVerifier = getCookie('zoom_pkce_verifier');
-      const bypass = String(import.meta.env.VITE_ALLOW_OAUTH_STATE_BYPASS) === 'true';
-      
-      console.log('🍪 Cookies OAuth:', {
-        cookieState: cookieState ? cookieState.substring(0, 16) + '...' : null,
-        codeVerifier: codeVerifier ? codeVerifier.substring(0, 16) + '...' : null,
-        bypass
-      });
-
-      // Validation du state (sauf si bypass activé)
-      if (!bypass && (!state || !cookieState || state !== cookieState)) {
-        console.warn('⚠️ State invalide ou expiré - Relance du flux OAuth');
-        console.log('🔄 State reçu:', state?.substring(0, 16) + '...');
-        console.log('🔄 State cookie:', cookieState?.substring(0, 16) + '...');
-        
-        setMessage('Session expirée. Redirection pour relancer la connexion…');
-        
-        // Import dynamique pour éviter les dépendances circulaires
-        try {
-          const { startZoomOAuth } = await import('../utils/oauth');
-          setTimeout(() => {
-            startZoomOAuth();
-          }, 1500);
-        } catch (err) {
-          console.error('❌ Erreur lors du redémarrage OAuth:', err);
-          setMessage('Erreur lors de la reconnexion. Veuillez réessayer.');
+      // Vérification state selon le mode strict/non-strict
+      if (strict) {
+        if (!stateFromUrl || !stateFromSession || stateFromUrl !== stateFromSession) {
+          console.error('❌ OAuth state mismatch (strict mode)', { stateFromUrl, stateFromSession });
+          setMsg('Vérification de sécurité échouée (state).');
+          return;
         }
-        return;
+        console.log('✅ State validation passed (strict mode)');
+      } else {
+        if (!stateFromUrl || !stateFromSession || stateFromUrl !== stateFromSession) {
+          console.warn('⚠️ OAuth state mismatch/absent (non-strict). Continuing for debug.', { stateFromUrl, stateFromSession });
+        } else {
+          console.log('✅ State validation passed (non-strict mode)');
+        }
       }
 
-      console.log('✅ Validation state réussie (ou bypassée)');
-      
-      // Appel à l'Edge Function
-      console.log('🚀 Appel de l\'Edge Function...');
-      
+      // Préparation du payload pour Supabase Edge Function
       const payload = {
         code,
         redirect_uri: `${import.meta.env.VITE_APP_URL}/zoom-callback`,
-        code_verifier: codeVerifier || undefined
+        state: stateFromUrl || null,
       };
-      
-      console.log('📦 Payload Edge Function:', {
+
+      console.log('🚀 Appel Supabase Edge Function exchange-zoom-code');
+      console.log('📦 Payload:', {
         code: payload.code.substring(0, 10) + '...',
         redirect_uri: payload.redirect_uri,
-        code_verifier: payload.code_verifier ? payload.code_verifier.substring(0, 16) + '...' : undefined
+        state: payload.state ? payload.state.substring(0, 16) + '...' : null
       });
 
       try {
-        const response = await fetch('/.netlify/functions/exchange-zoom-code', {
+        // Appel vers Supabase Edge Function (PAS Netlify)
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exchange-zoom-code`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          headers: { 
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify(payload),
         });
 
-        console.log('📡 Réponse Edge Function:', {
+        console.log('📡 Response Supabase Edge Function:', {
           status: response.status,
           statusText: response.statusText,
           ok: response.ok
@@ -108,31 +89,31 @@ export default function ZoomOAuthCallback() {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('❌ Erreur Edge Function:', errorText);
+          console.error('❌ Erreur Supabase Edge Function:', errorText);
           throw new Error(`Erreur ${response.status}: ${errorText}`);
         }
 
         const result = await response.json();
-        console.log('✅ Succès Edge Function:', result);
+        console.log('✅ Succès Supabase Edge Function:', result);
+
+        // Nettoyage sessionStorage
+        sessionStorage.removeItem('zoom_oauth_state');
+        sessionStorage.removeItem('zoom_oauth_data');
+
+        setMsg('Connecté à Zoom avec succès ! Redirection…');
         
-        // Nettoyage des cookies OAuth
-        document.cookie = 'zoom_oauth_state=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax; Secure';
-        document.cookie = 'zoom_pkce_verifier=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax; Secure';
-        
-        setMessage('Connecté à Zoom avec succès ! Redirection…');
-        
-        // Redirection vers le dashboard après succès
+        // Redirection vers dashboard
         setTimeout(() => {
           window.location.replace('/dashboard');
         }, 800);
 
       } catch (error) {
-        console.error('❌ Erreur lors de l\'échange du code:', error);
-        setMessage('Erreur de connexion Zoom. Veuillez réessayer.');
+        console.error('❌ Erreur OAuth exchange:', error);
+        setMsg('Erreur de connexion Zoom. Réessayez.');
       }
     };
 
-    processOAuthCallback();
+    processCallback();
   }, []);
 
   return (
@@ -147,7 +128,7 @@ export default function ZoomOAuthCallback() {
             Connexion Zoom
           </h2>
           
-          <p className="text-gray-600 mb-6">{message}</p>
+          <p className="text-gray-600 mb-6">{msg}</p>
           
           <p className="text-sm text-gray-500">
             Veuillez patienter, ne fermez pas cette page...
