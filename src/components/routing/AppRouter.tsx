@@ -10,7 +10,7 @@ import { Support } from '../legal/Support';
 import AuthForm from '../AuthForm';
 import { AppLayout } from '../layout/AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
-import ZoomOAuthCallback from '../zoom/ZoomOAuthCallback';
+import ZoomOAuthCallback from '../../pages/ZoomOAuthCallback';
 import ZoomManagerSimple from '../zoom/ZoomManagerSimple';
 
 export function AppRouter() {
@@ -185,12 +185,7 @@ export function AppRouter() {
         {/* Route spéciale pour callback OAuth Zoom */}
         <Route 
           path="/zoom-callback" 
-          element={
-            <>
-              {console.log('🚨 Route /zoom-callback atteinte')}
-              <ZoomOAuthCallback />
-            </>
-          } 
+          element={<ZoomOAuthCallback />} 
         />
 
         {/* Route standalone pour gestionnaire Zoom */}
