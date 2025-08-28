@@ -140,20 +140,20 @@ const ZoomConnectionStatus: React.FC = () => {
     switch (status) {
       case 'loading':
         return (
-          <div className=\"flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg\">
-            <div className=\"animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600\"></div>
-            <span className=\"text-gray-700 text-sm\">Vérification...</span>
+          <div className="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+            <span className="text-gray-700 text-sm">Vérification...</span>
           </div>
         );
       
       case 'connected':
         return (
-          <div className=\"flex items-center space-x-2 px-3 py-2 bg-green-100 rounded-lg\">
-            <div className=\"w-3 h-3 bg-green-500 rounded-full\"></div>
-            <span className=\"text-green-800 font-medium text-sm\">Connecté à Zoom</span>
+          <div className="flex items-center space-x-2 px-3 py-2 bg-green-100 rounded-lg">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <span className="text-green-800 font-medium text-sm">Connecté à Zoom</span>
             {tokenInfo && (
-              <span className=\"text-green-600 text-xs\">
-                (expire le {new Date(tokenInfo.expires_at).toLocaleDateString('fr-FR')})
+              <span className="text-green-600 text-xs">
+                (expire le {new Date(tokenInfo.expires_at).toLocaleDateString("fr-FR")})
               </span>
             )}
           </div>
@@ -161,12 +161,12 @@ const ZoomConnectionStatus: React.FC = () => {
       
       case 'expired':
         return (
-          <div className=\"flex items-center space-x-2 px-3 py-2 bg-orange-100 rounded-lg\">
-            <div className=\"w-3 h-3 bg-orange-500 rounded-full\"></div>
-            <span className=\"text-orange-800 font-medium text-sm\">Connexion expirée</span>
+          <div className="flex items-center space-x-2 px-3 py-2 bg-orange-100 rounded-lg">
+            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+            <span className="text-orange-800 font-medium text-sm">Connexion expirée</span>
             {tokenInfo && (
-              <span className=\"text-orange-600 text-xs\">
-                (expiré le {new Date(tokenInfo.expires_at).toLocaleDateString('fr-FR')})
+              <span className="text-orange-600 text-xs">
+                (expiré le {new Date(tokenInfo.expires_at).toLocaleDateString("fr-FR")})
               </span>
             )}
           </div>
@@ -175,9 +175,9 @@ const ZoomConnectionStatus: React.FC = () => {
       case 'not_connected':
       default:
         return (
-          <div className=\"flex items-center space-x-2 px-3 py-2 bg-red-100 rounded-lg\">
-            <div className=\"w-3 h-3 bg-red-500 rounded-full\"></div>
-            <span className=\"text-red-800 font-medium text-sm\">Non connecté</span>
+          <div className="flex items-center space-x-2 px-3 py-2 bg-red-100 rounded-lg">
+            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <span className="text-red-800 font-medium text-sm">Non connecté</span>
           </div>
         );
     }
@@ -185,57 +185,57 @@ const ZoomConnectionStatus: React.FC = () => {
 
   // 🎨 Interface utilisateur principale
   return (
-    <div className=\"space-y-4 p-4 bg-white border rounded-lg shadow-sm\">
+    <div className="space-y-4 p-4 bg-white border rounded-lg shadow-sm">
       
       {/* En-tête avec statut */}
-      <div className=\"flex items-center justify-between\">
-        <h3 className=\"text-lg font-semibold text-gray-900 flex items-center\">
-          <span className=\"mr-2\">🔵</span>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <span className="mr-2">🔵</span>
           État de la connexion Zoom
         </h3>
         {renderStatusBadge()}
       </div>
 
       {/* Test de connectivité N8N */}
-      <div className=\"border-t pt-4\">
-        <div className=\"flex items-center justify-between mb-2\">
-          <span className=\"text-sm font-medium text-gray-700\">Test de connectivité N8N</span>
+      <div className="border-t pt-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-gray-700">Test de connectivité N8N</span>
           <button
             onClick={testN8nConnection}
             disabled={testing}
-            className=\"px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors\"
+            className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {testing ? '🔄 Test en cours...' : '🏓 Tester la connexion N8N'}
+            {testing ? "Test en cours…" : "Tester le webhook N8N"}
           </button>
         </div>
 
         {/* Résultats du test */}
         {testResult && (
-          <div className=\"mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800\">
+          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">
             {testResult}
           </div>
         )}
 
         {error && (
-          <div className=\"mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800\">
-            ❌ {error}
+          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+            Erreur webhook ❌ : {error}
           </div>
         )}
       </div>
 
       {/* Actions */}
-      <div className=\"border-t pt-4 flex space-x-2\">
+      <div className="border-t pt-4 flex space-x-2">
         <button
           onClick={refreshStatus}
           disabled={status === 'loading'}
-          className=\"px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 transition-colors\"
+          className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 transition-colors"
         >
           🔄 Actualiser l'état
         </button>
 
         {status === 'expired' && (
-          <span className=\"text-xs text-gray-500 px-2 py-1\">
-            💡 Reconnectez-vous via le bouton \"Connecter à Zoom\" ci-dessous
+          <span className="text-xs text-gray-500 px-2 py-1">
+            💡 Reconnectez-vous via le bouton "Connecter à Zoom" ci-dessous
           </span>
         )}
       </div>
