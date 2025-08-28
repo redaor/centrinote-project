@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ZoomConnectionStatus from '../ZoomConnectionStatus';
 import SimpleZoomAuth from './SimpleZoomAuth';
 import SimpleZoomMeeting from './SimpleZoomMeeting';
 
@@ -20,6 +21,11 @@ const ZoomManagerSimple: React.FC = () => {
         <p className="text-gray-600">
           Solution simplifiée pour la gestion des réunions Zoom
         </p>
+      </div>
+
+      {/* État de connexion en haut */}
+      <div className="mb-6">
+        <ZoomConnectionStatus />
       </div>
 
       {/* Navigation par onglets */}

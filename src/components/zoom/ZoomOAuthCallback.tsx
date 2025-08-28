@@ -160,9 +160,9 @@ const ZoomOAuthCallback: React.FC = () => {
           setStatus('success');
           setMessage('✅ Connexion Zoom réussie ! Redirection...');
           
-          // Attendre un peu puis rediriger
+          // Attendre un peu puis rediriger vers /zoom avec paramètre connected=1
           setTimeout(() => {
-            const redirectPath = stateData.redirect_back || '/dashboard';
+            const redirectPath = '/zoom?connected=1';
             console.log('↩️ Redirection vers:', redirectPath);
             navigate(redirectPath);
           }, 1500);
