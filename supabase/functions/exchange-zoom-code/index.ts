@@ -119,7 +119,7 @@ serve(async (req) => {
     
     if (!n8nWebhookUrl) {
       console.error('❌ Variable N8N_ZOOM_OAUTH_WEBHOOK manquante dans les secrets Supabase');
-      console.log('💡 Utilisez: supabase secrets set N8N_ZOOM_OAUTH_WEBHOOK=https://n8n.srv886297.hstgr.cloud/webhook/...');
+      console.log('💡 Utilisez: supabase secrets set N8N_ZOOM_OAUTH_WEBHOOK=https://n8n.srv886297.hstgr.cloud/webhook/zoom-oauth');
       
       return new Response(
         JSON.stringify({ 
