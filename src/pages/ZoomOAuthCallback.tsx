@@ -50,6 +50,7 @@ export default function ZoomOAuthCallback() {
       } else {
         if (!stateFromUrl || !stateFromSession || stateFromUrl !== stateFromSession) {
           console.warn('⚠️ OAuth state mismatch/absent (non-strict). Continuing for debug.', { stateFromUrl, stateFromSession });
+          console.log('🚀 BYPASS state validation - calling Edge Function');
         } else {
           console.log('✅ State validation passed (non-strict mode)');
         }
