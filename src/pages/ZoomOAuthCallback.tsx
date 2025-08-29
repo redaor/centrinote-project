@@ -2,6 +2,7 @@
 // Page de callback OAuth Zoom simplifiée avec flag VITE_OAUTH_STATE_STRICT
 
 import { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 export default function ZoomOAuthCallback() {
   const [msg, setMsg] = useState('Connexion Zoom en cours…');
@@ -25,6 +26,13 @@ export default function ZoomOAuthCallback() {
         stateFromSession: stateFromSession ? stateFromSession.substring(0, 16) + '...' : null,
         strict
       });
+
+      if (!strict) {
+        console.log('🔧 OAUTH STATE BYPASS ACTIVÉ', {
+          stateFromUrl: stateFromUrl ? stateFromUrl.substring(0, 16) + '...' : null,
+          stateFromSession: stateFromSession ? stateFromSession.substring(0, 16) + '...' : null
+        });
+      }
 
       // Gestion des erreurs OAuth
       if (error) {
@@ -63,39 +71,20 @@ export default function ZoomOAuthCallback() {
         state: stateFromUrl || null,
       };
 
-      console.log('🚀 Appel Supabase Edge Function exchange-zoom-code');
-      console.log('📦 Payload:', {
-        code: payload.code.substring(0, 10) + '...',
-        redirect_uri: payload.redirect_uri,
-        state: payload.state ? payload.state.substring(0, 16) + '...' : null
-      });
+      console.log('🚀 BYPASS state validation - calling Edge Function via supabase-js', payload);
 
       try {
-        // Appel vers Supabase Edge Function (PAS Netlify)
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exchange-zoom-code`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify(payload),
+        // Appel vers Supabase Edge Function avec supabase-js
+        const { data, error } = await supabase.functions.invoke('exchange-zoom-code', {
+          body: payload,
         });
 
-        console.log('📡 Response Supabase Edge Function:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('❌ Erreur Supabase Edge Function:', errorText);
-          throw new Error(`Erreur ${response.status}: ${errorText}`);
+        if (error) {
+          console.error('❌ Erreur Supabase Edge Function:', error);
+          throw error;
         }
 
-        const result = await response.json();
-        console.log('✅ Succès Supabase Edge Function:', result);
+        console.log('✅ Succès Supabase Edge Function:', data);
 
         // Nettoyage sessionStorage
         sessionStorage.removeItem('zoom_oauth_state');
