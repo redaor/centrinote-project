@@ -11,7 +11,8 @@
       "Bash(chmod:*)",
       "Bash(./test-new-url.sh:*)",
       "Bash(curl:*)",
-      "Bash(supabase status:*)"
+      "Bash(supabase status:*)",
+      "Bash(supabase functions deploy:*)"
     ],
     "deny": []
   }

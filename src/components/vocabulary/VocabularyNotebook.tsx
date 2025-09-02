@@ -17,7 +17,9 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft,
+  Home
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { VocabularyEntry } from '../../types';
@@ -46,6 +48,7 @@ export function VocabularyNotebook() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<VocabularyEntry | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -318,12 +321,20 @@ export function VocabularyNotebook() {
     }
   };
 
+  const handleViewDetails = (entry: VocabularyEntry) => {
+    setSelectedEntry(entry);
+    setShowDetailModal(true);
+  };
+
   const VocabularyCard = ({ entry }: { entry: VocabularyEntry }) => (
-    <div className={`
-      ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-      border rounded-lg p-4 hover:shadow-md transition-all duration-200
-      cursor-pointer group
-    `}>
+    <div 
+      onClick={() => handleViewDetails(entry)}
+      className={`
+        ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
+        border rounded-lg p-4 hover:shadow-md transition-all duration-200
+        cursor-pointer group
+      `}
+    >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center space-x-3 min-w-0 flex-1">
           <div className="p-2 bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg flex-shrink-0">
@@ -504,8 +515,39 @@ export function VocabularyNotebook() {
     );
   };
 
+  const handleGoBack = () => {
+    // Essayer de retourner à la page précédente
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      // Fallback vers le dashboard
+      window.location.href = '/dashboard';
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
+      {/* Bouton Retour Mobile-Friendly */}
+      <div className="flex items-center space-x-4 mb-4">
+        <button
+          onClick={handleGoBack}
+          className={`
+            flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors
+            ${darkMode 
+              ? 'text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700' 
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border border-gray-300'
+            }
+          `}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Retour</span>
+        </button>
+        
+        <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          📚 Carnet de Vocabulaire
+        </h1>
+      </div>
+
       {/* Message de notification */}
       {message && (
         <div className={`
@@ -526,9 +568,9 @@ export function VocabularyNotebook() {
         />
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      {/* Header - Responsive */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
           <div className="relative">
             <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
             <input
@@ -537,7 +579,7 @@ export function VocabularyNotebook() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={`
-                pl-10 pr-4 py-2 w-80 rounded-lg border transition-colors
+                pl-10 pr-4 py-2 w-full sm:w-80 rounded-lg border transition-colors
                 ${darkMode 
                   ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-blue-500' 
                   : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
@@ -1051,6 +1093,148 @@ export function VocabularyNotebook() {
                   className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
                 >
                   Supprimer
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal Vue Détaillée */}
+      {showDetailModal && selectedEntry && (
+        <>
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setShowDetailModal(false)} />
+          <div className={`
+            fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50
+            ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto
+          `}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-3 bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg">
+                  <BookOpen className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {selectedEntry.word}
+                  </h2>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <span className={`px-2 py-1 text-sm rounded-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+                      {selectedEntry.category}
+                    </span>
+                    <div className="flex items-center space-x-1">
+                      {getDifficultyStars(selectedEntry.difficulty)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className={`p-2 rounded-full hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : ''}`}
+              >
+                <X className={`w-6 h-6 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+              </button>
+            </div>
+
+            {/* Définition complète */}
+            <div className="space-y-6">
+              <div>
+                <h3 className={`text-lg font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Définition
+                </h3>
+                <p className={`text-lg leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {selectedEntry.definition}
+                </p>
+              </div>
+
+              {/* Exemples */}
+              {selectedEntry.examples.length > 0 && (
+                <div>
+                  <h3 className={`text-lg font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Exemple{selectedEntry.examples.length > 1 ? 's' : ''}
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedEntry.examples.map((example, index) => (
+                      <p key={index} className={`italic text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'} pl-4 border-l-4 border-blue-500`}>
+                        "{example}"
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Statistiques détaillées */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4`}>
+                  <h4 className={`font-medium mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Progression
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Maîtrise</span>
+                        <span className={darkMode ? 'text-white' : 'text-gray-900'}>{selectedEntry.mastery}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div 
+                          className={`h-3 rounded-full bg-gradient-to-r ${getMasteryColor(selectedEntry.mastery)}`}
+                          style={{ width: `${selectedEntry.mastery}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                        Révisé {selectedEntry.timesReviewed} fois
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4`}>
+                  <h4 className={`font-medium mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Informations
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Difficulté</span>
+                      <div className="flex items-center space-x-1">
+                        {getDifficultyStars(selectedEntry.difficulty)}
+                      </div>
+                    </div>
+                    {selectedEntry.lastReviewed && (
+                      <div className="flex justify-between">
+                        <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Dernière révision</span>
+                        <span className={darkMode ? 'text-white' : 'text-gray-900'}>
+                          {selectedEntry.lastReviewed.toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    handleEditWord(selectedEntry);
+                  }}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
+                    darkMode 
+                      ? 'border-gray-600 text-gray-400 hover:text-white hover:bg-gray-700'
+                      : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Modifier</span>
+                </button>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:shadow-md transition-all duration-200"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>Fermer</span>
                 </button>
               </div>
             </div>

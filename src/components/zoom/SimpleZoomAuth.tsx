@@ -1,6 +1,10 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
+// 🔄 Composant Auth OAuth Zoom - REFAIT AVEC /zoom/callback
+// ================================================
+
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useAuth } from '../AuthProvider';
 import { supabase } from '../../lib/supabase';
+import { generateZoomOAuthUrl, CENTRINOTE_ZOOM_CONFIG } from '../../utils/zoomOAuth';
 
 interface ZoomAuthProps {
   onTokenReceived?: (token: any) => void;
@@ -11,15 +15,14 @@ interface ZoomAuthRef {
 }
 
 const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived }, ref) => {
-  const { user } = useSupabaseAuth();
+  const { user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tokenInfo, setTokenInfo] = useState<any>(null);
 
-  // Configuration OAuth Zoom
-  const ZOOM_CLIENT_ID = import.meta.env.VITE_ZOOM_CLIENT_ID || 'XjtK5_JvQ7upfjYppAF1tw';
-  const REDIRECT_URI = import.meta.env.VITE_ZOOM_REDIRECT_URI || 'https://centrinote.fr/zoom-callback';
-  const SUPABASE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zoom-n8n-proxy`;
+  // Configuration OAuth Zoom unifiée
+  const ZOOM_CLIENT_ID = import.meta.env.VITE_ZOOM_CLIENT_ID || '';
+  const REDIRECT_URI = `${import.meta.env.VITE_APP_URL}/zoom/callback`; // ✅ URL unifiée
 
   useEffect(() => {
     if (user) {
@@ -27,88 +30,150 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
     }
   }, [user]);
 
-  // Vérifier si l'utilisateur a déjà un token valide
+  // Vérifier si l'utilisateur a déjà un token Zoom valide
   const checkExistingToken = async () => {
+    if (!user) return;
+
     try {
+      setLoading(true);
+      
+      // ✅ Utilise supabase-js avec session auth (pas de fetch REST)
       const { data, error } = await supabase
         .from('zoom_tokens')
         .select('access_token, expires_at')
-        .eq('user_id', user?.id)
-        .single();
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      console.log('🔍 Vérification token existant:', { hasData: !!data, error });
 
       if (data && !error) {
         const expiresAt = new Date(data.expires_at);
         const now = new Date();
         
         if (expiresAt > now) {
+          console.log('✅ Token Zoom valide trouvé');
           setIsConnected(true);
           setTokenInfo({ expires_at: data.expires_at });
+          
+          if (onTokenReceived) {
+            onTokenReceived(data);
+          }
         } else {
-          // Token expiré, on va le refresh via n8n
+          console.log('⏰ Token Zoom expiré, refresh nécessaire');
           await refreshToken();
         }
+      } else {
+        console.log('ℹ️ Aucun token Zoom trouvé');
+        setIsConnected(false);
       }
     } catch (err) {
-      console.log('Pas de token existant:', err);
+      console.error('❌ Erreur vérification token:', err);
+      setIsConnected(false);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Option: Générer l'URL OAuth côté serveur (plus sécurisé)
+  const connectToZoomServer = async () => {
+    if (!user) {
+      alert('Veuillez vous connecter d\'abord');
+      return;
+    }
 
-  // Utilitaire pour gérer les cookies avec SameSite=Lax; Secure
-  const setCookie = (name: string, value: string, days = 1) => {
-    const expires = new Date();
-    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-    document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/; SameSite=Lax; Secure`;
+    try {
+      setLoading(true);
+      console.log('🔐 Génération URL OAuth côté serveur...');
+
+      // Appeler l'Edge Function pour générer l'URL sécurisée
+      const { data, error } = await supabase.functions.invoke('generate-zoom-oauth-url', {
+        body: {
+          redirect_uri: REDIRECT_URI,
+          scope: CENTRINOTE_ZOOM_CONFIG.scope
+        }
+      });
+
+      if (error || !data?.success) {
+        console.error('❌ Erreur génération URL serveur:', error);
+        alert('Erreur lors de la génération de l\'URL OAuth');
+        return;
+      }
+
+      console.log('✅ URL OAuth générée côté serveur:', data.url.substring(0, 100) + '...');
+
+      // Stocker le state pour validation côté callback
+      const stateData = {
+        user_id: user.id,
+        redirect_back: window.location.pathname,
+        timestamp: data.timestamp,
+        server_generated: true
+      };
+
+      sessionStorage.setItem('zoom_oauth_state', data.state);
+      sessionStorage.setItem('zoom_oauth_data', JSON.stringify(stateData));
+
+      console.log('🔄 Redirection vers URL générée côté serveur...');
+      window.location.assign(data.url);
+
+    } catch (error) {
+      console.error('❌ Erreur génération URL serveur:', error);
+      alert('Erreur lors de la génération de l\'URL OAuth côté serveur');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getCookie = (name: string): string | null => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-    return null;
-  };
-
-  // Démarrer le processus OAuth (version originale simplifiée)
+  // Démarrer le processus OAuth Zoom avec génération dynamique d'URL (côté client)
   const connectToZoom = () => {
     if (!user) {
       alert('Veuillez vous connecter d\'abord');
       return;
     }
 
-    console.log('🚀 Début connexion Zoom pour utilisateur:', user.id);
+    if (!ZOOM_CLIENT_ID) {
+      alert('❌ Configuration Zoom manquante (VITE_ZOOM_CLIENT_ID)');
+      return;
+    }
 
-    // Générer un state sécurisé
-    const secureState = crypto.randomUUID();
-    
-    // Stocker le state et les données utilisateur
-    const stateData = { 
-      user_id: user.id,
-      redirect_back: window.location.pathname,
-      timestamp: Date.now()
-    };
-    
-    // Double stockage : sessionStorage + cookie (protection contre perte)
-    sessionStorage.setItem('zoom_oauth_state', secureState);
-    sessionStorage.setItem('zoom_oauth_data', JSON.stringify(stateData));
-    setCookie('zoom_oauth_state', secureState);
-    setCookie('zoom_oauth_data', JSON.stringify(stateData));
+    console.log('🚀 Initiation OAuth Zoom pour user:', user.id);
+    console.log('🔗 Redirect URI:', REDIRECT_URI);
 
-    // Construire l'URL OAuth avec les variables d'environnement
-    const oauthUrl = `https://zoom.us/oauth/authorize?` + 
-      `response_type=code&` +
-      `client_id=${encodeURIComponent(ZOOM_CLIENT_ID)}&` +
-      `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-      `state=${encodeURIComponent(secureState)}`;
+    try {
+      // Générer dynamiquement l'URL OAuth avec state unique
+      const oauthData = generateZoomOAuthUrl({
+        clientId: ZOOM_CLIENT_ID,
+        redirectUri: REDIRECT_URI,
+        scope: CENTRINOTE_ZOOM_CONFIG.scope
+      });
+      
+      // Stocker le state et les données utilisateur pour validation
+      const stateData = { 
+        user_id: user.id,
+        redirect_back: window.location.pathname,
+        timestamp: oauthData.timestamp,
+        generated_at: new Date().toISOString()
+      };
+      
+      // Stockage sessionStorage pour validation côté callback
+      sessionStorage.setItem('zoom_oauth_state', oauthData.state);
+      sessionStorage.setItem('zoom_oauth_data', JSON.stringify(stateData));
 
-    console.log('🔐 State généré:', secureState);
-    console.log('📍 Redirect URI:', REDIRECT_URI);
-    console.log('🔄 Redirection vers Zoom OAuth');
+      console.log('🔐 State OAuth généré dynamiquement:', oauthData.state.substring(0, 16) + '...');
+      console.log('💾 Données stockées en sessionStorage');
+      console.log('📋 URL OAuth générée:', oauthData.url.substring(0, 100) + '...');
 
-    // Redirection vers Zoom
-    window.location.assign(oauthUrl);
+      console.log('🔄 Redirection vers Zoom OAuth...');
+
+      // Redirection vers l'URL générée dynamiquement
+      window.location.assign(oauthData.url);
+      
+    } catch (error) {
+      console.error('❌ Erreur génération URL OAuth:', error);
+      alert('Erreur lors de la génération de l\'URL OAuth Zoom');
+    }
   };
 
-  // Méthode publique pour recharger l'état depuis la DB après callback
+  // Méthode publique pour recharger l'état depuis la DB
   const refreshConnectionState = async () => {
     if (user) {
       await checkExistingToken();
@@ -120,36 +185,43 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
     refreshConnectionState
   }));
 
-  // Refresh token via Supabase Edge Function (proxy N8N)
+  // Refresh token via Supabase Edge Function N8N proxy
   const refreshToken = async () => {
     if (!user) return;
     
     try {
-      const response = await fetch(SUPABASE_PROXY_URL, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
+      setLoading(true);
+      
+      const { data, error } = await supabase.functions.invoke('zoom-n8n-proxy', {
+        body: {
           action: 'refresh_token',
           user_id: user.id
-        })
+        }
       });
 
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
+      if (error) {
+        console.error('❌ Erreur refresh token:', error);
+        setIsConnected(false);
+        return;
+      }
+
+      if (data?.success) {
         console.log('✅ Token rafraîchi avec succès');
         setIsConnected(true);
-        setTokenInfo(result.token_info);
+        setTokenInfo(data.token_info);
+        
+        if (onTokenReceived) {
+          onTokenReceived(data.token_info);
+        }
       } else {
-        console.log('❌ Impossible de rafraîchir le token, reconnexion nécessaire');
+        console.log('❌ Impossible de rafraîchir le token');
         setIsConnected(false);
       }
     } catch (error) {
       console.error('❌ Erreur refresh token:', error);
       setIsConnected(false);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -158,16 +230,26 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
     if (!user) return;
 
     try {
-      await supabase
+      setLoading(true);
+      
+      // ✅ Utilise supabase-js avec session auth
+      const { error } = await supabase
         .from('zoom_tokens')
         .delete()
         .eq('user_id', user.id);
+
+      if (error) {
+        console.error('❌ Erreur déconnexion:', error);
+        return;
+      }
 
       setIsConnected(false);
       setTokenInfo(null);
       console.log('✅ Déconnexion Zoom réussie');
     } catch (error) {
       console.error('❌ Erreur déconnexion:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -184,7 +266,7 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold flex items-center">
           <span className="mr-2">🔵</span>
-          Connexion Zoom
+          Connexion Zoom OAuth
         </h3>
         <div className={`px-3 py-1 rounded-full text-sm ${
           isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
@@ -202,7 +284,7 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
       {isConnected ? (
         <div className="space-y-3">
           <div className="p-3 bg-green-50 border border-green-200 rounded">
-            <p className="text-green-700 font-medium">✅ Zoom connecté avec succès</p>
+            <p className="text-green-700 font-medium">✅ Zoom connecté via OAuth</p>
             {tokenInfo?.expires_at && (
               <p className="text-green-600 text-sm mt-1">
                 Token valide jusqu'au {new Date(tokenInfo.expires_at).toLocaleString('fr-FR')}
@@ -213,13 +295,15 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
           <div className="flex gap-2">
             <button
               onClick={refreshToken}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               🔄 Actualiser
             </button>
             <button
               onClick={disconnectZoom}
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              disabled={loading}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50"
             >
               🔌 Déconnecter
             </button>
@@ -230,13 +314,29 @@ const SimpleZoomAuth = forwardRef<ZoomAuthRef, ZoomAuthProps>(({ onTokenReceived
           <p className="text-gray-600">
             Connectez votre compte Zoom pour créer des réunions.
           </p>
-          <button
-            onClick={connectToZoom}
-            disabled={loading}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {loading ? '⏳ Connexion...' : '🔵 Connecter à Zoom'}
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={connectToZoom}
+              disabled={loading || !ZOOM_CLIENT_ID}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {loading ? '⏳ Connexion...' : '🔵 Connecter à Zoom (Client)'}
+            </button>
+            
+            <button
+              onClick={connectToZoomServer}
+              disabled={loading || !ZOOM_CLIENT_ID}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50"
+            >
+              {loading ? '⏳ Connexion...' : '🔐 Connecter à Zoom (Serveur)'}
+            </button>
+          </div>
+          
+          {!ZOOM_CLIENT_ID && (
+            <p className="text-red-500 text-sm mt-2">
+              ⚠️ Configuration Zoom manquante
+            </p>
+          )}
         </div>
       )}
     </div>

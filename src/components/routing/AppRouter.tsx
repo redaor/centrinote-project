@@ -184,7 +184,7 @@ export function AppRouter() {
 
         {/* Route spéciale pour callback OAuth Zoom */}
         <Route 
-          path="/zoom-callback" 
+          path="/zoom/callback" 
           element={<ZoomOAuthCallback />} 
         />
 

@@ -32,11 +32,44 @@ import { APIConnectionTest } from '../debug/APIConnectionTest';
 import { ZoomConfigurationDebug } from '../debug/ZoomConfigurationDebug';
 
 export function Settings() {
-  const { state, dispatch } = useApp();
-  const { darkMode, user, notificationSettings } = state;
-  const { language, setLanguage } = useLanguage();
-  const { t } = useTranslation();
+  // 🔧 Protection mobile iOS - gestion d'erreur gracieuse
+  const [mobileError, setMobileError] = useState<string | null>(null);
+  
+  // État des hooks avec fallbacks sécurisés
+  const [appState, setAppState] = useState<any>(null);
+  const [languageState, setLanguageState] = useState('fr');
+  const [translationFunc, setTranslationFunc] = useState(() => (key: string) => key);
+  
   const [activeTab, setActiveTab] = useState<'profile' | 'subscription' | 'preferences' | 'security' | 'data' | 'debug'>('profile');
+  
+  // Chargement sécurisé des hooks avec try/catch
+  useEffect(() => {
+    try {
+      // Test d'accès aux hooks
+      const { state, dispatch } = useApp();
+      const { language, setLanguage } = useLanguage();
+      const { t } = useTranslation();
+      
+      setAppState({ state, dispatch });
+      setLanguageState(language || 'fr');
+      setTranslationFunc(() => t);
+      
+    } catch (error) {
+      console.error('🚨 Erreur chargement hooks Settings (mobile?):', error);
+      setMobileError('Erreur de chargement sur mobile. Rafraîchissez la page.');
+    }
+  }, []);
+  
+  // Fallbacks sécurisés pour mobile
+  const { darkMode = false, user = null, notificationSettings = {
+    studyReminders: true,
+    collaborationUpdates: true,
+    weeklyProgress: true,
+    newFeatures: false
+  } } = appState?.state || {};
+  
+  const language = languageState;
+  const t = translationFunc;
   
   // Synchroniser les préférences avec localStorage
   const [, setStoredNotifications] = useLocalStorage('centrinote-notifications', notificationSettings);
@@ -221,6 +254,31 @@ export function Settings() {
       </div>
     </div>
   );
+
+  // 🚨 Affichage d'erreur mobile en priorité
+  if (mobileError) {
+    return (
+      <div className="p-6 min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto">
+            <AlertCircle className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-xl font-semibold text-red-600">
+            Problème de compatibilité mobile
+          </h2>
+          <p className="text-gray-600 max-w-md">
+            {mobileError}
+          </p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          >
+            Rafraîchir la page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">

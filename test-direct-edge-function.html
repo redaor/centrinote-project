@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Direct Edge Function exchange-zoom-code</title>
+</head>
+<body>
+    <h1>🧪 Test Direct Edge Function exchange-zoom-code</h1>
+    <button onclick="testWithAuth()">Test supabase.functions.invoke (auto JWT)</button>
+    <button onclick="testWithoutAuth()">Test fetch direct (manuel JWT)</button>
+    <div id="result"></div>
+
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+        
+        const supabase = createClient(
+            'https://wjzlicokhxitmeoxkjzv.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndqemxpY29raHhpdG1lb3hranp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk1MzQ2NjcsImV4cCI6MjA2NTExMDY2N30.THIjxcnl7Yv4DSLjqRaGGbxlmKi64pUrtCROgFdN8jE'
+        );
+        
+        window.testWithAuth = async function() {
+            console.log('🧪 Test avec authentification');
+            
+            try {
+                // Récupérer la session active Supabase
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                
+                if (sessionError || !session) {
+                    console.error('❌ Aucune session active:', sessionError);
+                    document.getElementById('result').innerHTML = `
+                        <h3>❌ Erreur Session:</h3>
+                        <p>Aucune session Supabase active. Connectez-vous d'abord sur l'app.</p>
+                        <pre style="color: red">${sessionError?.message || 'Session non trouvée'}</pre>
+                    `;
+                    return;
+                }
+                
+                console.log('✅ Session active trouvée:', {
+                    userId: session.user.id,
+                    accessToken: session.access_token.substring(0, 20) + '...'
+                });
+                
+                const payload = {
+                    code: 'test_code_123',
+                    state: 'test_state_456',
+                    redirect_uri: 'https://centrinote.fr/zoom/callback'
+                };
+                
+                console.log('📦 Payload:', payload);
+                console.log('🔑 JWT Token:', session.access_token.substring(0, 30) + '...');
+                console.log('🚀 Appel supabase.functions.invoke avec session auth...');
+                
+                // Test avec supabase.functions.invoke (utilise automatiquement le JWT de la session)
+                const { data, error } = await supabase.functions.invoke('exchange-zoom-code', {
+                    body: payload
+                });
+                
+                console.log('📡 Réponse supabase.functions.invoke:', { data, error });
+                
+                document.getElementById('result').innerHTML = `
+                    <h3>✅ Résultat avec auth (supabase.functions.invoke):</h3>
+                    <p><strong>User ID:</strong> ${session.user.id}</p>
+                    <p><strong>JWT:</strong> ${session.access_token.substring(0, 30)}...</p>
+                    <pre>${JSON.stringify({ data, error }, null, 2)}</pre>
+                `;
+                
+            } catch (err) {
+                console.error('❌ Erreur:', err);
+                document.getElementById('result').innerHTML = `
+                    <h3>❌ Erreur Test Auth:</h3>
+                    <pre style="color: red">${err.message}</pre>
+                `;
+            }
+        };
+        
+        window.testWithoutAuth = async function() {
+            console.log('🧪 Test fetch direct avec JWT récupéré');
+            
+            try {
+                // Récupérer le JWT de la session pour l'envoyer manuellement
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                
+                if (sessionError || !session) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>❌ Erreur:</h3>
+                        <p>Pas de session pour récupérer le JWT. Connectez-vous d'abord.</p>
+                    `;
+                    return;
+                }
+                
+                const payload = {
+                    code: 'test_code_123',
+                    state: 'test_state_456',
+                    redirect_uri: 'https://centrinote.fr/zoom/callback'
+                };
+                
+                console.log('🔑 JWT récupéré:', session.access_token.substring(0, 30) + '...');
+                console.log('🚀 Fetch direct avec Authorization header...');
+                
+                const response = await fetch('https://wjzlicokhxitmeoxkjzv.supabase.co/functions/v1/exchange-zoom-code', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndqemxpY29raHhpdG1lb3hranp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk1MzQ2NjcsImV4cCI6MjA2NTExMDY2N30.THIjxcnl7Yv4DSLjqRaGGbxlmKi64pUrtCROgFdN8jE',
+                        'Authorization': `Bearer ${session.access_token}` // ✅ JWT utilisateur
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.text();
+                console.log('📡 Réponse fetch avec JWT:', response.status, result);
+                
+                document.getElementById('result').innerHTML = `
+                    <h3>Résultat fetch direct avec JWT:</h3>
+                    <p><strong>Status:</strong> ${response.status}</p>
+                    <p><strong>User ID:</strong> ${session.user.id}</p>
+                    <p><strong>JWT:</strong> ${session.access_token.substring(0, 30)}...</p>
+                    <pre>${result}</pre>
+                `;
+                
+            } catch (err) {
+                console.error('❌ Erreur fetch avec JWT:', err);
+                document.getElementById('result').innerHTML = `
+                    <h3>❌ Erreur fetch:</h3>
+                    <pre style="color: red">${err.message}</pre>
+                `;
+            }
+        };
+    </script>
+</body>
+</html>

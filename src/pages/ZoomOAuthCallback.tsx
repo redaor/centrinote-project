@@ -1,17 +1,53 @@
-// src/pages/ZoomOAuthCallback.tsx
-// Page de callback OAuth Zoom simplifiée avec flag VITE_OAUTH_STATE_STRICT
+// 🔄 Composant Callback OAuth Zoom - REFAIT AVEC JWT AUTH
+// ================================================
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '../components/AuthProvider';
 import { supabase } from '../lib/supabase';
 
 export default function ZoomOAuthCallback() {
   const [msg, setMsg] = useState('Connexion Zoom en cours…');
+  const { user } = useAuth();
+
+  console.log('🔄 ZoomOAuthCallback MOUNT - user:', !!user);
 
   useEffect(() => {
+    console.log('🎯 useEffect ZoomOAuthCallback triggered - user:', !!user);
     const processCallback = async () => {
-      console.log('📋 ZoomOAuthCallback - Début traitement');
+      console.log('🧭 ACTIVE_COMPONENT: NEW_ZOOM_CALLBACK_WITH_JWT');
+      console.log('📋 Début traitement callback OAuth');
       console.log('🔍 URL:', window.location.href);
+      console.log('👤 User auth state:', { user: !!user, userId: user?.id });
       
+      // 1. Vérifier l'authentification - d'abord useAuth, puis direct Supabase
+      let currentUser = user;
+      
+      if (!currentUser) {
+        console.warn('⚠️ useAuth() ne retourne pas d\'user, vérification directe Supabase...');
+        setMsg('Vérification de l\'authentification...');
+        
+        try {
+          const { data: { user: supabaseUser }, error: authError } = await supabase.auth.getUser();
+          
+          if (authError || !supabaseUser) {
+            console.error('❌ Aucun utilisateur authentifié:', authError);
+            setMsg('Erreur : utilisateur non connecté. Reconnectez-vous et réessayez.');
+            return;
+          }
+          
+          console.log('✅ Utilisateur trouvé via supabase.auth.getUser():', supabaseUser.id);
+          currentUser = supabaseUser;
+          
+        } catch (authCheckError) {
+          console.error('❌ Erreur vérification auth:', authCheckError);
+          setMsg('Erreur d\'authentification. Reconnectez-vous.');
+          return;
+        }
+      }
+
+      console.log('✅ Utilisateur authentifié:', currentUser?.id);
+      
+      // 2. Extraire les paramètres OAuth de l'URL
       const qs = new URLSearchParams(window.location.search);
       const code = qs.get('code');
       const error = qs.get('error');
@@ -19,92 +55,110 @@ export default function ZoomOAuthCallback() {
       const stateFromSession = sessionStorage.getItem('zoom_oauth_state') ?? '';
       const strict = String(import.meta.env.VITE_OAUTH_STATE_STRICT) === 'true';
 
-      console.log('📝 Paramètres:', {
+      console.log('📝 Paramètres OAuth:', {
         code: code ? code.substring(0, 10) + '...' : null,
         error,
         stateFromUrl: stateFromUrl ? stateFromUrl.substring(0, 16) + '...' : null,
         stateFromSession: stateFromSession ? stateFromSession.substring(0, 16) + '...' : null,
-        strict
+        strict,
+        userId: currentUser?.id
       });
 
-      if (!strict) {
-        console.log('🔧 OAUTH STATE BYPASS ACTIVÉ', {
-          stateFromUrl: stateFromUrl ? stateFromUrl.substring(0, 16) + '...' : null,
-          stateFromSession: stateFromSession ? stateFromSession.substring(0, 16) + '...' : null
-        });
-      }
-
-      // Gestion des erreurs OAuth
+      // 3. Gestion des erreurs OAuth Zoom
       if (error) {
-        console.error('❌ Erreur OAuth:', error);
-        setMsg(`Erreur OAuth: ${error}`);
+        console.error('❌ Erreur OAuth Zoom:', error);
+        setMsg(`Erreur Zoom: ${error}`);
         return;
       }
 
       if (!code) {
-        console.error('❌ Code OAuth manquant');
-        setMsg('Code OAuth manquant');
+        console.error('❌ Code OAuth manquant dans l\'URL');
+        setMsg('Code d\'autorisation manquant');
         return;
       }
 
-      // Vérification state selon le mode strict/non-strict
+      // 4. Validation du state avec bypass
+      console.log('🔍 Début validation state - mode:', strict ? 'STRICT' : 'BYPASS');
+      
       if (strict) {
         if (!stateFromUrl || !stateFromSession || stateFromUrl !== stateFromSession) {
-          console.error('❌ OAuth state mismatch (strict mode)', { stateFromUrl, stateFromSession });
-          setMsg('Vérification de sécurité échouée (state).');
+          console.error('❌ State OAuth invalid (mode strict)', { stateFromUrl, stateFromSession });
+          setMsg('Vérification de sécurité échouée');
           return;
         }
         console.log('✅ State validation passed (strict mode)');
       } else {
+        console.log('🔧 OAUTH STATE BYPASS ACTIVÉ', {
+          stateFromUrl: stateFromUrl ? stateFromUrl.substring(0, 16) + '...' : null,
+          stateFromSession: stateFromSession ? stateFromSession.substring(0, 16) + '...' : null
+        });
+
         if (!stateFromUrl || !stateFromSession || stateFromUrl !== stateFromSession) {
-          console.warn('⚠️ OAuth state mismatch/absent (non-strict). Continuing for debug.', { stateFromUrl, stateFromSession });
-          console.log('🚀 BYPASS state validation - calling Edge Function');
+          console.warn('⚠️ State mismatch/absent (bypass activé - continuons quand même)');
         } else {
-          console.log('✅ State validation passed (non-strict mode)');
+          console.log('✅ State validation passed (bypass mode)');
         }
       }
+      
+      console.log('🎯 State validation terminée - passage à l\'étape suivante');
 
-      // Préparation du payload pour Supabase Edge Function
+      // 5. Préparer le payload simplifié pour l'Edge Function (SANS user_id)
       const payload = {
         code,
-        redirect_uri: `${import.meta.env.VITE_APP_URL}/zoom-callback`,
         state: stateFromUrl || null,
+        redirect_uri: `${import.meta.env.VITE_APP_URL}/zoom/callback`
       };
 
-      console.log('🚀 BYPASS state validation - calling Edge Function via supabase-js', payload);
+      console.log('🚀 BYPASS state validation - calling Edge Function via supabase-js');
+      console.log('📦 Payload (sans user_id):', {
+        code: payload.code.substring(0, 10) + '...',
+        state: payload.state?.substring(0, 16) + '...' || 'null',
+        redirect_uri: payload.redirect_uri
+      });
 
       try {
-        // Appel vers Supabase Edge Function avec supabase-js
+        setMsg('Échange du token en cours...');
+        console.log('🚀 DÉBUT appel Edge Function exchange-zoom-code');
+
+        // 6. Appel vers Supabase Edge Function avec JWT automatique
         const { data, error } = await supabase.functions.invoke('exchange-zoom-code', {
           body: payload,
         });
 
+        console.log('📡 RÉPONSE Edge Function reçue:', { data, error });
+        console.log('🔍 Type de réponse:', { dataType: typeof data, errorType: typeof error });
+
         if (error) {
-          console.error('❌ Erreur Supabase Edge Function:', error);
-          throw error;
+          console.error('❌ Erreur Edge Function:', error);
+          setMsg('Erreur lors de l\'authentification Zoom');
+          return;
         }
 
-        console.log('✅ Succès Supabase Edge Function:', data);
+        console.log('✅ Succès Edge Function:', data);
 
-        // Nettoyage sessionStorage
+        // 7. Nettoyer le sessionStorage
         sessionStorage.removeItem('zoom_oauth_state');
         sessionStorage.removeItem('zoom_oauth_data');
 
-        setMsg('Connecté à Zoom avec succès ! Redirection…');
+        console.log('🧹 SessionStorage nettoyé');
+
+        setMsg('✅ Zoom connecté avec succès ! Redirection...');
         
-        // Redirection vers dashboard
+        // 8. Redirection vers dashboard
         setTimeout(() => {
           window.location.replace('/dashboard');
-        }, 800);
+        }, 1500);
 
       } catch (error) {
-        console.error('❌ Erreur OAuth exchange:', error);
-        setMsg('Erreur de connexion Zoom. Réessayez.');
+        console.error('❌ ERREUR CRITIQUE dans processCallback:', error);
+        console.error('❌ Type d\'erreur:', typeof error);
+        console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'Pas de stack');
+        setMsg('Erreur critique de connexion Zoom. Consultez la console.');
       }
     };
 
     processCallback();
-  }, []);
+  }, [user]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -115,13 +169,13 @@ export default function ZoomOAuthCallback() {
           </div>
           
           <h2 className="text-xl font-semibold mb-4">
-            Connexion Zoom
+            Connexion Zoom OAuth
           </h2>
           
           <p className="text-gray-600 mb-6">{msg}</p>
           
           <p className="text-sm text-gray-500">
-            Veuillez patienter, ne fermez pas cette page...
+            Authentification via JWT Supabase...
           </p>
         </div>
       </div>
