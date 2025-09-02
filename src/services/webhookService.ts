@@ -1,10 +1,10 @@
 import { User } from '../types';
 import { supabase } from '../lib/supabase';
 
-// URLs des webhooks n8n mis à jour
-const DEFAULT_N8N_WEBHOOK_URL = 'https://n8n.srv886297.hstgr.cloud/webhook/fb90cf61-7012-43fd-85e8-2cbc0f9282c7';
-const DEFAULT_N8N_DISCUSSION_URL = 'https://n8n.srv886297.hstgr.cloud/webhook/fb90cf61-7012-43fd-85e8-2cbc0f9282c7';
-const DEFAULT_N8N_AUTOMATION_URL = 'https://n8n.srv886297.hstgr.cloud/webhook/a9493e88-d781-4dc7-a849-b1ba96da6b03';
+// URLs des webhooks n8n - Lecture depuis .env avec fallbacks
+const DEFAULT_N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://n8n.srv886297.hstgr.cloud/webhook/fb90cf61-7012-43fd-85e8-2cbc0f9282c7';
+const DEFAULT_N8N_DISCUSSION_URL = import.meta.env.VITE_N8N_DISCUSSION_URL || 'https://n8n.srv886297.hstgr.cloud/webhook/fb90cf61-7012-43fd-85e8-2cbc0f9282c7';
+const DEFAULT_N8N_AUTOMATION_URL = import.meta.env.VITE_N8N_AUTOMATION_URL || 'https://n8n.srv886297.hstgr.cloud/webhook/a9493e88-d781-4dc7-a849-b1ba96da6b03';
 
 
 interface WebhookResponse {
