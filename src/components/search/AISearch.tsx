@@ -325,7 +325,7 @@ export function AISearch() {
           
           {messages.length > 1 && (
             <button
-              onClick={clearMessages}
+              onClick={handleClearMessages}
               className={`
                 flex items-center space-x-2 px-3 py-1 rounded-lg text-sm transition-colors
                 ${darkMode 
