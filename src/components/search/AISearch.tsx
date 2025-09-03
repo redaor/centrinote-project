@@ -14,7 +14,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { aiService } from '../../services/aiService';
+import { useCentrinoteAI } from '../../hooks/useCentrinoteAI';
 import '../../utils/webhookDebug';
 
 interface Message {
@@ -28,25 +28,38 @@ export function AISearch() {
   const { state } = useApp();
   const { darkMode, user } = state;
   
-  // États pour l'interface
+  // Utilisation du nouveau hook CentrinoteAI
+  const {
+    messages: aiMessages,
+    isLoading,
+    isConnected,
+    error: aiError,
+    sendMessage,
+    testConnection,
+    clearMessages: clearAIMessages,
+    getSuggestions,
+    stats
+  } = useCentrinoteAI();
+  
+  // État pour l'input uniquement
   const [inputMessage, setInputMessage] = useState('');
+  
+  // Messages d'accueil avec contexte intelligent
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       type: 'ai',
-      content: 'Bonjour ! Je suis votre assistant IA. Posez-moi vos questions et je vous aiderai avec vos études et documents.',
+      content: `Bonjour ! Je suis votre assistant IA intelligent. Je peux analyser vos ${stats.totalNotes} notes et ${stats.totalVocabulary} mots de vocabulaire pour vous aider de façon personnalisée !`,
       timestamp: new Date()
     }
   ]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<{
-    connected: boolean;
-    message: string;
-    lastChecked?: Date;
-  }>({
-    connected: false,
-    message: 'Vérification en cours...'
-  });
+  
+  // État de connexion basé sur le hook
+  const connectionStatus = {
+    connected: isConnected ?? false,
+    message: isConnected ? 'IA connectée et opérationnelle' : (aiError || 'Vérification en cours...'),
+    lastChecked: new Date()
+  };
 
   // Référence pour le scroll automatique
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -56,41 +69,29 @@ export function AISearch() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Vérifier la connexion au montage
+  // Synchronisation des messages IA avec l'interface
   useEffect(() => {
-    checkConnection();
-  }, []);
+    // Ajouter les nouveaux messages du hook à l'affichage
+    aiMessages.forEach(aiMessage => {
+      const exists = messages.some(m => m.id === aiMessage.id);
+      if (!exists) {
+        const newMessage: Message = {
+          id: aiMessage.id,
+          type: aiMessage.type,
+          content: aiMessage.content,
+          timestamp: aiMessage.timestamp
+        };
+        setMessages(prev => [...prev, newMessage]);
+      }
+    });
+  }, [aiMessages]);
 
   /**
-   * Vérifie la connexion avec le service IA
+   * Vérifie la connexion avec le service IA intelligent
    */
   const checkConnection = async () => {
-    try {
-      console.log('🔍 Vérification de la connexion IA...');
-      const result = await aiService.testConnection(user?.id);
-      console.log('📊 Résultat du test:', result);
-      setConnectionStatus({
-        connected: result.success,
-        message: result.message,
-        lastChecked: new Date()
-      });
-      
-      // Si c'est une erreur de workflow, afficher un message spécifique
-      if (!result.success && result.message.includes('Workflow N8N non démarré')) {
-        setConnectionStatus({
-          connected: false,
-          message: 'Workflow N8N inactif - Contactez l\'administrateur',
-          lastChecked: new Date()
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur lors de la vérification:', error);
-      setConnectionStatus({
-        connected: false,
-        message: `Erreur lors de la vérification: ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
-        lastChecked: new Date()
-      });
-    }
+    const result = await testConnection();
+    console.log('📊 Test connexion CentrinoteAI:', result);
   };
 
   /**
@@ -101,72 +102,39 @@ export function AISearch() {
     
     if (!inputMessage.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputMessage.trim(),
-      timestamp: new Date()
-    };
-
-    // Ajouter le message utilisateur
-    setMessages(prev => [...prev, userMessage]);
-    
-    const currentInput = inputMessage;
+    const messageToSend = inputMessage.trim();
     setInputMessage('');
-    setIsLoading(true);
 
-    try {
-      // Envoyer à l'IA
-      console.log('🚀 Envoi du message à l\'IA:', currentInput);
-      const result = await aiService.sendMessage(currentInput, user?.id);
-      console.log('📨 Résultat reçu:', result);
-
-      if (result.success && result.response) {
-        // Ajouter la réponse de l'IA
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'ai',
-          content: result.response,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, aiMessage]);
-      } else {
-        // Ajouter un message d'erreur
-        console.warn('⚠️ Erreur IA:', result.error);
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'error',
-          content: `❌ ${result.error || 'Erreur lors de la communication avec l\'IA'}`,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, errorMessage]);
-      }
-    } catch (error) {
-      console.error('Erreur inattendue:', error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'error',
-        content: `💥 Erreur inattendue: ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
+    console.log('🚀 Envoi message via CentrinoteAI intelligent:', messageToSend);
+    
+    // Le message utilisateur et la réponse seront ajoutés automatiquement par le hook
+    const result = await sendMessage(messageToSend);
+    
+    if (result.analyse) {
+      console.log('🎯 Analyse contextuelle CentrinoteAI:', {
+        type: result.analyse.type,
+        confidence: result.analyse.confidence,
+        confirmation: result.analyse.confirmation,
+        hasSource: !!result.analyse.source,
+        suggestions: result.analyse.suggestions?.length || 0
+      });
     }
   };
 
   /**
-   * Efface l'historique des messages
+   * Efface l'historique des messages avec CentrinoteAI
    */
-  const clearMessages = () => {
+  const handleClearMessages = () => {
+    clearAIMessages(); // Hook CentrinoteAI
     setMessages([
       {
         id: '1',
         type: 'ai',
-        content: 'Bonjour ! Je suis votre assistant IA. Posez-moi vos questions et je vous aiderai avec vos études et documents.',
+        content: `Bonjour ! Je suis votre assistant IA intelligent. Je peux analyser vos ${stats.totalNotes} notes et ${stats.totalVocabulary} mots de vocabulaire pour vous aider de façon personnalisée !`,
         timestamp: new Date()
       }
     ]);
+    console.log('🧹 Messages effacés avec CentrinoteAI');
   };
 
   /**

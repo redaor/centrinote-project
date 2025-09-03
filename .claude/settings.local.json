@@ -12,7 +12,8 @@
       "Bash(./test-new-url.sh:*)",
       "Bash(curl:*)",
       "Bash(supabase status:*)",
-      "Bash(supabase functions deploy:*)"
+      "Bash(supabase functions deploy:*)",
+      "Bash(npm run type-check:*)"
     ],
     "deny": []
   }
