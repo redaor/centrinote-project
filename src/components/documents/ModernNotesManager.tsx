@@ -371,6 +371,61 @@ export function ModernNotesManager() {
     }
   }, [message]);
 
+  // Gestion raccourcis clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showDetailModal) {
+        // Ctrl+S pour sauvegarder
+        if (e.ctrlKey && e.key === 's') {
+          e.preventDefault();
+          if (hasUnsavedChanges) {
+            console.log('⌨️ Raccourci Ctrl+S déclenché');
+            handleUpdateNote();
+          }
+        }
+        // Échap pour fermer
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          if (hasUnsavedChanges && !window.confirm('Modifications non sauvées. Fermer quand même ?')) {
+            return;
+          }
+          setShowDetailModal(false);
+        }
+        // Ctrl+P pour épingler
+        if (e.ctrlKey && e.key === 'p' && selectedNote) {
+          e.preventDefault();
+          console.log('⌨️ Raccourci Ctrl+P déclenché');
+          handleTogglePin(selectedNote);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showDetailModal, hasUnsavedChanges, selectedNote]);
+
+  // Navigation entre notes (flèches gauche/droite)
+  const navigateToNote = (direction: 'prev' | 'next') => {
+    if (!selectedNote) return;
+    
+    const currentIndex = filteredNotes.findIndex(note => note.id === selectedNote.id);
+    if (currentIndex === -1) return;
+    
+    const nextIndex = direction === 'next' 
+      ? (currentIndex + 1) % filteredNotes.length
+      : (currentIndex - 1 + filteredNotes.length) % filteredNotes.length;
+    
+    const nextNote = filteredNotes[nextIndex];
+    if (nextNote) {
+      if (hasUnsavedChanges && !window.confirm('Sauvegarder avant de changer de note ?')) {
+        return;
+      }
+      handleOpenDetailModal(nextNote);
+    }
+  };
+
   // Cleanup refs au démontage
   useEffect(() => {
     return () => {
@@ -1115,184 +1170,489 @@ export function ModernNotesManager() {
           </div>
         </Modal>
 
-        {/* Modal Détail/Édition Complète */}
+        {/* Modal Visualisation/Édition Moderne - Layout 70/30 */}
         <Modal
           isOpen={showDetailModal}
-          onClose={() => setShowDetailModal(false)}
-          title={selectedNote?.title || 'Note'}
+          onClose={() => {
+            if (hasUnsavedChanges && !window.confirm('Vous avez des modifications non sauvegardées. Êtes-vous sûr de vouloir fermer ?')) {
+              return;
+            }
+            setShowDetailModal(false);
+          }}
+          title=""
           size="xl"
         >
           {selectedNote && (
-            <div className="space-y-6">
-              {/* Header avec actions */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className={`
-                    p-2 rounded-lg 
-                    ${selectedNote.is_pinned 
-                      ? 'bg-blue-500 text-white' 
-                      : 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
-                    }
-                  `}>
-                    <StickyNote className="w-5 h-5" />
+            <div className="h-[80vh] flex flex-col">
+              
+              {/* Header Sophistiqué avec Gradient */}
+              <div className="relative p-6 bg-gradient-to-r from-blue-50 via-white to-purple-50 dark:from-blue-950/30 dark:via-gray-900 dark:to-purple-950/30 border-b border-gray-200 dark:border-gray-700">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5"></div>
+                
+                <div className="relative">
+                  {/* Breadcrumb avec Navigation */}
+                  <div className="flex items-center justify-between mb-4">
+                    <nav className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                      <span>Notes</span>
+                      <ChevronRight className="w-4 h-4" />
+                      {selectedNote.tags && selectedNote.tags.length > 0 && (
+                        <>
+                          <span style={{ color: selectedNote.tags[0].color }}>
+                            {selectedNote.tags[0].name}
+                          </span>
+                          <ChevronRight className="w-4 h-4" />
+                        </>
+                      )}
+                      <span className="text-gray-900 dark:text-white font-medium truncate max-w-xs">
+                        {selectedNote.title}
+                      </span>
+                    </nav>
+                    
+                    {/* Navigation entre notes */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 mr-2">
+                        {filteredNotes.findIndex(n => n.id === selectedNote.id) + 1} sur {filteredNotes.length}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigateToNote('prev')}
+                        disabled={filteredNotes.length <= 1}
+                        className="p-2"
+                      >
+                        <ChevronRight className="w-4 h-4 rotate-180" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigateToNote('next')}
+                        disabled={filteredNotes.length <= 1}
+                        className="p-2"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Créé le {formatDate(selectedNote.created_at)}
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
-                      Modifié le {formatDate(selectedNote.updated_at)}
-                    </p>
+
+                  <div className="flex items-start justify-between">
+                    {/* Zone titre + statuts */}
+                    <div className="flex-1 mr-6">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className={`
+                          p-3 rounded-xl shadow-lg
+                          ${selectedNote.is_pinned 
+                            ? 'bg-gradient-to-br from-blue-500 to-purple-500 text-white' 
+                            : 'bg-gradient-to-br from-gray-400 to-gray-500 text-white'
+                          }
+                        `}>
+                          <StickyNote className="w-6 h-6" />
+                        </div>
+                        
+                        <div>
+                          <input
+                            type="text"
+                            value={formData.title}
+                            onChange={(e) => handleFormDataChange('title', e.target.value)}
+                            className="text-2xl font-bold bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg p-2 text-gray-900 dark:text-white w-full"
+                          />
+                          
+                          <div className="flex items-center space-x-4 mt-2">
+                            {/* Status badges */}
+                            {selectedNote.is_pinned && (
+                              <span className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs font-medium">
+                                <Pin className="w-3 h-3" />
+                                <span>Épinglé</span>
+                              </span>
+                            )}
+                            
+                            <span className="inline-flex items-center space-x-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
+                              <Clock className="w-3 h-3" />
+                              <span>{formatDate(selectedNote.updated_at)}</span>
+                            </span>
+                            
+                            <span className="inline-flex items-center space-x-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-xs font-medium">
+                              <FileText className="w-3 h-3" />
+                              <span>{formData.content.length} caractères</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tags visuels */}
+                      {selectedNote.tags && selectedNote.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {selectedNote.tags.map((tag) => (
+                            <span
+                              key={tag.id}
+                              className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105 cursor-pointer shadow-sm"
+                              style={{ 
+                                backgroundColor: `${tag.color}20`, 
+                                color: tag.color,
+                                border: `2px solid ${tag.color}40`
+                              }}
+                            >
+                              <TagIcon className="w-4 h-4" />
+                              <span>{tag.name}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Indicateur de sauvegarde central */}
+                    <div className="flex flex-col items-end space-y-3">
+                      <div className="flex items-center space-x-2">
+                        {isSaving ? (
+                          <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-3 py-2 rounded-lg">
+                            <LoadingSpinner size="sm" />
+                            <span className="text-sm font-medium">Sauvegarde...</span>
+                          </div>
+                        ) : hasUnsavedChanges ? (
+                          <div className="flex items-center space-x-2 text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-3 py-2 rounded-lg">
+                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                            <span className="text-sm font-medium">Auto-save dans 3s...</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2 text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-3 py-2 rounded-lg">
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="text-sm font-medium">Sauvegardé</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleTogglePin(selectedNote)}
+                          className="p-2"
+                        >
+                          {selectedNote.is_pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="p-2">
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="p-2">
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="danger" 
+                          size="sm"
+                          onClick={() => handleDeleteNote()}
+                          className="p-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Layout 70/30 - Contenu Principal + Sidebar */}
+              <div className="flex-1 flex overflow-hidden">
                 
-                <div className="flex items-center space-x-3">
-                  {/* Indicateur de sauvegarde */}
-                  <div className="flex items-center space-x-2">
+                {/* Zone Contenu Principal (70%) */}
+                <div className="flex-1 p-6 overflow-y-auto">
+                  <div className="max-w-4xl mx-auto space-y-6">
+                    
+                    {/* Éditeur de contenu moderne */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                          Contenu de la note
+                        </label>
+                        <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                          <span>{formData.content.length} caractères</span>
+                          <span>•</span>
+                          <span>Markdown supporté</span>
+                          <span>•</span>
+                          <span className="text-blue-600 dark:text-blue-400">Auto-save ON</span>
+                        </div>
+                      </div>
+                      
+                      <div className="relative">
+                        <textarea
+                          value={formData.content}
+                          onChange={(e) => handleFormDataChange('content', e.target.value)}
+                          className="w-full h-96 px-6 py-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white resize-none text-lg leading-relaxed"
+                          placeholder="Développez vos idées avec du style...
+
+🎯 Utilisez Markdown pour structurer :
+# Titre principal
+## Sous-titre  
+**Texte en gras**
+*Texte en italique*
+- Liste à puces
+1. Liste numérotée
+> Citation importante
+
+Votre créativité n'a pas de limite !"
+                        />
+                        
+                        {/* Overlay de preview si contenu markdown détecté */}
+                        {formData.content.includes('#') || formData.content.includes('**') ? (
+                          <div className="absolute top-4 right-4 bg-blue-500 text-white px-2 py-1 rounded-lg text-xs font-medium">
+                            Markdown détecté
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sidebar Métadonnées (30%) */}
+                <div className="w-80 bg-gray-50 dark:bg-gray-800/50 border-l border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
+                  
+                  {/* Section Métadonnées */}
+                  <Card className="mb-6">
+                    <CardHeader 
+                      title="Informations" 
+                      icon={Target}
+                    />
+                    
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Créé
+                          </label>
+                          <div className="text-gray-900 dark:text-white font-medium">
+                            {formatDate(selectedNote.created_at)}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Modifié
+                          </label>
+                          <div className="text-gray-900 dark:text-white font-medium">
+                            {formatDate(selectedNote.updated_at)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Taille
+                          </label>
+                          <div className="text-gray-900 dark:text-white font-medium">
+                            {formData.content.length} chars
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Status
+                          </label>
+                          <div className="flex items-center space-x-1">
+                            {selectedNote.is_pinned ? (
+                              <span className="flex items-center space-x-1 text-blue-600 dark:text-blue-400">
+                                <Pin className="w-3 h-3" />
+                                <span className="text-xs font-medium">Épinglé</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-600 dark:text-gray-400 text-xs">Standard</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {selectedNote.has_attachment && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <Paperclip className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                              Pièces jointes disponibles
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+
+                  {/* Section Tags Management */}
+                  <Card className="mb-6">
+                    <CardHeader 
+                      title="Organisation" 
+                      icon={TagIcon}
+                    />
+                    
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={formData.tags}
+                        onChange={(e) => handleFormDataChange('tags', e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="Ajouter des tags..."
+                      />
+                      
+                      {selectedNote.tags && selectedNote.tags.length > 0 && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            Tags actuels
+                          </label>
+                          <div className="space-y-2">
+                            {selectedNote.tags.map((tag) => (
+                              <div
+                                key={tag.id}
+                                className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <div 
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: tag.color }}
+                                  ></div>
+                                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                                    {tag.name}
+                                  </span>
+                                </div>
+                                <Button variant="ghost" size="sm" className="p-1">
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+
+                  {/* Section Actions Rapides */}
+                  <Card>
+                    <CardHeader 
+                      title="Actions" 
+                      icon={Zap}
+                    />
+                    
+                    <div className="space-y-3">
+                      <Button
+                        variant="primary"
+                        onClick={handleUpdateNote}
+                        loading={isSaving}
+                        disabled={!hasUnsavedChanges}
+                        className="w-full"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {hasUnsavedChanges ? 'Sauvegarder' : 'Sauvegardé ✓'}
+                      </Button>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleTogglePin(selectedNote)}
+                          className="justify-center"
+                        >
+                          {selectedNote.is_pinned ? (
+                            <>
+                              <PinOff className="w-4 h-4 mr-1" />
+                              Désépingler
+                            </>
+                          ) : (
+                            <>
+                              <Pin className="w-4 h-4 mr-1" />
+                              Épingler
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button variant="ghost" size="sm" className="justify-center">
+                          <Copy className="w-4 h-4 mr-1" />
+                          Dupliquer
+                        </Button>
+                        
+                        <Button variant="ghost" size="sm" className="justify-center">
+                          <Download className="w-4 h-4 mr-1" />
+                          Export
+                        </Button>
+                        
+                        <Button variant="ghost" size="sm" className="justify-center">
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Partager
+                        </Button>
+                      </div>
+                      
+                      <Button
+                        variant="danger"
+                        onClick={() => {
+                          if (window.confirm(`Êtes-vous sûr de vouloir supprimer "${selectedNote.title}" ?`)) {
+                            handleDeleteNote();
+                          }
+                        }}
+                        size="sm"
+                        className="w-full mt-4"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Supprimer définitivement
+                      </Button>
+                    </div>
+                  </Card>
+
+                  {/* Raccourcis clavier */}
+                  <div className="mt-6 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                    <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Raccourcis clavier
+                    </h4>
+                    <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex justify-between">
+                        <span>Sauvegarder</span>
+                        <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">Ctrl+S</code>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Fermer</span>
+                        <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">Échap</code>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Épingler</span>
+                        <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">Ctrl+P</code>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer actions simplifiées */}
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-sm">
                     {isSaving ? (
-                      <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
-                        <LoadingSpinner size="sm" />
-                        <span className="text-sm font-medium">Sauvegarde...</span>
-                      </div>
+                      <span className="text-blue-600 dark:text-blue-400">
+                        ⏳ Sauvegarde en cours...
+                      </span>
                     ) : hasUnsavedChanges ? (
-                      <div className="flex items-center space-x-2 text-orange-600 dark:text-orange-400">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                        <span className="text-sm font-medium">Modifications non sauvées</span>
-                      </div>
+                      <span className="text-orange-600 dark:text-orange-400">
+                        ⚠️ Modifications non sauvegardées (auto-save activé)
+                      </span>
                     ) : (
-                      <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
-                        <CheckCircle className="w-4 h-4" />
-                        <span className="text-sm font-medium">Sauvegardé</span>
-                      </div>
+                      <span className="text-green-600 dark:text-green-400">
+                        ✅ Tous les changements sont sauvegardés
+                      </span>
                     )}
                   </div>
                   
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-3">
                     <Button
                       variant="ghost"
-                      size="sm"
-                      onClick={() => handleTogglePin(selectedNote)}
+                      onClick={() => {
+                        if (hasUnsavedChanges && !window.confirm('Modifications non sauvées. Continuer ?')) return;
+                        setShowDetailModal(false);
+                      }}
                     >
-                      {selectedNote.is_pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                      Fermer
                     </Button>
-                    <Button variant="ghost" size="sm">
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="danger" 
-                      size="sm"
-                      onClick={() => handleDeleteNote()}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Édition du titre */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Titre
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => handleFormDataChange('title', e.target.value)}
-                  className="w-full px-4 py-3 text-xl font-semibold bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
-                />
-              </div>
-
-              {/* Édition du contenu */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Contenu
-                </label>
-                <textarea
-                  value={formData.content}
-                  onChange={(e) => handleFormDataChange('content', e.target.value)}
-                  rows={15}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none font-mono"
-                  placeholder="Développez vos idées en détail..."
-                />
-                <div className="mt-2 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                  <span>{formData.content.length} caractères</span>
-                  <span>Markdown supporté</span>
-                </div>
-              </div>
-
-              {/* Gestion des tags */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Tags
-                </label>
-                <input
-                  type="text"
-                  value={formData.tags}
-                  onChange={(e) => handleFormDataChange('tags', e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
-                  placeholder="Organisez avec des tags..."
-                />
-                
-                {selectedNote.tags && selectedNote.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {selectedNote.tags.map((tag) => (
-                      <span
-                        key={tag.id}
-                        className="inline-flex items-center space-x-1 px-3 py-1 rounded-full text-sm"
-                        style={{ 
-                          backgroundColor: `${tag.color}15`, 
-                          color: tag.color,
-                          border: `1px solid ${tag.color}30`
-                        }}
+                    
+                    {hasUnsavedChanges && (
+                      <Button
+                        variant="primary"
+                        onClick={handleUpdateNote}
+                        loading={isSaving}
                       >
-                        <TagIcon className="w-3 h-3" />
-                        <span>{tag.name}</span>
-                      </span>
-                    ))}
+                        <Save className="w-4 h-4 mr-2" />
+                        Sauvegarder maintenant
+                      </Button>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* Actions finales */}
-              <div className="flex space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    if (hasUnsavedChanges && !window.confirm('Vous avez des modifications non sauvegardées. Êtes-vous sûr de vouloir fermer ?')) {
-                      return;
-                    }
-                    setShowDetailModal(false);
-                  }}
-                  className="flex-1"
-                >
-                  {hasUnsavedChanges ? 'Annuler (changements perdus)' : 'Fermer'}
-                </Button>
-                
-                {hasUnsavedChanges && (
-                  <Button
-                    variant="secondary"
-                    onClick={performAutoSave}
-                    loading={isSaving}
-                    className="flex-1"
-                  >
-                    <Save className="w-5 h-5 mr-2" />
-                    Sauvegarde rapide
-                  </Button>
-                )}
-                
-                <Button
-                  variant="primary"
-                  onClick={handleUpdateNote}
-                  className="flex-1"
-                  loading={isSaving}
-                  disabled={!hasUnsavedChanges && !formData.title.trim()}
-                >
-                  <Save className="w-5 h-5 mr-2" />
-                  {hasUnsavedChanges ? 'Sauvegarder maintenant' : 'Enregistré ✓'}
-                </Button>
+                </div>
               </div>
             </div>
           )}
