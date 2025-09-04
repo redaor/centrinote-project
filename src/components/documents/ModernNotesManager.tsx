@@ -82,6 +82,15 @@ export function ModernNotesManager() {
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // États de sauvegarde critiques
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [originalFormData, setOriginalFormData] = useState({
+    title: '',
+    content: '',
+    tags: ''
+  });
+
   // Form data
   const [formData, setFormData] = useState({
     title: '',
@@ -90,6 +99,7 @@ export function ModernNotesManager() {
   });
 
   const previewTimeoutRef = useRef<NodeJS.Timeout>();
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Filtrer et trier les notes
   useEffect(() => {
@@ -151,11 +161,14 @@ export function ModernNotesManager() {
   // Gestion clic complet - modal détaillée
   const handleOpenDetailModal = (note: Note) => {
     setSelectedNote(note);
-    setFormData({
+    const initialFormData = {
       title: note.title,
       content: note.content || '',
       tags: note.tags ? note.tags.map(tag => tag.name).join(', ') : ''
-    });
+    };
+    setFormData(initialFormData);
+    setOriginalFormData(initialFormData); // Sauvegarder l'état original
+    setHasUnsavedChanges(false);
     setShowDetailModal(true);
     setPreviewNote(null);
   };
@@ -188,16 +201,23 @@ export function ModernNotesManager() {
     }
   };
 
-  const handleUpdateNote = async () => {
-    if (!selectedNote || !formData.title.trim()) {
-      setMessage({ type: 'error', text: 'Le titre est obligatoire' });
-      return;
-    }
+  // Auto-save avec debounce
+  const performAutoSave = async () => {
+    if (!selectedNote || !hasUnsavedChanges || isSaving) return;
+
+    console.log('🔄 Auto-save déclenché pour note:', selectedNote.id);
+    setIsSaving(true);
 
     try {
       const tagArray = formData.tags
-        ? formData.tags.split(',').map(tag => tag.trim())
+        ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean)
         : [];
+
+      console.log('💾 Sauvegarde des données:', {
+        title: formData.title.trim(),
+        content: formData.content.trim(),
+        tags: tagArray
+      });
 
       const updatedNote = await updateNote(
         selectedNote.id,
@@ -209,12 +229,69 @@ export function ModernNotesManager() {
       );
 
       if (updatedNote) {
-        setMessage({ type: 'success', text: 'Note mise à jour avec succès' });
-        setShowDetailModal(false);
-        setSelectedNote(null);
+        setHasUnsavedChanges(false);
+        setOriginalFormData(formData);
+        setMessage({ type: 'success', text: 'Auto-sauvegarde effectuée' });
+        console.log('✅ Auto-save réussi');
+      } else {
+        throw new Error('Échec de la mise à jour');
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Erreur lors de la mise à jour' });
+      console.error('❌ Erreur auto-save:', error);
+      setMessage({ type: 'error', text: 'Échec auto-sauvegarde' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUpdateNote = async () => {
+    if (!selectedNote || !formData.title.trim()) {
+      setMessage({ type: 'error', text: 'Le titre est obligatoire' });
+      return;
+    }
+
+    console.log('💾 Sauvegarde manuelle déclenchée');
+    setIsSaving(true);
+
+    try {
+      const tagArray = formData.tags
+        ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+        : [];
+
+      console.log('📝 Données à sauvegarder:', {
+        noteId: selectedNote.id,
+        title: formData.title.trim(),
+        content: formData.content.trim(),
+        tags: tagArray
+      });
+
+      const updatedNote = await updateNote(
+        selectedNote.id,
+        {
+          title: formData.title.trim(),
+          content: formData.content.trim()
+        },
+        tagArray
+      );
+
+      if (updatedNote) {
+        console.log('✅ Sauvegarde manuelle réussie:', updatedNote);
+        setMessage({ type: 'success', text: 'Note mise à jour avec succès' });
+        setHasUnsavedChanges(false);
+        setOriginalFormData(formData);
+        setShowDetailModal(false);
+        setSelectedNote(null);
+      } else {
+        throw new Error('La fonction updateNote a retourné null');
+      }
+    } catch (error) {
+      console.error('❌ Erreur sauvegarde manuelle:', error);
+      setMessage({ 
+        type: 'error', 
+        text: `Erreur sauvegarde: ${error instanceof Error ? error.message : 'Inconnue'}` 
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -247,8 +324,76 @@ export function ModernNotesManager() {
     }
   };
 
+  // Détection des changements
+  useEffect(() => {
+    const hasChanged = 
+      formData.title !== originalFormData.title ||
+      formData.content !== originalFormData.content ||
+      formData.tags !== originalFormData.tags;
+    
+    setHasUnsavedChanges(hasChanged);
+    console.log('🔍 Changements détectés:', hasChanged, {
+      titleChanged: formData.title !== originalFormData.title,
+      contentChanged: formData.content !== originalFormData.content,
+      tagsChanged: formData.tags !== originalFormData.tags
+    });
+  }, [formData, originalFormData]);
+
+  // Auto-save avec debounce (3 secondes après changement)
+  useEffect(() => {
+    if (hasUnsavedChanges && selectedNote) {
+      // Annuler le timeout précédent
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      
+      // Programmer la sauvegarde
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        console.log('⏰ Déclenchement auto-save après 3 secondes');
+        performAutoSave();
+      }, 3000);
+    }
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [hasUnsavedChanges, selectedNote]);
+
+  // Auto-hide des messages
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
+  // Cleanup refs au démontage
+  useEffect(() => {
+    return () => {
+      if (previewTimeoutRef.current) {
+        clearTimeout(previewTimeoutRef.current);
+      }
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handler pour les changements de form avec logging
+  const handleFormDataChange = (field: 'title' | 'content' | 'tags', value: string) => {
+    console.log(`📝 Changement ${field}:`, value.slice(0, 50) + (value.length > 50 ? '...' : ''));
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   const resetForm = () => {
-    setFormData({ title: '', content: '', tags: '' });
+    const emptyForm = { title: '', content: '', tags: '' };
+    setFormData(emptyForm);
+    setOriginalFormData(emptyForm);
+    setHasUnsavedChanges(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -917,7 +1062,7 @@ export function ModernNotesManager() {
               <input
                 type="text"
                 value={formData.title}
-                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                onChange={(e) => handleFormDataChange('title', e.target.value)}
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                 placeholder="Donnez un titre à votre note..."
               />
@@ -929,7 +1074,7 @@ export function ModernNotesManager() {
               </label>
               <textarea
                 value={formData.content}
-                onChange={(e) => setFormData({...formData, content: e.target.value})}
+                onChange={(e) => handleFormDataChange('content', e.target.value)}
                 rows={8}
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none"
                 placeholder="Développez vos idées..."
@@ -943,7 +1088,7 @@ export function ModernNotesManager() {
               <input
                 type="text"
                 value={formData.tags}
-                onChange={(e) => setFormData({...formData, tags: e.target.value})}
+                onChange={(e) => handleFormDataChange('tags', e.target.value)}
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                 placeholder="ex: important, projet, idée"
               />
@@ -1001,27 +1146,49 @@ export function ModernNotesManager() {
                   </div>
                 </div>
                 
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleTogglePin(selectedNote)}
-                  >
-                    {selectedNote.is_pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Download className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    variant="danger" 
-                    size="sm"
-                    onClick={() => handleDeleteNote()}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                <div className="flex items-center space-x-3">
+                  {/* Indicateur de sauvegarde */}
+                  <div className="flex items-center space-x-2">
+                    {isSaving ? (
+                      <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
+                        <LoadingSpinner size="sm" />
+                        <span className="text-sm font-medium">Sauvegarde...</span>
+                      </div>
+                    ) : hasUnsavedChanges ? (
+                      <div className="flex items-center space-x-2 text-orange-600 dark:text-orange-400">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium">Modifications non sauvées</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-sm font-medium">Sauvegardé</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleTogglePin(selectedNote)}
+                    >
+                      {selectedNote.is_pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="danger" 
+                      size="sm"
+                      onClick={() => handleDeleteNote()}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -1033,7 +1200,7 @@ export function ModernNotesManager() {
                 <input
                   type="text"
                   value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  onChange={(e) => handleFormDataChange('title', e.target.value)}
                   className="w-full px-4 py-3 text-xl font-semibold bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                 />
               </div>
@@ -1045,7 +1212,7 @@ export function ModernNotesManager() {
                 </label>
                 <textarea
                   value={formData.content}
-                  onChange={(e) => setFormData({...formData, content: e.target.value})}
+                  onChange={(e) => handleFormDataChange('content', e.target.value)}
                   rows={15}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none font-mono"
                   placeholder="Développez vos idées en détail..."
@@ -1064,7 +1231,7 @@ export function ModernNotesManager() {
                 <input
                   type="text"
                   value={formData.tags}
-                  onChange={(e) => setFormData({...formData, tags: e.target.value})}
+                  onChange={(e) => handleFormDataChange('tags', e.target.value)}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                   placeholder="Organisez avec des tags..."
                 />
@@ -1093,19 +1260,38 @@ export function ModernNotesManager() {
               <div className="flex space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <Button
                   variant="ghost"
-                  onClick={() => setShowDetailModal(false)}
+                  onClick={() => {
+                    if (hasUnsavedChanges && !window.confirm('Vous avez des modifications non sauvegardées. Êtes-vous sûr de vouloir fermer ?')) {
+                      return;
+                    }
+                    setShowDetailModal(false);
+                  }}
                   className="flex-1"
                 >
-                  Annuler
+                  {hasUnsavedChanges ? 'Annuler (changements perdus)' : 'Fermer'}
                 </Button>
+                
+                {hasUnsavedChanges && (
+                  <Button
+                    variant="secondary"
+                    onClick={performAutoSave}
+                    loading={isSaving}
+                    className="flex-1"
+                  >
+                    <Save className="w-5 h-5 mr-2" />
+                    Sauvegarde rapide
+                  </Button>
+                )}
+                
                 <Button
                   variant="primary"
                   onClick={handleUpdateNote}
                   className="flex-1"
-                  loading={loading}
+                  loading={isSaving}
+                  disabled={!hasUnsavedChanges && !formData.title.trim()}
                 >
                   <Save className="w-5 h-5 mr-2" />
-                  Enregistrer les modifications
+                  {hasUnsavedChanges ? 'Sauvegarder maintenant' : 'Enregistré ✓'}
                 </Button>
               </div>
             </div>
@@ -1113,10 +1299,6 @@ export function ModernNotesManager() {
         </Modal>
       </div>
 
-      {/* Auto-hide message */}
-      {message && (
-        setTimeout(() => setMessage(null), 4000)
-      )}
     </div>
   );
 }
