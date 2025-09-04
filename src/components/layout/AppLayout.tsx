@@ -6,7 +6,7 @@ import { useAuth } from '../AuthProvider';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
 import { Dashboard } from '../dashboard/Dashboard';
-import NotesManager from '../documents/NotesManager';
+import { ModernNotesManager } from '../documents/ModernNotesManager';
 import { VocabularyNotebook } from '../vocabulary/VocabularyNotebook';
 import { Collaboration } from '../collaboration/Collaboration';
 import { ModernAISearch } from '../search/ModernAISearch';
@@ -61,7 +61,7 @@ export function AppLayout() {
       case 'dashboard':
         return <Dashboard />;
       case 'notes':
-        return <NotesManager />;
+        return <ModernNotesManager />;
       case 'vocabulary':
         return <VocabularyNotebook />;
       case 'collaboration':
