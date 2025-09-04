@@ -44,6 +44,7 @@ import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { LoadingSpinner, ProgressBar } from '../ui/LoadingStates';
 import { DatabaseErrorMessage } from '../common/DatabaseErrorMessage';
+import { FullScreenNoteEditor } from './FullScreenNoteEditor';
 
 interface FilterChip {
   id: string;
@@ -1174,98 +1175,26 @@ export function ModernNotesManager() {
           </div>
         </Modal>
 
-        {/* Modal Visualisation/Édition Moderne - Layout 70/30 */}
-        <Modal
+        {/* Éditeur Full-Screen Moderne */}
+        <FullScreenNoteEditor
           isOpen={showDetailModal}
           onClose={() => {
-            console.log('🔄 Tentative fermeture modal');
+            console.log('🔄 Tentative fermeture éditeur');
             if (hasUnsavedChanges && !window.confirm('Vous avez des modifications non sauvegardées. Êtes-vous sûr de vouloir fermer ?')) {
               return;
             }
             setShowDetailModal(false);
           }}
-          title={selectedNote?.title || "Édition note"}
-          size="xl"
-        >
-          {selectedNote ? (
-            <div className="space-y-6">
-              {/* Titre éditable */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Titre
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => handleFormDataChange('title', e.target.value)}
-                  className="w-full px-4 py-3 text-xl font-semibold bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
-                />
-              </div>
-
-              {/* Contenu éditable */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Contenu
-                </label>
-                <textarea
-                  value={formData.content}
-                  onChange={(e) => handleFormDataChange('content', e.target.value)}
-                  rows={12}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none"
-                  placeholder="Développez vos idées..."
-                />
-                <div className="mt-2 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                  <span>{formData.content.length} caractères</span>
-                  {isSaving ? (
-                    <span className="text-blue-600 dark:text-blue-400">💾 Sauvegarde...</span>
-                  ) : hasUnsavedChanges ? (
-                    <span className="text-orange-600 dark:text-orange-400">⚠️ Auto-save dans 3s</span>
-                  ) : (
-                    <span className="text-green-600 dark:text-green-400">✅ Sauvegardé</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Tags
-                </label>
-                <input
-                  type="text"
-                  value={formData.tags}
-                  onChange={(e) => handleFormDataChange('tags', e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
-                  placeholder="ex: important, projet, idée"
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    if (hasUnsavedChanges && !window.confirm('Modifications non sauvées. Fermer ?')) return;
-                    setShowDetailModal(false);
-                  }}
-                  className="flex-1"
-                >
-                  Fermer
-                </Button>
-                
-                <Button
-                  variant="primary"
-                  onClick={handleUpdateNote}
-                  loading={isSaving}
-                  className="flex-1"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {hasUnsavedChanges ? 'Sauvegarder' : 'Sauvegardé ✓'}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </Modal>
+          note={selectedNote!}
+          formData={formData}
+          onFormDataChange={handleFormDataChange}
+          onSave={handleUpdateNote}
+          onPin={() => selectedNote && handleTogglePin(selectedNote)}
+          onNavigate={navigateToNote}
+          hasUnsavedChanges={hasUnsavedChanges}
+          isSaving={isSaving}
+          showNavigationButtons={filteredNotes.length > 1}
+        />
       </div>
 
     </div>
