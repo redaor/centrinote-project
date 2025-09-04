@@ -57,7 +57,7 @@ export function useCentrinoteAI() {
   useEffect(() => {
     const testConnection = async () => {
       try {
-        const result = await centrinoteAI.testConnectivite();
+        const result = await centrinoteAI.testConnectivite(user?.id);
         setIsConnected(result.success);
         if (!result.success) {
           setError(result.message || 'Erreur de connectivité IA');
@@ -70,7 +70,7 @@ export function useCentrinoteAI() {
     };
 
     testConnection();
-  }, []);
+  }, [user?.id]);
 
   /**
    * 🤖 Envoi de message avec analyse intelligente
@@ -129,11 +129,12 @@ export function useCentrinoteAI() {
         userId: user?.id
       });
 
-      // Appel du module IA intelligent
+      // Appel du module IA intelligent avec user.id
       const result = await centrinoteAI.traiterDemande(
         userMessage,
         notes || [],
-        vocabulary || []
+        vocabulary || [],
+        user?.id
       );
 
       console.log('📊 Résultat CentrinoteAI:', {
@@ -210,7 +211,7 @@ export function useCentrinoteAI() {
   const testConnection = useCallback(async (): Promise<{ success: boolean; message: string }> => {
     try {
       setIsLoading(true);
-      const result = await centrinoteAI.testConnectivite();
+      const result = await centrinoteAI.testConnectivite(user?.id);
       setIsConnected(result.success);
       
       if (!result.success) {

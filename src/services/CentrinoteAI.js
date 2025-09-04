@@ -19,7 +19,9 @@ class CentrinoteAI {
     this.motsClesVocab = [
       'vocabulaire', 'mot', 'définition', 'terme', 'expression',
       'signification', 'sens', 'lexique', 'dictionnaire', 'traduis',
-      'traduction', 'expliquer', 'signifie'
+      'traduction', 'expliquer', 'signifie', 'dernier vocabulaire',
+      'derniere mot', 'nouveau mot', 'recent vocabulaire', 'dernier mot',
+      'derniere vocabulaire', 'nouveau vocabulaire', 'recent mot'
     ];
 
     // Configuration des URLs depuis .env
@@ -52,6 +54,36 @@ class CentrinoteAI {
     const motMentionne = this.chercherMotMentionne(msg, vocabulaire);
 
     console.log('📊 Scores calculés:', { scoreNotes, scoreVocab });
+
+    // 🕐 DÉTECTION SPÉCIALE : Demandes temporelles pour vocabulaire
+    const demandeTemporelleVocab = this.detecterDemandeTemporelle(msg, 'vocabulaire');
+    if (demandeTemporelleVocab && vocabulaire.length > 0) {
+      const motRecent = this.obtenirVocabulaireLePlusRecent(vocabulaire);
+      if (motRecent) {
+        return {
+          type: "vocabulaire",
+          confidence: 0.95,
+          confirmation: `Voici ton dernier vocabulaire ajouté : "${motRecent.word}"`,
+          contenu: motRecent.definition,
+          source: this.adaptVocabFormat(motRecent)
+        };
+      }
+    }
+
+    // 🕐 DÉTECTION SPÉCIALE : Demandes temporelles pour notes
+    const demandeTemporelleNote = this.detecterDemandeTemporelle(msg, 'note');
+    if (demandeTemporelleNote && notes.length > 0) {
+      const noteRecente = this.obtenirNoteLaPlusRecente(notes);
+      if (noteRecente) {
+        return {
+          type: "note",
+          confidence: 0.95,
+          confirmation: `Voici ta dernière note : "${noteRecente.title}"`,
+          contenu: noteRecente.content || 'Note sans contenu',
+          source: this.adaptNoteFormat(noteRecente)
+        };
+      }
+    }
 
     // Mention explicite de note trouvée
     if (noteMentionnee) {
@@ -460,7 +492,7 @@ class CentrinoteAI {
   /**
    * 🚀 Méthode principale - Interface avec le système IA existant
    */
-  async traiterDemande(userMessage, notes = [], vocabulaire = []) {
+  async traiterDemande(userMessage, notes = [], vocabulaire = [], userId = null) {
     try {
       console.log('🎯 CentrinoteAI - Début traitement demande');
       
@@ -480,8 +512,8 @@ class CentrinoteAI {
       const messagePourIA = this.construireMessagePourIA(userMessage, resultatAnalyse);
       
       // Envoi vers l'IA via le service existant (compatible avec aiService.ts)
-      console.log('📤 Envoi vers IA via aiService...');
-      const reponseIA = await aiService.sendMessage(messagePourIA);
+      console.log('📤 Envoi vers IA via aiService avec userId:', userId);
+      const reponseIA = await aiService.sendMessage(messagePourIA, userId);
       
       // Retour formaté avec analyse + réponse
       return {
@@ -506,10 +538,10 @@ class CentrinoteAI {
   /**
    * 🧪 Test de connectivité
    */
-  async testConnectivite() {
+  async testConnectivite(userId = null) {
     try {
-      console.log('🧪 Test connectivité CentrinoteAI');
-      const test = await aiService.testConnection();
+      console.log('🧪 Test connectivité CentrinoteAI avec userId:', userId);
+      const test = await aiService.testConnection(userId);
       return test;
     } catch (error) {
       return {
@@ -517,6 +549,51 @@ class CentrinoteAI {
         message: error.message || 'Erreur de connectivité'
       };
     }
+  }
+
+  /**
+   * 🕐 Détection de demandes temporelles (dernier, récent, nouveau)
+   */
+  detecterDemandeTemporelle(message, type) {
+    const motsTemporels = ['dernier', 'derniere', 'nouveau', 'nouvelle', 'recent', 'recente'];
+    const motsType = type === 'vocabulaire' 
+      ? ['vocabulaire', 'mot', 'terme']
+      : ['note', 'document', 'fiche'];
+    
+    let hasTemporel = false;
+    let hasType = false;
+    
+    motsTemporels.forEach(temporal => {
+      if (message.includes(temporal)) hasTemporel = true;
+    });
+    
+    motsType.forEach(typeWord => {
+      if (message.includes(typeWord)) hasType = true;
+    });
+    
+    return hasTemporel && hasType;
+  }
+
+  /**
+   * 📅 Obtenir le vocabulaire le plus récent
+   */
+  obtenirVocabulaireLePlusRecent(vocabulaire) {
+    if (!Array.isArray(vocabulaire) || vocabulaire.length === 0) return null;
+    
+    return vocabulaire
+      .filter(vocab => vocab.created_at) // Seulement ceux avec une date
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+  }
+
+  /**
+   * 📅 Obtenir la note la plus récente
+   */
+  obtenirNoteLaPlusRecente(notes) {
+    if (!Array.isArray(notes) || notes.length === 0) return null;
+    
+    return notes
+      .filter(note => note.created_at) // Seulement celles avec une date
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
   }
 }
 

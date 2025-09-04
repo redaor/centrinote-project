@@ -12,6 +12,9 @@ import {
   Plus
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { Card, CardHeader } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { ProgressBar } from '../ui/LoadingStates';
 
 export function Dashboard() {
   const { state, dispatch } = useApp();
@@ -64,51 +67,44 @@ export function Dashboard() {
         </p>
       </div>
 
-      {/* Stats principales - 3 blocs maximum */}
+      {/* Stats principales modernes */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <div
+            <Card
               key={index}
               onClick={stat.action}
-              className={`
-                ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-                border rounded-xl p-6 hover:shadow-lg transition-all duration-200 cursor-pointer group
-              `}
+              className="cursor-pointer group p-6"
+              hover={true}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className={`p-3 rounded-lg bg-gradient-to-r ${stat.color}`}>
                   <Icon className="w-6 h-6 text-white" />
                 </div>
-                <ArrowRight className={`w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                <ArrowRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" />
               </div>
               <div>
-                <p className={`text-3xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                <p className="text-3xl font-bold mb-1 text-gray-900 dark:text-white">
                   {stat.value}
                 </p>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   {stat.label}
                 </p>
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
 
       {/* Contenu principal - 2 colonnes */}
       <div className="grid grid-cols-1 gap-8">
-        {/* Prochaine session */}
-        <div className={`
-          ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-          border rounded-xl p-6
-        `}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Prochaine session
-            </h3>
-            <Calendar className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-          </div>
+        {/* Prochaine session moderne */}
+        <Card>
+          <CardHeader 
+            title="Prochaine session"
+            icon={Calendar}
+          />
           
           {nextSession ? (
             <div className="space-y-3">
@@ -127,12 +123,13 @@ export function Dashboard() {
                   {nextSession.duration} minutes • {nextSession.type}
                 </p>
               </div>
-              <button 
+              <Button 
+                variant="ghost"
                 onClick={() => dispatch({ type: 'SET_CURRENT_VIEW', payload: 'planning' })}
-                className="w-full py-2 text-blue-500 hover:text-blue-600 text-sm font-medium"
+                className="w-full"
               >
                 Voir toutes les sessions
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="text-center py-8">
@@ -140,89 +137,85 @@ export function Dashboard() {
               <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 Aucune session planifiée
               </p>
-              <button 
+              <Button 
+                variant="primary"
                 onClick={() => dispatch({ type: 'SET_CURRENT_VIEW', payload: 'planning' })}
-                className="inline-flex items-center space-x-1 text-blue-500 hover:text-blue-600 text-sm font-medium"
+                className="inline-flex items-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
                 <span>Planifier une session</span>
-              </button>
+              </Button>
             </div>
           )}
-        </div>
-      </div>
+        </Card>
 
-      {/* Progrès d'apprentissage */}
-      <div className={`
-        ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-        border rounded-xl p-6
-      `}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Progrès d'apprentissage
-          </h3>
-          <Target className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-        </div>
+      {/* Progrès d'apprentissage moderne */}
+      <Card>
+        <CardHeader 
+          title="Progrès d'apprentissage"
+          icon={Target}
+        />
         
-        <div className="space-y-4">
-          {/* Maîtrise vocabulaire */}
+        <div className="space-y-6">
+          {/* Maîtrise vocabulaire avec ProgressBar */}
           <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 Maîtrise Vocabulaire
               </span>
-              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              <span className="text-sm font-bold text-teal-600 dark:text-teal-400">
                 {vocabularyMastery}%
               </span>
             </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-              <div 
-                className="bg-gradient-to-r from-teal-500 to-teal-600 h-3 rounded-full transition-all duration-500"
-                style={{ width: `${vocabularyMastery}%` }}
-              ></div>
-            </div>
+            <ProgressBar 
+              progress={vocabularyMastery}
+              variant="primary"
+              size="lg"
+            />
           </div>
 
-          {/* Sessions complétées */}
+          {/* Sessions complétées avec ProgressBar moderne */}
           <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 Sessions Complétées
               </span>
-              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              <span className="text-sm font-bold text-purple-600 dark:text-purple-400">
                 {studySessions.filter(s => s.completed).length}/{studySessions.length}
               </span>
             </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-              <div 
-                className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500"
-                style={{ 
-                  width: `${studySessions.length > 0 
-                    ? (studySessions.filter(s => s.completed).length / studySessions.length) * 100 
-                    : 0}%` 
-                }}
-              ></div>
-            </div>
+            <ProgressBar 
+              progress={studySessions.length > 0 
+                ? (studySessions.filter(s => s.completed).length / studySessions.length) * 100 
+                : 0}
+              variant="success"
+              size="lg"
+            />
           </div>
 
-          {/* Bouton d'action */}
-          <button 
-            onClick={() => dispatch({ type: 'SET_CURRENT_VIEW', payload: 'vocabulary' })}
-            className="w-full py-2 text-teal-500 hover:text-teal-600 text-sm font-medium"
-          >
-            Réviser le vocabulaire
-          </button>
+          {/* Actions rapides */}
+          <div className="flex space-x-3 pt-4">
+            <Button 
+              variant="primary"
+              onClick={() => dispatch({ type: 'SET_CURRENT_VIEW', payload: 'vocabulary' })}
+              className="flex-1"
+            >
+              Réviser le vocabulaire
+            </Button>
+            <Button 
+              variant="secondary"
+              onClick={() => dispatch({ type: 'SET_CURRENT_VIEW', payload: 'search' })}
+              className="flex-1"
+            >
+              Assistant IA
+            </Button>
+          </div>
         </div>
-      </div>
+      </Card>
 
-      {/* Actions rapides */}
-      <div className={`
-        ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-        border rounded-xl p-6
-      `}>
-        <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Actions rapides
-        </h3>
+      {/* Actions rapides modernes */}
+      <Card>
+        <CardHeader title="Actions rapides" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { 
@@ -271,6 +264,7 @@ export function Dashboard() {
             );
           })}
         </div>
+      </Card>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button } from '../ui/Button';
 
 const menuItems = [
   { id: 'dashboard', label: 'dashboard', icon: Home },
@@ -110,8 +111,9 @@ export function Sidebar() {
                     className={`
                       w-full flex items-center space-x-4 lg:space-x-3 px-4 lg:px-3 py-4 lg:py-2.5 rounded-lg
                       transition-all duration-200 ease-in-out text-left min-h-[3.5rem] lg:min-h-0
+                      hover:scale-[1.02] active:scale-[0.98] transform
                       ${isActive
-                        ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-lg'
+                        ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-lg scale-[1.02]'
                         : darkMode
                           ? 'text-gray-400 hover:text-white hover:bg-gray-800'
                           : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'

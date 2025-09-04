@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useCentrinoteAI } from '../../hooks/useCentrinoteAI';
+import { Card, CardHeader } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { LoadingSpinner } from '../ui/LoadingStates';
 import '../../utils/webhookDebug';
 
 interface Message {
@@ -198,13 +201,12 @@ export function AISearch() {
         </p>
       </div>
 
-      {/* Statut de connexion */}
-      <div className={`
+      {/* Statut de connexion moderne */}
+      <Card className={`
         ${connectionStatus.connected 
-          ? darkMode ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'
-          : darkMode ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
+          ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20'
+          : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20'
         }
-        border rounded-xl p-4
       `}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -241,21 +243,17 @@ export function AISearch() {
             </div>
           </div>
           
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={checkConnection}
-            className={`
-              p-2 rounded-lg transition-colors
-              ${darkMode 
-                ? 'hover:bg-gray-700 text-gray-400 hover:text-white' 
-                : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-              }
-            `}
-            title="Vérifier la connexion"
+            className="p-2"
+            aria-label="Vérifier la connexion"
           >
             <RefreshCw className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
       {/* Interface de chat */}
       <div className="max-w-4xl mx-auto">
@@ -292,16 +290,11 @@ export function AISearch() {
               );
             })}
             
-            {/* Indicateur de chargement */}
+            {/* Indicateur de chargement moderne */}
             {isLoading && (
               <div className="flex justify-start">
-                <div className={`px-4 py-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  <div className="flex items-center space-x-2">
-                    <Loader className="w-4 h-4 animate-spin text-blue-500" />
-                    <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      L'IA réfléchit...
-                    </span>
-                  </div>
+                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-3">
+                  <LoadingSpinner size="sm" text="L'IA réfléchit..." />
                 </div>
               </div>
             )}
@@ -324,19 +317,15 @@ export function AISearch() {
           </div>
           
           {messages.length > 1 && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleClearMessages}
-              className={`
-                flex items-center space-x-2 px-3 py-1 rounded-lg text-sm transition-colors
-                ${darkMode 
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }
-              `}
+              className="flex items-center space-x-2"
             >
               <Trash2 className="w-4 h-4" />
               <span>Nouveau chat</span>
-            </button>
+            </Button>
           )}
         </div>
 

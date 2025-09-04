@@ -25,6 +25,9 @@ import { useApp } from '../../contexts/AppContext';
 import { VocabularyEntry } from '../../types';
 import { useVocabulary } from '../../hooks/useVocabulary';
 import { DatabaseErrorMessage } from '../common/DatabaseErrorMessage';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { ProgressBar } from '../ui/LoadingStates';
 
 type SortOption = 'alphabetical' | 'category' | 'mastery-asc' | 'mastery-desc' | 'difficulty-asc' | 'difficulty-desc' | 'recent';
 
@@ -324,6 +327,12 @@ export function VocabularyNotebook() {
   const handleViewDetails = (entry: VocabularyEntry) => {
     setSelectedEntry(entry);
     setShowDetailModal(true);
+  };
+
+  const handleReviewWord = (entry: VocabularyEntry) => {
+    // Logique de révision - peut ouvrir un quiz ou une session de révision
+    console.log('Révision du mot:', entry.word);
+    // TODO: Implémenter session de révision
   };
 
   const VocabularyCard = ({ entry }: { entry: VocabularyEntry }) => (
@@ -1100,55 +1109,65 @@ export function VocabularyNotebook() {
         </>
       )}
 
-      {/* Modal Vue Détaillée */}
-      {showDetailModal && selectedEntry && (
-        <>
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setShowDetailModal(false)} />
-          <div className={`
-            fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50
-            ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto
-          `}>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-3">
-                <div className="p-3 bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg">
-                  <BookOpen className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {selectedEntry.word}
-                  </h2>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span className={`px-2 py-1 text-sm rounded-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
-                      {selectedEntry.category}
-                    </span>
-                    <div className="flex items-center space-x-1">
-                      {getDifficultyStars(selectedEntry.difficulty)}
-                    </div>
+      {/* Modal Vue Détaillée Moderne */}
+      <Modal
+        isOpen={showDetailModal && !!selectedEntry}
+        onClose={() => setShowDetailModal(false)}
+        size="lg"
+      >
+        {selectedEntry && (
+          <>
+            {/* Header avec icône et métadonnées */}
+            <div className="flex items-center space-x-4 mb-6">
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg flex-shrink-0">
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {selectedEntry.word}
+                </h2>
+                <div className="flex items-center space-x-3 mt-2">
+                  <span className="px-3 py-1 text-sm rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                    {selectedEntry.category}
+                  </span>
+                  <div className="flex items-center space-x-1">
+                    {getDifficultyStars(selectedEntry.difficulty)}
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className={`p-2 rounded-full hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : ''}`}
-              >
-                <X className={`w-6 h-6 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-              </button>
+            </div>
+
+            {/* Maîtrise avec barre de progression moderne */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Maîtrise
+                </span>
+                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                  {selectedEntry.mastery}%
+                </span>
+              </div>
+              <ProgressBar 
+                progress={selectedEntry.mastery} 
+                variant="primary" 
+                size="lg" 
+              />
             </div>
 
             {/* Définition complète */}
-            <div className="space-y-6">
-              <div>
-                <h3 className={`text-lg font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Définition
-                </h3>
-                <p className={`text-lg leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">
+                Définition
+              </h3>
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                <p className="text-base leading-relaxed text-gray-700 dark:text-gray-300">
                   {selectedEntry.definition}
                 </p>
               </div>
+            </div>
 
               {/* Exemples */}
-              {selectedEntry.examples.length > 0 && (
+              {selectedEntry.examples && Array.isArray(selectedEntry.examples) && selectedEntry.examples.length > 0 && (
                 <div>
                   <h3 className={`text-lg font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                     Exemple{selectedEntry.examples.length > 1 ? 's' : ''}
@@ -1213,34 +1232,38 @@ export function VocabularyNotebook() {
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button
+              {/* Actions avec nouveaux boutons */}
+              <div className="flex justify-between space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <Button
+                  variant="secondary"
                   onClick={() => {
                     setShowDetailModal(false);
                     handleEditWord(selectedEntry);
                   }}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
-                    darkMode 
-                      ? 'border-gray-600 text-gray-400 hover:text-white hover:bg-gray-700'
-                      : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
+                  className="flex items-center space-x-2"
                 >
                   <Edit className="w-4 h-4" />
                   <span>Modifier</span>
-                </button>
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:shadow-md transition-all duration-200"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>Fermer</span>
-                </button>
+                </Button>
+                
+                <div className="flex space-x-2">
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      // Action révision rapide
+                      handleReviewWord(selectedEntry);
+                      setShowDetailModal(false);
+                    }}
+                    className="flex items-center space-x-2"
+                  >
+                    <Brain className="w-4 h-4" />
+                    <span>Réviser</span>
+                  </Button>
+                </div>
               </div>
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
