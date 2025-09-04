@@ -15,6 +15,7 @@ import { Settings } from '../settings/Settings';
 import { Help } from '../help/Help';
 import { AutomationManager } from '../automation/AutomationManager';
 import ZoomManagerSimple from '../zoom/ZoomManagerSimple';
+import { AdminFloatingButton } from '../admin/AdminFloatingButton';
 
 export function AppLayout() {
   const { state, dispatch } = useApp();
@@ -95,6 +96,9 @@ export function AppLayout() {
             </main>
           </div>
         </div>
+        
+        {/* Bouton Admin Flottant - SEULEMENT pour reda_sahraoui@outlook.fr */}
+        <AdminFloatingButton user={authUser} />
       </div>
     </LanguageProvider>
   );
