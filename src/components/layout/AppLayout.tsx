@@ -9,7 +9,7 @@ import { Dashboard } from '../dashboard/Dashboard';
 import NotesManager from '../documents/NotesManager';
 import { VocabularyNotebook } from '../vocabulary/VocabularyNotebook';
 import { Collaboration } from '../collaboration/Collaboration';
-import { AISearch } from '../search/AISearch';
+import { ModernAISearch } from '../search/ModernAISearch';
 import { StudyPlanning } from '../planning/StudyPlanning';
 import { Settings } from '../settings/Settings';
 import { Help } from '../help/Help';
@@ -69,7 +69,7 @@ export function AppLayout() {
       case 'zoom':
         return <ZoomManagerSimple />;
       case 'search':
-        return <AISearch />;
+        return <ModernAISearch />;
       case 'planning':
         return <StudyPlanning />;
       case 'settings':
