@@ -98,6 +98,7 @@ export function AppLayout() {
         </div>
         
         {/* Bouton Admin Flottant - SEULEMENT pour reda_sahraoui@outlook.fr */}
+        {console.log("🔧 AppLayout - AuthUser:", authUser?.email)}
         <AdminFloatingButton user={authUser} />
       </div>
     </LanguageProvider>

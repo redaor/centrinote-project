@@ -11,20 +11,39 @@ export function AdminFloatingButton({ user }: AdminFloatingButtonProps) {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const { isAdmin } = useAdminMode();
 
+  // DEBUG TEMPORAIRE - À voir dans console centrinote.fr
+  console.log("🔧 AdminFloatingButton - User email:", user?.email);
+  console.log("🔧 AdminFloatingButton - Is admin:", isAdmin(user));
+  console.log("🔧 AdminFloatingButton - Should render:", !!user && isAdmin(user));
+
   // Seulement visible pour l'administrateur
-  if (!isAdmin(user)) return null;
+  if (!isAdmin(user)) {
+    console.log("❌ AdminFloatingButton NOT RENDERED - Not admin user");
+    return null;
+  }
+
+  console.log("✅ AdminFloatingButton RENDERED - Admin user detected");
 
   return (
     <>
-      {/* Bouton flottant discret */}
+      {/* Bouton flottant DEBUG - TRÈS VISIBLE */}
       <button
-        onClick={() => setShowAdminPanel(true)}
-        className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200 group"
-        title="Mode Administrateur Mobile"
+        onClick={() => {
+          console.log("🔧 ADMIN BUTTON CLICKED!");
+          setShowAdminPanel(true);
+        }}
+        className="fixed bottom-6 right-6 z-[9999] bg-red-500 hover:bg-red-600 text-white rounded-full p-6 shadow-2xl border-4 border-yellow-400 animate-pulse"
+        title="MODE ADMIN MOBILE - DEBUG"
+        style={{
+          width: '80px',
+          height: '80px',
+          fontSize: '12px',
+          fontWeight: 'bold'
+        }}
       >
-        <div className="relative">
-          <Settings className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
-          <Smartphone className="w-3 h-3 absolute -bottom-1 -right-1 bg-purple-600 rounded-full p-0.5" />
+        <div className="flex flex-col items-center justify-center">
+          <Settings className="w-8 h-8 mb-1" />
+          <span className="text-xs font-bold">ADMIN</span>
         </div>
       </button>
 
