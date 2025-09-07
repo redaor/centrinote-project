@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { signUpWithRobustEmail } from '../services/authService';
 import { AlertCircle, Mail, Lock, Eye, EyeOff, Loader, ArrowRight } from 'lucide-react';
+import EmailVerificationForm from './EmailVerificationForm';
 
 export default function AuthForm() {
   const navigate = useNavigate();
@@ -12,12 +14,34 @@ export default function AuthForm() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // 🚀 NOUVEAU : États pour le flow de vérification email
+  const [showVerification, setShowVerification] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
   // Fonction pour retourner à la landing page
   const handleBackToLanding = () => {
     console.log('🔄 Retour à la landing page');
     // Utiliser window.location pour forcer le rechargement complet
     window.location.href = '/';
+  };
+
+  // 🚀 NOUVEAU : Gestion succès vérification email
+  const handleVerificationSuccess = () => {
+    console.log('✅ Vérification email réussie, redirection dashboard');
+    setSuccess('Email vérifié avec succès ! Redirection...');
+    
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 1000);
+  };
+
+  // 🚀 NOUVEAU : Retour au formulaire d'inscription
+  const handleBackToSignup = () => {
+    setShowVerification(false);
+    setPendingUserId(null);
+    setError(null);
+    setSuccess(null);
   };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,27 +66,31 @@ export default function AuthForm() {
         console.log('✅ Connexion réussie:', data.user?.email);
         navigate('/dashboard');
       } else {
-        console.log('🔄 Tentative d\'inscription pour:', email);
+        console.log('🔄 Tentative d\'inscription hybride pour:', email);
         
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              name: name,
-            }
-          }
+        // 🚀 NOUVEAU : Utiliser le service hybride Supabase + n8n
+        const result = await signUpWithRobustEmail(email, password, {
+          name: email.split('@')[0] // Nom par défaut basé sur email
         });
         
-        if (error) {
-          throw error;
+        if (result.error) {
+          throw new Error(result.error.message);
         }
         
-        console.log('✅ Inscription réussie:', data.user?.email);
+        console.log('✅ Inscription hybride réussie:', {
+          userId: result.data?.user?.id,
+          email,
+          requiresVerification: result.data?.requiresEmailVerification
+        });
         
-        if (data.user && !data.session) {
-          setError('Vérifiez votre email pour confirmer votre compte');
+        // Vérifier si vérification email requise
+        if (result.data?.requiresEmailVerification) {
+          console.log('📧 Affichage formulaire vérification email');
+          setPendingUserId(result.data.user?.id || null);
+          setShowVerification(true);
+          setSuccess('Inscription réussie ! Vérifiez votre email.');
         } else {
+          // Connexion directe si pas de vérification nécessaire (cas rare)
           navigate('/dashboard');
         }
       }
@@ -94,6 +122,18 @@ export default function AuthForm() {
       setLoading(false);
     }
   };
+
+  // 🚀 NOUVEAU : Affichage conditionnel selon l'étape
+  if (showVerification) {
+    return (
+      <EmailVerificationForm
+        email={email}
+        userId={pendingUserId}
+        onVerificationSuccess={handleVerificationSuccess}
+        onBack={handleBackToSignup}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-12 sm:px-6 lg:px-8">

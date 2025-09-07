@@ -17,26 +17,28 @@ export const signUpWithRobustEmail = async (email, password, userData = {}) => {
     // Normaliser l'email (éviter les erreurs de casse)
     const normalizedEmail = email.toLowerCase().trim();
     
-    // Configuration robuste pour éviter otp_expired
+    // ⚡ NOUVEAU : Configuration hybride - Supabase Auth + n8n Email
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
-        // 🚀 URL de redirection vers notre page de confirmation personnalisée
-        emailRedirectTo: `${window.location.origin}/auth/confirm-email`,
+        // 🚫 DÉSACTIVER confirmation auto Supabase (défaillante)
+        emailRedirectTo: null,
         
-        // 📊 Métadonnées pour debug et analytics
+        // 📊 Métadonnées enrichies pour système hybride
         data: {
           signup_time: new Date().toISOString(),
-          user_agent: navigator.userAgent.substring(0, 100), // Limiter la taille
+          user_agent: navigator.userAgent.substring(0, 100),
           signup_source: 'web',
+          email_verified: false, // Marqueur non vérifié
+          verification_method: 'n8n_code', // Méthode utilisée
           ...userData
         }
       }
     });
 
     if (error) {
-      console.error('❌ Erreur signup:', error);
+      console.error('❌ Erreur signup Supabase:', error);
       return { 
         data: null, 
         error: {
@@ -46,13 +48,60 @@ export const signUpWithRobustEmail = async (email, password, userData = {}) => {
       };
     }
 
-    console.log('✅ Inscription réussie:', {
+    console.log('✅ Inscription Supabase réussie:', {
       user: data.user?.id,
       email: normalizedEmail,
-      confirmationSent: !!data.user && !data.session
+      supabaseConfirmation: 'disabled'
     });
 
-    return { data, error: null };
+    // 🚀 NOUVEAU : Déclencher envoi code via n8n
+    try {
+      console.log('📧 Déclenchement envoi code n8n pour:', normalizedEmail);
+      
+      const n8nResponse = await fetch('https://n8n.srv886297.hstgr.cloud/webhook/email-verification', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_N8N_WEBHOOK_TOKEN || ''}`,
+          'X-Source': 'centrinote-signup'
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          user_id: data.user.id,
+          action: 'signup',
+          timestamp: new Date().toISOString(),
+          source: 'web'
+        })
+      });
+
+      if (!n8nResponse.ok) {
+        let errorDetail = `Status ${n8nResponse.status}`;
+        try {
+          const errorData = await n8nResponse.json();
+          errorDetail = errorData.message || errorDetail;
+        } catch {
+          // Ignorer si pas de JSON
+        }
+        
+        console.warn('⚠️ Erreur n8n (non bloquante):', errorDetail);
+        // Ne pas bloquer l'inscription si n8n échoue - l'utilisateur pourra renvoyer
+      } else {
+        const n8nData = await n8nResponse.json();
+        console.log('✅ Code envoyé via n8n:', n8nData);
+      }
+    } catch (n8nError) {
+      console.warn('⚠️ Erreur n8n (non bloquante):', n8nError.message);
+      // Continuer même si n8n échoue
+    }
+
+    return { 
+      data: {
+        ...data,
+        requiresEmailVerification: true,
+        verificationMethod: 'code'
+      }, 
+      error: null 
+    };
 
   } catch (err) {
     console.error('❌ Erreur inattendue signup:', err);
