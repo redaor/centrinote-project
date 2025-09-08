@@ -1,5 +1,5 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthProvider';
 import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import EmailVerificationForm from '../EmailVerificationForm';
@@ -9,8 +9,10 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const { needsEmailVerification } = useSupabaseAuth();
+  const navigate = useNavigate();
+  const [bypassVerification, setBypassVerification] = useState(false);
 
   if (loading) {
     return (
@@ -28,7 +30,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // 🔒 Si l'utilisateur est connecté mais email non vérifié, bloquer l'accès
-  if (needsEmailVerification) {
+  // SAUF si bypass activé
+  if (needsEmailVerification && !bypassVerification) {
     console.log('🔒 Accès bloqué - vérification email requise');
     return (
       <EmailVerificationForm
@@ -36,16 +39,33 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         userId={null}
         onVerificationSuccess={() => {
           console.log('✅ Vérification terminée, rechargement...');
-          window.location.reload(); // Recharger pour mettre à jour la session
+          // Utiliser React Router au lieu de window.location
+          window.location.reload(); // Garder le reload pour rafraîchir la session
         }}
         onBack={() => {
-          console.log('🔄 Retour à la connexion');
-          window.location.href = '/'; // Retour à l'accueil
+          console.log('🔄 Retour demandé par l\'utilisateur');
+          handleBackNavigation();
+        }}
+        onSkip={() => {
+          console.log('⏭️ Vérification ignorée temporairement');
+          setBypassVerification(true);
         }}
         isRequired={true}
       />
     );
   }
+
+  // Fonction pour gérer le retour
+  const handleBackNavigation = () => {
+    console.log('🔄 Demande de retour - déconnexion et navigation vers accueil');
+    signOut().then(() => {
+      navigate('/', { replace: true });
+    }).catch(error => {
+      console.error('❌ Erreur lors de la déconnexion:', error);
+      // En cas d'erreur, navigation forcée
+      navigate('/', { replace: true });
+    });
+  };
 
   return <>{children}</>;
 }

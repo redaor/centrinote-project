@@ -7,6 +7,7 @@ interface EmailVerificationFormProps {
   userId?: string | null;
   onVerificationSuccess: () => void;
   onBack?: () => void;
+  onSkip?: () => void; // Nouveau : permettre de passer la vérification
   isRequired?: boolean; // Nouveau : indique si la vérification est obligatoire
 }
 
@@ -15,6 +16,7 @@ export default function EmailVerificationForm({
   userId, 
   onVerificationSuccess, 
   onBack,
+  onSkip,
   isRequired = false
 }: EmailVerificationFormProps) {
   // 🔒 Récupérer l'email depuis la session si non fourni et vérification obligatoire
@@ -326,6 +328,45 @@ export default function EmailVerificationForm({
             Le code expire dans 5 minutes.
           </p>
         </div>
+
+        {/* 🆘 Options d'échappement */}
+        {(onBack || onSkip) && (
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-center space-y-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Problème avec la vérification ?
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                {onBack && (
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    ← Retour
+                  </button>
+                )}
+                
+                {onSkip && !isRequired && (
+                  <button
+                    type="button"
+                    onClick={onSkip}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-yellow-300 dark:border-yellow-600 rounded-md shadow-sm text-sm font-medium text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 hover:bg-yellow-100 dark:hover:bg-yellow-900/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                  >
+                    Passer pour l'instant
+                  </button>
+                )}
+              </div>
+              
+              {isRequired && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  ⚠️ La vérification email est obligatoire pour accéder à l'application
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
