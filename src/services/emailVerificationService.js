@@ -183,12 +183,13 @@ export const markEmailAsVerified = async (userId) => {
   try {
     console.log('✅ Marquage email vérifié pour utilisateur:', userId);
 
-    // Note: Supabase ne permet pas de modifier email_confirmed_at directement
-    // On utilise les métadonnées utilisateur comme solution
     const { supabase } = await import('../lib/supabase');
+    
+    // 🚀 NOUVEAU : Mettre à jour les user_metadata après validation n8n
     const { data, error } = await supabase.auth.updateUser({
       data: {
         email_verified: true,
+        verification_pending: false,
         email_verified_at: new Date().toISOString(),
         verification_method: 'n8n_code'
       }
@@ -199,7 +200,7 @@ export const markEmailAsVerified = async (userId) => {
       return { success: false, error };
     }
 
-    console.log('✅ Email marqué comme vérifié dans Supabase');
+    console.log('✅ Email marqué comme vérifié dans Supabase user_metadata');
     return { success: true, data };
 
   } catch (error) {

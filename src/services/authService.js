@@ -28,11 +28,12 @@ export const signUpWithRobustEmail = async (email, password, userData = {}) => {
         
         // 📊 Métadonnées enrichies pour système hybride
         data: {
+          email_verified: false,
+          verification_pending: true,
           signup_time: new Date().toISOString(),
           user_agent: navigator.userAgent.substring(0, 100),
           signup_source: 'web',
-          email_verified: false, // Marqueur non vérifié
-          verification_method: 'n8n_code', // Méthode utilisée
+          verification_method: 'n8n_code',
           ...userData
         }
       }

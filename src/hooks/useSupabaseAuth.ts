@@ -29,10 +29,16 @@ export function useSupabaseAuth() {
 
           // 🔒 NOUVEAU : Vérifier si l'email est vérifié via n8n
           const emailVerified = session.user.user_metadata?.email_verified === true;
-          console.log("Statut vérification email:", emailVerified);
+          const verificationPending = session.user.user_metadata?.verification_pending === true;
+          
+          console.log("Statut vérification email:", {
+            emailVerified,
+            verificationPending,
+            metadata: session.user.user_metadata
+          });
 
-          if (!emailVerified) {
-            console.log("⚠️ Email non vérifié, blocage d'accès");
+          if (!emailVerified || verificationPending) {
+            console.log("⚠️ Email non vérifié ou vérification en attente, blocage d'accès");
             setNeedsEmailVerification(true);
             setUser(null);
             dispatch({ type: 'SET_USER', payload: null });
@@ -106,9 +112,10 @@ export function useSupabaseAuth() {
       if (event === 'SIGNED_IN' && session?.user) {
         // 🔒 Vérifier la vérification email
         const emailVerified = session.user.user_metadata?.email_verified === true;
+        const verificationPending = session.user.user_metadata?.verification_pending === true;
         
-        if (!emailVerified) {
-          console.log("⚠️ Utilisateur connecté mais email non vérifié");
+        if (!emailVerified || verificationPending) {
+          console.log("⚠️ Utilisateur connecté mais email non vérifié ou vérification en attente");
           setNeedsEmailVerification(true);
           setUser(null);
           dispatch({ type: 'SET_USER', payload: null });
