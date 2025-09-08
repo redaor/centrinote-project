@@ -4,17 +4,34 @@ import { verifyEmailCode, resendVerificationCode, markEmailAsVerified, getTimeUn
 
 interface EmailVerificationFormProps {
   email: string;
-  userId?: string;
+  userId?: string | null;
   onVerificationSuccess: () => void;
   onBack?: () => void;
+  isRequired?: boolean; // Nouveau : indique si la vérification est obligatoire
 }
 
 export default function EmailVerificationForm({ 
   email, 
   userId, 
   onVerificationSuccess, 
-  onBack 
+  onBack,
+  isRequired = false
 }: EmailVerificationFormProps) {
+  // 🔒 Récupérer l'email depuis la session si non fourni et vérification obligatoire
+  const [currentEmail, setCurrentEmail] = useState(email);
+  
+  useEffect(() => {
+    if (isRequired && !email) {
+      // Récupérer l'email depuis la session Supabase
+      import('../lib/supabase').then(({ supabase }) => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user?.email) {
+            setCurrentEmail(session.user.email);
+          }
+        });
+      });
+    }
+  }, [isRequired, email]);
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -110,9 +127,9 @@ export default function EmailVerificationForm({
     setError(null);
 
     try {
-      console.log('🔍 Vérification code:', codeToVerify, 'pour email:', email);
+      console.log('🔍 Vérification code:', codeToVerify, 'pour email:', currentEmail);
 
-      const result = await verifyEmailCode(email, codeToVerify);
+      const result = await verifyEmailCode(currentEmail, codeToVerify);
 
       if (result.success) {
         setSuccess('✅ Email vérifié avec succès !');
@@ -147,9 +164,9 @@ export default function EmailVerificationForm({
     setSuccess(null);
 
     try {
-      console.log('📧 Renvoi code pour:', email);
+      console.log('📧 Renvoi code pour:', currentEmail);
 
-      const result = await resendVerificationCode(email, userId);
+      const result = await resendVerificationCode(currentEmail, userId);
 
       if (result.success) {
         setSuccess('📧 Nouveau code envoyé !');
@@ -200,7 +217,7 @@ export default function EmailVerificationForm({
           </p>
           
           <p className="mt-1 text-sm font-semibold text-blue-600 dark:text-blue-400">
-            {email}
+            {currentEmail || 'Récupération de l\'email...'}
           </p>
         </div>
 

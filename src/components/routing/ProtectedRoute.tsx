@@ -1,6 +1,8 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../AuthProvider';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
+import EmailVerificationForm from '../EmailVerificationForm';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,6 +10,7 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
+  const { needsEmailVerification } = useSupabaseAuth();
 
   if (loading) {
     return (
@@ -22,6 +25,26 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!user) {
     return <Navigate to="/" replace />;
+  }
+
+  // 🔒 Si l'utilisateur est connecté mais email non vérifié, bloquer l'accès
+  if (needsEmailVerification) {
+    console.log('🔒 Accès bloqué - vérification email requise');
+    return (
+      <EmailVerificationForm
+        email="" // Sera récupéré automatiquement depuis la session
+        userId={null}
+        onVerificationSuccess={() => {
+          console.log('✅ Vérification terminée, rechargement...');
+          window.location.reload(); // Recharger pour mettre à jour la session
+        }}
+        onBack={() => {
+          console.log('🔄 Retour à la connexion');
+          window.location.href = '/'; // Retour à l'accueil
+        }}
+        isRequired={true}
+      />
+    );
   }
 
   return <>{children}</>;

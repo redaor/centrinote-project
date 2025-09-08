@@ -8,6 +8,7 @@ export function useSupabaseAuth() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
 
   useEffect(() => {
     // Fonction pour récupérer la session et l'utilisateur
@@ -25,6 +26,19 @@ export function useSupabaseAuth() {
         
         if (session?.user) {
           console.log("Session Supabase trouvée, utilisateur authentifié:", session.user.id);
+
+          // 🔒 NOUVEAU : Vérifier si l'email est vérifié via n8n
+          const emailVerified = session.user.user_metadata?.email_verified === true;
+          console.log("Statut vérification email:", emailVerified);
+
+          if (!emailVerified) {
+            console.log("⚠️ Email non vérifié, blocage d'accès");
+            setNeedsEmailVerification(true);
+            setUser(null);
+            dispatch({ type: 'SET_USER', payload: null });
+            setLoading(false);
+            return;
+          }
 
           try {
             // Récupérer les informations du profil utilisateur
@@ -60,6 +74,8 @@ export function useSupabaseAuth() {
               setUser(userData);
               dispatch({ type: 'SET_USER', payload: userData });
             }
+            
+            setNeedsEmailVerification(false);
           } catch (err) {
             console.error("Erreur lors du traitement du profil:", err);
             setError(err instanceof Error ? err.message : 'Erreur inconnue');
@@ -67,6 +83,7 @@ export function useSupabaseAuth() {
         } else {
           console.log("Aucune session Supabase trouvée");
           setUser(null);
+          setNeedsEmailVerification(false);
           dispatch({ type: 'SET_USER', payload: null });
         }
       } catch (err) {
@@ -87,6 +104,17 @@ export function useSupabaseAuth() {
       console.log("Changement d'état d'authentification:", event);
       
       if (event === 'SIGNED_IN' && session?.user) {
+        // 🔒 Vérifier la vérification email
+        const emailVerified = session.user.user_metadata?.email_verified === true;
+        
+        if (!emailVerified) {
+          console.log("⚠️ Utilisateur connecté mais email non vérifié");
+          setNeedsEmailVerification(true);
+          setUser(null);
+          dispatch({ type: 'SET_USER', payload: null });
+          return;
+        }
+
         // Récupérer les informations du profil utilisateur
         const { data: profile } = await supabase
           .from('profiles')
@@ -106,9 +134,11 @@ export function useSupabaseAuth() {
         
         // Mettre à jour le contexte
         setUser(user);
+        setNeedsEmailVerification(false);
         dispatch({ type: 'SET_USER', payload: user });
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        setNeedsEmailVerification(false);
         dispatch({ type: 'SET_USER', payload: null });
       }
     });
@@ -119,5 +149,5 @@ export function useSupabaseAuth() {
     };
   }, [dispatch]);
 
-  return { user, loading, error };
+  return { user, loading, error, needsEmailVerification };
 }

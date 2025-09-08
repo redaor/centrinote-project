@@ -22,8 +22,9 @@ export const signUpWithRobustEmail = async (email, password, userData = {}) => {
       email: normalizedEmail,
       password,
       options: {
-        // 🚫 DÉSACTIVER confirmation auto Supabase (défaillante)
-        emailRedirectTo: null,
+        // 🚫 DÉSACTIVER COMPLÈTEMENT confirmation auto Supabase
+        emailRedirectTo: undefined,
+        captchaToken: undefined,
         
         // 📊 Métadonnées enrichies pour système hybride
         data: {
