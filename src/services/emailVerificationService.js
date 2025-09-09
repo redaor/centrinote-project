@@ -12,7 +12,7 @@ export const verifyEmailCode = async (email, code) => {
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedCode = code.trim().replace(/\s/g, ''); // Supprimer espaces
 
-    console.log('🔍 Vérification code pour:', normalizedEmail, 'code:', normalizedCode);
+    // Vérification code en cours...
 
     if (!normalizedCode || normalizedCode.length !== 6 || !/^\d{6}$/.test(normalizedCode)) {
       return {
@@ -53,7 +53,7 @@ export const verifyEmailCode = async (email, code) => {
         else if (response.status >= 500) errorMessage = 'Erreur serveur n8n';
       }
       
-      console.error('❌ Erreur HTTP n8n:', response.status, errorMessage);
+      // Erreur HTTP n8n silencieuse en production
       
       return {
         success: false,
@@ -66,10 +66,9 @@ export const verifyEmailCode = async (email, code) => {
     }
 
     const result = await response.json();
-    console.log('✅ Réponse n8n vérification:', result);
 
     if (result.success || result.verified) {
-      console.log('✅ Code n8n validé, mise à jour métadonnées Supabase...');
+      // Code validé - mise à jour des métadonnées
       
       // 🚀 CRITIQUE : Mettre à jour les métadonnées Supabase immédiatement
       try {
@@ -85,23 +84,17 @@ export const verifyEmailCode = async (email, code) => {
         });
 
         if (updateError) {
-          console.error('❌ Erreur mise à jour métadonnées:', updateError);
-          // Continue quand même car n8n a validé le code
-        } else {
-          console.log('✅ Métadonnées Supabase mises à jour');
+          // Erreur métadonnées - continuer quand même
         }
 
-        // 🔄 Forcer refresh de la session pour appliquer les changements
+        // Forcer refresh de la session
         const { error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError) {
-          console.warn('⚠️ Erreur refresh session:', refreshError);
-        } else {
-          console.log('✅ Session Supabase rafraîchie');
+          // Erreur refresh - continuer
         }
 
       } catch (metadataError) {
-        console.error('❌ Erreur critique métadonnées:', metadataError);
-        // Continue quand même car n8n a validé le code
+        // Erreur critique métadonnées - continuer quand même
       }
       
       return {
@@ -124,7 +117,7 @@ export const verifyEmailCode = async (email, code) => {
     }
 
   } catch (error) {
-    console.error('❌ Erreur vérification code:', error);
+    // Erreur vérification code silencieuse
     return {
       success: false,
       error: {
@@ -143,7 +136,7 @@ export const resendVerificationCode = async (email, userId = null) => {
   try {
     const normalizedEmail = email.toLowerCase().trim();
     
-    console.log('📧 Renvoi code vérification pour:', normalizedEmail);
+    // Renvoi code vérification
 
     const response = await fetch(`${N8N_BASE_URL}/webhook/email-verification`, {
       method: 'POST',
@@ -175,7 +168,7 @@ export const resendVerificationCode = async (email, userId = null) => {
         else if (response.status >= 500) errorMessage = 'Erreur serveur n8n, réessayez';
       }
       
-      console.error('❌ Erreur renvoi n8n:', response.status, errorMessage);
+      // Erreur renvoi n8n silencieuse
       
       return {
         success: false,
@@ -188,7 +181,7 @@ export const resendVerificationCode = async (email, userId = null) => {
     }
 
     const result = await response.json();
-    console.log('✅ Code renvoyé via n8n:', result);
+    // Code renvoyé avec succès
 
     return {
       success: true,
@@ -200,7 +193,7 @@ export const resendVerificationCode = async (email, userId = null) => {
     };
 
   } catch (error) {
-    console.error('❌ Erreur renvoi code:', error);
+    // Erreur renvoi code silencieuse
     return {
       success: false,
       error: {
@@ -216,10 +209,8 @@ export const resendVerificationCode = async (email, userId = null) => {
 // ==========================================
 
 export const markEmailAsVerified = async (userId) => {
-  console.log('⚠️ DEPRECATED: markEmailAsVerified() - Les métadonnées sont maintenant mises à jour automatiquement dans verifyEmailCode()');
-  
-  // Cette fonction est maintenant redondante mais gardée pour compatibilité
-  return { success: true, message: 'Métadonnées déjà mises à jour par verifyEmailCode' };
+  // Fonction obsolète - métadonnées mises à jour automatiquement
+  return { success: true, message: 'Email déjà vérifié' };
 };
 
 // ==========================================
@@ -230,7 +221,7 @@ export const checkEmailVerificationStatus = async (email) => {
   try {
     const normalizedEmail = email.toLowerCase().trim();
     
-    console.log('🔍 Vérification statut email:', normalizedEmail);
+    // Vérification statut email
 
     const response = await fetch(`${N8N_BASE_URL}/webhook/check-verification-status`, {
       method: 'POST',
@@ -257,7 +248,7 @@ export const checkEmailVerificationStatus = async (email) => {
     };
 
   } catch (error) {
-    console.warn('⚠️ Impossible de vérifier le statut:', error.message);
+    // Impossible de vérifier le statut
     return { verified: false, pending: false };
   }
 };

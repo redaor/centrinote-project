@@ -129,20 +129,15 @@ export default function EmailVerificationForm({
     setError(null);
 
     try {
-      console.log('🔍 Vérification code:', codeToVerify, 'pour email:', currentEmail);
-
       const result = await verifyEmailCode(currentEmail, codeToVerify);
 
       if (result.success) {
         setSuccess('✅ Email vérifié avec succès ! Redirection...');
         
-        console.log('🎯 Code validé par n8n, métadonnées Supabase mises à jour automatiquement');
-        
-        // 🚀 CORRECTION BOUCLE : Redirection immédiate, pas de double marquage
+        // Redirection automatique
         setTimeout(() => {
-          console.log('🔄 Redirection automatique vers dashboard...');
           onVerificationSuccess();
-        }, 1000); // Délai réduit
+        }, 1000);
         
       } else {
         setError(result.error.message || 'Code invalide ou expiré');
@@ -151,7 +146,6 @@ export default function EmailVerificationForm({
         inputRefs.current[0]?.focus();
       }
     } catch (error) {
-      console.error('❌ Erreur vérification:', error);
       setError('Erreur de vérification. Réessayez.');
     } finally {
       setLoading(false);
@@ -165,8 +159,6 @@ export default function EmailVerificationForm({
     setSuccess(null);
 
     try {
-      console.log('📧 Renvoi code pour:', currentEmail);
-
       const result = await resendVerificationCode(currentEmail, userId);
 
       if (result.success) {
@@ -183,7 +175,6 @@ export default function EmailVerificationForm({
         setError(result.error.message || 'Impossible de renvoyer le code');
       }
     } catch (error) {
-      console.error('❌ Erreur renvoi:', error);
       setError('Erreur de réseau. Réessayez.');
     } finally {
       setResendLoading(false);
@@ -333,41 +324,19 @@ export default function EmailVerificationForm({
           <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
             <div className="text-center space-y-3">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Problème avec la vérification ?
+                Besoin d'aide ?
               </p>
               
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 {onBack && (
                   <button
                     type="button"
-                    onClick={() => {
-                      console.log('🔄 Bouton retour cliqué');
-                      onBack();
-                    }}
-                    className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={onBack}
+                    className="inline-flex items-center justify-center px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                   >
-                    ← Retour
+                    ← Retour à l'inscription
                   </button>
                 )}
-                
-                {/* 🆘 NOUVEAU : Bouton d'urgence pour forcer la navigation */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    console.log('🚨 Navigation d\'urgence vers accueil');
-                    try {
-                      // Essayer React Router d'abord
-                      window.location.href = '/';
-                    } catch (error) {
-                      console.error('❌ Erreur navigation d\'urgence:', error);
-                      // Navigation forcée en dernier recours
-                      window.location.reload();
-                    }
-                  }}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-red-300 dark:border-red-600 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                >
-                  🚨 Sortir d'urgence
-                </button>
                 
                 {onSkip && !isRequired && (
                   <button
@@ -381,8 +350,8 @@ export default function EmailVerificationForm({
               </div>
               
               {isRequired && (
-                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                  ⚠️ La vérification email est obligatoire pour accéder à l'application
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                  💡 La vérification de votre email nous aide à sécuriser votre compte
                 </p>
               )}
             </div>

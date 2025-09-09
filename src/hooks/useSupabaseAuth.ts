@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../contexts/AppContext';
 import type { User } from '../types';
@@ -32,14 +32,10 @@ export function useSupabaseAuth() {
           const emailVerified = session.user.user_metadata?.email_verified === true;
           const verificationPending = session.user.user_metadata?.verification_pending === true;
           
-          console.log("Statut vérification email:", {
-            emailVerified,
-            verificationPending,
-            metadata: session.user.user_metadata
-          });
+          // Vérification silencieuse du statut email
 
           if ((!emailVerified || verificationPending) && !bypassVerification) {
-            console.log("⚠️ Email non vérifié ou vérification en attente, blocage d'accès");
+            // Email non vérifié - redirection vers vérification
             setNeedsEmailVerification(true);
             setUser(null);
             dispatch({ type: 'SET_USER', payload: null });
@@ -47,9 +43,8 @@ export function useSupabaseAuth() {
             return;
           }
 
-          // 🚀 Si bypass activé, permettre l'accès même sans email vérifié
+          // Si bypass activé, permettre l'accès
           if (bypassVerification) {
-            console.log("✅ Bypass activé - accès autorisé malgré email non vérifié");
             setNeedsEmailVerification(false);
           }
 
@@ -164,11 +159,10 @@ export function useSupabaseAuth() {
   }, [dispatch]);
 
   // Fonction pour bypasser la vérification email (utilisée lors du signOut)
-  const clearEmailVerificationRequirement = () => {
-    console.log('🚀 Bypass de vérification activé');
+  const clearEmailVerificationRequirement = useCallback(() => {
     setBypassVerification(true);
     setNeedsEmailVerification(false);
-  };
+  }, []);
 
   return { 
     user, 

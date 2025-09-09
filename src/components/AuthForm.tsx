@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { signUpWithRobustEmail } from '../services/authService';
@@ -36,13 +36,13 @@ export default function AuthForm() {
     }, 1000);
   };
 
-  // 🚀 NOUVEAU : Retour au formulaire d'inscription
-  const handleBackToSignup = () => {
+  // Retour au formulaire d'inscription
+  const handleBackToSignup = useCallback(() => {
     setShowVerification(false);
     setPendingUserId(null);
     setError(null);
     setSuccess(null);
-  };
+  }, []);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log(`🔄 Tentative de ${mode === 'login' ? 'connexion' : 'inscription'} avec:`, email);

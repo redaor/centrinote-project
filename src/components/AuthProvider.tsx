@@ -61,22 +61,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 🔚 Déconnexion avec Supabase réel
   const signOut = async () => {
     try {
-      console.log('🔄 Déconnexion Supabase...');
       setLoading(true);
       
       const { error } = await supabase.auth.signOut();
       if (error) {
-        console.error('❌ Erreur signOut Supabase:', error);
-        // Ne pas throw, continuer avec le nettoyage local
+        // Continuer avec le nettoyage local même en cas d'erreur
       }
       
-      console.log('✅ Déconnexion Supabase réussie');
       setUser(null);
-      setError(null); // Clear any existing errors
+      setError(null);
     } catch (err) {
-      console.error('❌ Erreur lors de la déconnexion Supabase:', err);
-      setError(err instanceof Error ? err.message : 'Erreur inconnue');
-      // Même en cas d'erreur, nettoyer l'état local
+      setError(err instanceof Error ? err.message : 'Erreur de déconnexion');
       setUser(null);
     } finally {
       setLoading(false);

@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { AppRouter } from './components/routing/AppRouter';
-
 function App() {
+
   return (
     <div className="App">
       <AppRouter />

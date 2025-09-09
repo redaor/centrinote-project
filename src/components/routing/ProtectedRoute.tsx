@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthProvider';
 import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
@@ -56,39 +56,23 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // Fonction pour gérer le retour
-  const handleBackNavigation = async () => {
-    console.log('🔄 Demande de retour - déconnexion et navigation vers accueil');
-    console.log('🔄 État avant déconnexion:', { 
-      user: !!user, 
-      needsEmailVerification, 
-      loading 
-    });
-    
+  // Fonction pour gérer le retour élégant
+  const handleBackNavigation = useCallback(async () => {
     try {
-      // 🚀 CRITIQUE : Bypass temporaire pour éviter la boucle de vérification
+      // Clear les états de vérification
       setBypassVerification(true);
       clearEmailVerificationRequirement();
       
-      console.log('🔄 Déconnexion en cours...');
+      // Déconnexion propre
       await signOut();
       
-      console.log('✅ Déconnexion réussie, navigation vers accueil');
-      console.log('🔄 État après déconnexion:', { 
-        user: !!user, 
-        needsEmailVerification, 
-        loading 
-      });
-      
-      // Navigation forcée vers l'accueil
+      // Navigation vers l'accueil
       navigate('/', { replace: true });
     } catch (error) {
-      console.error('❌ Erreur lors de la déconnexion:', error);
-      // En cas d'erreur, navigation forcée quand même
-      console.log('🚨 Navigation forcée malgré l\'erreur');
+      // En cas d'erreur, navigation quand même
       navigate('/', { replace: true });
     }
-  };
+  }, [signOut, navigate, clearEmailVerificationRequirement, setBypassVerification]);
 
   return <>{children}</>;
 }
