@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading, signOut } = useAuth();
-  const { needsEmailVerification } = useSupabaseAuth();
+  const { needsEmailVerification, clearEmailVerificationRequirement } = useSupabaseAuth();
   const navigate = useNavigate();
   const [bypassVerification, setBypassVerification] = useState(false);
 
@@ -38,9 +38,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         email="" // Sera récupéré automatiquement depuis la session
         userId={null}
         onVerificationSuccess={() => {
-          console.log('✅ Vérification terminée, rechargement...');
-          // Utiliser React Router au lieu de window.location
-          window.location.reload(); // Garder le reload pour rafraîchir la session
+          console.log('✅ Vérification terminée, navigation directe...');
+          // 🚀 CORRECTION BOUCLE : Pas de reload, navigation directe
+          setBypassVerification(true); // Bypass temporaire le temps que la session se mette à jour
+          // La session sera mise à jour automatiquement par le refresh dans le service
         }}
         onBack={() => {
           console.log('🔄 Retour demandé par l\'utilisateur');
@@ -56,15 +57,37 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // Fonction pour gérer le retour
-  const handleBackNavigation = () => {
+  const handleBackNavigation = async () => {
     console.log('🔄 Demande de retour - déconnexion et navigation vers accueil');
-    signOut().then(() => {
-      navigate('/', { replace: true });
-    }).catch(error => {
-      console.error('❌ Erreur lors de la déconnexion:', error);
-      // En cas d'erreur, navigation forcée
-      navigate('/', { replace: true });
+    console.log('🔄 État avant déconnexion:', { 
+      user: !!user, 
+      needsEmailVerification, 
+      loading 
     });
+    
+    try {
+      // 🚀 CRITIQUE : Bypass temporaire pour éviter la boucle de vérification
+      setBypassVerification(true);
+      clearEmailVerificationRequirement();
+      
+      console.log('🔄 Déconnexion en cours...');
+      await signOut();
+      
+      console.log('✅ Déconnexion réussie, navigation vers accueil');
+      console.log('🔄 État après déconnexion:', { 
+        user: !!user, 
+        needsEmailVerification, 
+        loading 
+      });
+      
+      // Navigation forcée vers l'accueil
+      navigate('/', { replace: true });
+    } catch (error) {
+      console.error('❌ Erreur lors de la déconnexion:', error);
+      // En cas d'erreur, navigation forcée quand même
+      console.log('🚨 Navigation forcée malgré l\'erreur');
+      navigate('/', { replace: true });
+    }
   };
 
   return <>{children}</>;

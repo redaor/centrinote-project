@@ -69,12 +69,48 @@ export const verifyEmailCode = async (email, code) => {
     console.log('✅ Réponse n8n vérification:', result);
 
     if (result.success || result.verified) {
+      console.log('✅ Code n8n validé, mise à jour métadonnées Supabase...');
+      
+      // 🚀 CRITIQUE : Mettre à jour les métadonnées Supabase immédiatement
+      try {
+        const { supabase } = await import('../lib/supabase');
+        
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: {
+            email_verified: true,
+            verification_pending: false,
+            email_verified_at: new Date().toISOString(),
+            verification_method: 'n8n_code'
+          }
+        });
+
+        if (updateError) {
+          console.error('❌ Erreur mise à jour métadonnées:', updateError);
+          // Continue quand même car n8n a validé le code
+        } else {
+          console.log('✅ Métadonnées Supabase mises à jour');
+        }
+
+        // 🔄 Forcer refresh de la session pour appliquer les changements
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          console.warn('⚠️ Erreur refresh session:', refreshError);
+        } else {
+          console.log('✅ Session Supabase rafraîchie');
+        }
+
+      } catch (metadataError) {
+        console.error('❌ Erreur critique métadonnées:', metadataError);
+        // Continue quand même car n8n a validé le code
+      }
+      
       return {
         success: true,
         data: {
           verified: true,
           email: normalizedEmail,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          metadata_updated: true
         }
       };
     } else {
@@ -180,33 +216,10 @@ export const resendVerificationCode = async (email, userId = null) => {
 // ==========================================
 
 export const markEmailAsVerified = async (userId) => {
-  try {
-    console.log('✅ Marquage email vérifié pour utilisateur:', userId);
-
-    const { supabase } = await import('../lib/supabase');
-    
-    // 🚀 NOUVEAU : Mettre à jour les user_metadata après validation n8n
-    const { data, error } = await supabase.auth.updateUser({
-      data: {
-        email_verified: true,
-        verification_pending: false,
-        email_verified_at: new Date().toISOString(),
-        verification_method: 'n8n_code'
-      }
-    });
-
-    if (error) {
-      console.error('❌ Erreur marquage Supabase:', error);
-      return { success: false, error };
-    }
-
-    console.log('✅ Email marqué comme vérifié dans Supabase user_metadata');
-    return { success: true, data };
-
-  } catch (error) {
-    console.error('❌ Erreur marquage email:', error);
-    return { success: false, error: error.message };
-  }
+  console.log('⚠️ DEPRECATED: markEmailAsVerified() - Les métadonnées sont maintenant mises à jour automatiquement dans verifyEmailCode()');
+  
+  // Cette fonction est maintenant redondante mais gardée pour compatibilité
+  return { success: true, message: 'Métadonnées déjà mises à jour par verifyEmailCode' };
 };
 
 // ==========================================

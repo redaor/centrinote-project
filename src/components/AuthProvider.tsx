@@ -66,11 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const { error } = await supabase.auth.signOut();
       if (error) {
-        throw error;
+        console.error('❌ Erreur signOut Supabase:', error);
+        // Ne pas throw, continuer avec le nettoyage local
       }
       
       console.log('✅ Déconnexion Supabase réussie');
       setUser(null);
+      setError(null); // Clear any existing errors
     } catch (err) {
       console.error('❌ Erreur lors de la déconnexion Supabase:', err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');

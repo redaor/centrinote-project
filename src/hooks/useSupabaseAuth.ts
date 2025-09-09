@@ -9,6 +9,7 @@ export function useSupabaseAuth() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+  const [bypassVerification, setBypassVerification] = useState(false);
 
   useEffect(() => {
     // Fonction pour récupérer la session et l'utilisateur
@@ -37,13 +38,19 @@ export function useSupabaseAuth() {
             metadata: session.user.user_metadata
           });
 
-          if (!emailVerified || verificationPending) {
+          if ((!emailVerified || verificationPending) && !bypassVerification) {
             console.log("⚠️ Email non vérifié ou vérification en attente, blocage d'accès");
             setNeedsEmailVerification(true);
             setUser(null);
             dispatch({ type: 'SET_USER', payload: null });
             setLoading(false);
             return;
+          }
+
+          // 🚀 Si bypass activé, permettre l'accès même sans email vérifié
+          if (bypassVerification) {
+            console.log("✅ Bypass activé - accès autorisé malgré email non vérifié");
+            setNeedsEmailVerification(false);
           }
 
           try {
@@ -156,5 +163,18 @@ export function useSupabaseAuth() {
     };
   }, [dispatch]);
 
-  return { user, loading, error, needsEmailVerification };
+  // Fonction pour bypasser la vérification email (utilisée lors du signOut)
+  const clearEmailVerificationRequirement = () => {
+    console.log('🚀 Bypass de vérification activé');
+    setBypassVerification(true);
+    setNeedsEmailVerification(false);
+  };
+
+  return { 
+    user, 
+    loading, 
+    error, 
+    needsEmailVerification,
+    clearEmailVerificationRequirement
+  };
 }

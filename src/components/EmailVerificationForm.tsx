@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mail, RefreshCw, CheckCircle, AlertCircle, ArrowRight, Clock } from 'lucide-react';
-import { verifyEmailCode, resendVerificationCode, markEmailAsVerified, getTimeUntilExpiry } from '../services/emailVerificationService';
+import { verifyEmailCode, resendVerificationCode } from '../services/emailVerificationService';
 
 interface EmailVerificationFormProps {
   email: string;
@@ -134,17 +134,16 @@ export default function EmailVerificationForm({
       const result = await verifyEmailCode(currentEmail, codeToVerify);
 
       if (result.success) {
-        setSuccess('✅ Email vérifié avec succès !');
+        setSuccess('✅ Email vérifié avec succès ! Redirection...');
         
-        // Marquer comme vérifié dans Supabase si userId fourni
-        if (userId) {
-          await markEmailAsVerified(userId);
-        }
-
-        // Délai pour montrer le succès puis callback
+        console.log('🎯 Code validé par n8n, métadonnées Supabase mises à jour automatiquement');
+        
+        // 🚀 CORRECTION BOUCLE : Redirection immédiate, pas de double marquage
         setTimeout(() => {
+          console.log('🔄 Redirection automatique vers dashboard...');
           onVerificationSuccess();
-        }, 1500);
+        }, 1000); // Délai réduit
+        
       } else {
         setError(result.error.message || 'Code invalide ou expiré');
         // Réinitialiser le code en cas d'erreur
@@ -341,12 +340,34 @@ export default function EmailVerificationForm({
                 {onBack && (
                   <button
                     type="button"
-                    onClick={onBack}
+                    onClick={() => {
+                      console.log('🔄 Bouton retour cliqué');
+                      onBack();
+                    }}
                     className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     ← Retour
                   </button>
                 )}
+                
+                {/* 🆘 NOUVEAU : Bouton d'urgence pour forcer la navigation */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('🚨 Navigation d\'urgence vers accueil');
+                    try {
+                      // Essayer React Router d'abord
+                      window.location.href = '/';
+                    } catch (error) {
+                      console.error('❌ Erreur navigation d\'urgence:', error);
+                      // Navigation forcée en dernier recours
+                      window.location.reload();
+                    }
+                  }}
+                  className="inline-flex items-center justify-center px-4 py-2 border border-red-300 dark:border-red-600 rounded-md shadow-sm text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                  🚨 Sortir d'urgence
+                </button>
                 
                 {onSkip && !isRequired && (
                   <button
