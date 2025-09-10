@@ -29,28 +29,16 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/" replace />;
   }
 
-  // 🔒 Si l'utilisateur est connecté mais email non vérifié, bloquer l'accès
-  // SAUF si bypass activé
+  // Si l'utilisateur est connecté mais email non vérifié, bloquer l'accès
   if (needsEmailVerification && !bypassVerification) {
-    console.log('🔒 Accès bloqué - vérification email requise');
     return (
       <EmailVerificationForm
-        email="" // Sera récupéré automatiquement depuis la session
+        email=""
         userId={null}
         onVerificationSuccess={() => {
-          console.log('✅ Vérification terminée, navigation directe...');
-          // 🚀 CORRECTION BOUCLE : Pas de reload, navigation directe
-          setBypassVerification(true); // Bypass temporaire le temps que la session se mette à jour
-          // La session sera mise à jour automatiquement par le refresh dans le service
-        }}
-        onBack={() => {
-          console.log('🔄 Retour demandé par l\'utilisateur');
-          handleBackNavigation();
-        }}
-        onSkip={() => {
-          console.log('⏭️ Vérification ignorée temporairement');
           setBypassVerification(true);
         }}
+        onBack={handleBackNavigation}
         isRequired={true}
       />
     );

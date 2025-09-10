@@ -131,6 +131,7 @@ export default function AuthForm() {
         userId={pendingUserId}
         onVerificationSuccess={handleVerificationSuccess}
         onBack={handleBackToSignup}
+        isRequired={false}
       />
     );
   }

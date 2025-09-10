@@ -25,13 +25,18 @@ export default function EmailVerificationForm({
   useEffect(() => {
     if (isRequired && !email) {
       // Récupérer l'email depuis la session Supabase
-      import('../lib/supabase').then(({ supabase }) => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
+      const getEmail = async () => {
+        try {
+          const { supabase } = await import('../lib/supabase');
+          const { data: { session } } = await supabase.auth.getSession();
           if (session?.user?.email) {
             setCurrentEmail(session.user.email);
           }
-        });
-      });
+        } catch (error) {
+          // Erreur silencieuse
+        }
+      };
+      getEmail();
     }
   }, [isRequired, email]);
   const [code, setCode] = useState(['', '', '', '', '', '']);
