@@ -56,23 +56,23 @@ export const signUpWithRobustEmail = async (email, password, userData = {}) => {
       supabaseConfirmation: 'disabled'
     });
 
-    // 🚀 NOUVEAU : Déclencher envoi code via n8n
+    // 🚀 NOUVEAU : Déclencher envoi lien de vérification via n8n
     try {
-      console.log('📧 Déclenchement envoi code n8n pour:', normalizedEmail);
+      console.log('📧 Déclenchement envoi lien de vérification n8n pour:', normalizedEmail);
       
-      const n8nResponse = await fetch('https://n8n.srv886297.hstgr.cloud/webhook/email-verification', {
+      const n8nResponse = await fetch('https://n8n.srv886297.hstgr.cloud/webhook/send-verification-link', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_N8N_WEBHOOK_TOKEN || ''}`,
-          'X-Source': 'centrinote-signup'
+          'X-Source': 'centrinote-link-verification'
         },
         body: JSON.stringify({
           email: normalizedEmail,
           user_id: data.user.id,
           action: 'signup',
           timestamp: new Date().toISOString(),
-          source: 'web'
+          domain: window.location.origin
         })
       });
 
@@ -89,7 +89,7 @@ export const signUpWithRobustEmail = async (email, password, userData = {}) => {
         // Ne pas bloquer l'inscription si n8n échoue - l'utilisateur pourra renvoyer
       } else {
         const n8nData = await n8nResponse.json();
-        console.log('✅ Code envoyé via n8n:', n8nData);
+        console.log('✅ Lien de vérification envoyé via n8n:', n8nData);
       }
     } catch (n8nError) {
       console.warn('⚠️ Erreur n8n (non bloquante):', n8nError.message);
@@ -100,7 +100,7 @@ export const signUpWithRobustEmail = async (email, password, userData = {}) => {
       data: {
         ...data,
         requiresEmailVerification: true,
-        verificationMethod: 'code'
+        verificationMethod: 'email_link'
       }, 
       error: null 
     };
