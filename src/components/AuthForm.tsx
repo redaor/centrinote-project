@@ -95,27 +95,6 @@ export default function AuthForm() {
           navigate('/dashboard');
         }
       }
-      if (password.length < 6) {
-        throw new Error('Le mot de passe doit contenir au moins 6 caractères');
-      }
-
-      // Simuler l'authentification sans Supabase
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      if (mode === 'signup') {
-        console.log('✅ Inscription simulée réussie pour:', email);
-        setSuccess('Compte créé avec succès! Vous pouvez maintenant vous connecter.');
-        setMode('login');
-      } else if (mode === 'login') {
-        console.log('✅ Connexion simulée réussie pour:', email);
-        setSuccess('Connexion réussie ! Redirection en cours...');
-        
-        // Redirection directe vers le dashboard
-        setTimeout(() => {
-          console.log('🔄 Redirection forcée vers /dashboard');
-          navigate('/dashboard');
-        }, 1000);
-      }
     } catch (err) {
       console.error('❌ Erreur d\'authentification:', err);
       setError(err instanceof Error ? err.message : 'Erreur d\'authentification');
