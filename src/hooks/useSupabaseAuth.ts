@@ -9,7 +9,6 @@ export function useSupabaseAuth() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
-  const [bypassVerification, setBypassVerification] = useState(false);
 
   useEffect(() => {
     // Fonction pour récupérer la session et l'utilisateur
@@ -26,16 +25,12 @@ export function useSupabaseAuth() {
         }
         
         if (session?.user) {
-          console.log("Session Supabase trouvée, utilisateur authentifié:", session.user.id);
 
-          // 🔒 NOUVEAU : Vérifier si l'email est vérifié via n8n
+          // Vérifier si l'email est vérifié
           const emailVerified = session.user.user_metadata?.email_verified === true;
-          const verificationPending = session.user.user_metadata?.verification_pending === true;
           
-          // Vérification silencieuse du statut email
-
-          if ((!emailVerified || verificationPending) && !bypassVerification) {
-            // Email non vérifié - redirection vers vérification
+          if (!emailVerified) {
+            // Email non vérifié - redirection nécessaire
             setNeedsEmailVerification(true);
             setUser(null);
             dispatch({ type: 'SET_USER', payload: null });
@@ -43,10 +38,8 @@ export function useSupabaseAuth() {
             return;
           }
 
-          // Si bypass activé, permettre l'accès
-          if (bypassVerification) {
-            setNeedsEmailVerification(false);
-          }
+          // Email vérifié - permettre l'accès
+          setNeedsEmailVerification(false);
 
           try {
             // Récupérer les informations du profil utilisateur
@@ -158,17 +151,10 @@ export function useSupabaseAuth() {
     };
   }, [dispatch]);
 
-  // Fonction pour bypasser la vérification email (utilisée lors du signOut)
-  const clearEmailVerificationRequirement = useCallback(() => {
-    setBypassVerification(true);
-    setNeedsEmailVerification(false);
-  }, []);
-
   return { 
     user, 
     loading, 
     error, 
-    needsEmailVerification,
-    clearEmailVerificationRequirement
+    needsEmailVerification
   };
 }

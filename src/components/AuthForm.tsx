@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { signUpWithRobustEmail } from '../services/authService';
 import { AlertCircle, Mail, Lock, Eye, EyeOff, Loader, ArrowRight } from 'lucide-react';
-import EmailVerificationForm from './EmailVerificationForm';
+import { sendVerificationLink } from '../services/emailLinkVerificationService';
 
 export default function AuthForm() {
   const navigate = useNavigate();
@@ -15,9 +15,7 @@ export default function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   
-  // 🚀 NOUVEAU : États pour le flow de vérification email
-  const [showVerification, setShowVerification] = useState(false);
-  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  // Plus besoin d'états pour l'ancien système de vérification
 
   // Fonction pour retourner à la landing page
   const handleBackToLanding = () => {
@@ -26,23 +24,27 @@ export default function AuthForm() {
     window.location.href = '/';
   };
 
-  // 🚀 NOUVEAU : Gestion succès vérification email
-  const handleVerificationSuccess = () => {
-    console.log('✅ Vérification email réussie, redirection dashboard');
-    setSuccess('Email vérifié avec succès ! Redirection...');
-    
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 1000);
-  };
-
-  // Retour au formulaire d'inscription
-  const handleBackToSignup = useCallback(() => {
-    setShowVerification(false);
-    setPendingUserId(null);
-    setError(null);
-    setSuccess(null);
-  }, []);
+  // Gérer l'envoi du lien de vérification
+  const handleSendVerificationLink = useCallback(async (userEmail: string, userId: string) => {
+    try {
+      const result = await sendVerificationLink(userEmail, userId, 'signup');
+      
+      if (result.success) {
+        // Rediriger vers page d'email envoyé
+        navigate('/email-sent', { 
+          state: { 
+            email: userEmail, 
+            userId: userId 
+          },
+          replace: true 
+        });
+      } else {
+        setError(result.error || 'Erreur lors de l\'envoi de l\'email');
+      }
+    } catch (error) {
+      setError('Erreur lors de l\'envoi de l\'email de vérification');
+    }
+  }, [navigate]);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log(`🔄 Tentative de ${mode === 'login' ? 'connexion' : 'inscription'} avec:`, email);
@@ -85,12 +87,11 @@ export default function AuthForm() {
         
         // Vérifier si vérification email requise
         if (result.data?.requiresEmailVerification) {
-          console.log('📧 Affichage formulaire vérification email');
-          setPendingUserId(result.data.user?.id || null);
-          setShowVerification(true);
-          setSuccess('Inscription réussie ! Vérifiez votre email.');
+          // Envoyer le lien de vérification via n8n
+          setSuccess('Inscription réussie ! Envoi de l\'email...');
+          await handleSendVerificationLink(email, result.data.user?.id || '');
         } else {
-          // Connexion directe si pas de vérification nécessaire (cas rare)
+          // Connexion directe si pas de vérification nécessaire
           navigate('/dashboard');
         }
       }
@@ -123,18 +124,7 @@ export default function AuthForm() {
     }
   };
 
-  // 🚀 NOUVEAU : Affichage conditionnel selon l'étape
-  if (showVerification) {
-    return (
-      <EmailVerificationForm
-        email={email}
-        userId={pendingUserId}
-        onVerificationSuccess={handleVerificationSuccess}
-        onBack={handleBackToSignup}
-        isRequired={false}
-      />
-    );
-  }
+  // Plus besoin d'affichage conditionnel - redirection directe vers /email-sent
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-12 sm:px-6 lg:px-8">

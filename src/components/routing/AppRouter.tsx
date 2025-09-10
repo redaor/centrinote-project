@@ -12,6 +12,8 @@ import { AppLayout } from '../layout/AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
 import ZoomOAuthCallback from '../../pages/ZoomOAuthCallback';
 import ZoomManagerSimple from '../zoom/ZoomManagerSimple';
+import VerifyEmailPage from '../../pages/VerifyEmailPage';
+import EmailSentPage from '../../pages/EmailSentPage';
 
 export function AppRouter() {
   const { user, loading } = useAuth();
@@ -83,6 +85,10 @@ export function AppRouter() {
             )
           } 
         />
+        
+        {/* Pages de vérification email */}
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/email-sent" element={<EmailSentPage />} />
         
         {/* Pages légales publiques */}
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />

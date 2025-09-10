@@ -1,18 +1,16 @@
-import React, { useState, useCallback } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../AuthProvider';
 import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
-import EmailVerificationForm from '../EmailVerificationForm';
+// Plus de composant de vérification - redirection simple
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading, signOut } = useAuth();
-  const { needsEmailVerification, clearEmailVerificationRequirement } = useSupabaseAuth();
-  const navigate = useNavigate();
-  const [bypassVerification, setBypassVerification] = useState(false);
+  const { user, loading } = useAuth();
+  const { needsEmailVerification } = useSupabaseAuth();
 
   if (loading) {
     return (
@@ -29,38 +27,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/" replace />;
   }
 
-  // Si l'utilisateur est connecté mais email non vérifié, bloquer l'accès
-  if (needsEmailVerification && !bypassVerification) {
-    return (
-      <EmailVerificationForm
-        email=""
-        userId={null}
-        onVerificationSuccess={() => {
-          setBypassVerification(true);
-        }}
-        onBack={handleBackNavigation}
-        isRequired={true}
-      />
-    );
+  // Si l'utilisateur est connecté mais email non vérifié, rediriger vers accueil
+  if (needsEmailVerification) {
+    return <Navigate to="/" replace />;
   }
 
-  // Fonction pour gérer le retour élégant
-  const handleBackNavigation = useCallback(async () => {
-    try {
-      // Clear les états de vérification
-      setBypassVerification(true);
-      clearEmailVerificationRequirement();
-      
-      // Déconnexion propre
-      await signOut();
-      
-      // Navigation vers l'accueil
-      navigate('/', { replace: true });
-    } catch (error) {
-      // En cas d'erreur, navigation quand même
-      navigate('/', { replace: true });
-    }
-  }, [signOut, navigate, clearEmailVerificationRequirement, setBypassVerification]);
+  // Plus besoin de fonction de retour - redirection simple
 
   return <>{children}</>;
 }
