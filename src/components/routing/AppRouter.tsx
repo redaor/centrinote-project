@@ -127,6 +127,14 @@ export function AppRouter() {
           } 
         />
         
+        <Route 
+          path="/zoom" 
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          } 
+        />
         
         <Route 
           path="/search" 

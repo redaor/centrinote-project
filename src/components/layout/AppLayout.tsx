@@ -14,6 +14,7 @@ import { StudyPlanning } from '../planning/StudyPlanning';
 import { Settings } from '../settings/Settings';
 import { Help } from '../help/Help';
 import { AutomationManager } from '../automation/AutomationManager';
+import { ZoomManager } from '../zoom/ZoomManager';
 import { AdminFloatingButton } from '../admin/AdminFloatingButton';
 
 export function AppLayout() {
@@ -36,7 +37,7 @@ export function AppLayout() {
   useEffect(() => {
     const path = location.pathname.slice(1); // Enlever le '/' initial
     const validViews = [
-      'dashboard', 'notes', 'vocabulary', 'collaboration', 
+      'dashboard', 'notes', 'vocabulary', 'collaboration', 'zoom',
       'search', 'planning', 'automation', 'settings', 'help'
     ];
     
@@ -66,6 +67,8 @@ export function AppLayout() {
         return <VocabularyNotebook />;
       case 'collaboration':
         return <Collaboration />;
+      case 'zoom':
+        return <ZoomManager />;
       case 'search':
         return <ModernAISearch />;
       case 'planning':

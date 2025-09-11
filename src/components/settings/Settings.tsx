@@ -17,7 +17,8 @@ import {
   Check,
   AlertCircle,
   Mail,
-  Lock
+  Lock,
+  Video
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -29,6 +30,8 @@ import { ProfileSection } from './ProfileSection';
 import { SubscriptionSection } from './subscription/SubscriptionSection';
 import { WebhookTestPanel } from '../debug/WebhookTestPanel';
 import { APIConnectionTest } from '../debug/APIConnectionTest';
+import { ZoomIntegrationTest } from '../zoom/ZoomIntegrationTest';
+import { ZoomSettings } from './ZoomSettings';
 
 export function Settings() {
   // 🔧 Protection mobile iOS - gestion d'erreur gracieuse
@@ -39,7 +42,7 @@ export function Settings() {
   const [languageState, setLanguageState] = useState('fr');
   const [translationFunc, setTranslationFunc] = useState(() => (key: string) => key);
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'subscription' | 'preferences' | 'security' | 'data' | 'debug'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'subscription' | 'preferences' | 'security' | 'data' | 'zoom' | 'debug'>('profile');
   
   // Chargement sécurisé des hooks avec try/catch
   useEffect(() => {
@@ -93,6 +96,7 @@ export function Settings() {
     { id: 'preferences', label: t('preferences'), icon: Palette },
     { id: 'security', label: t('security'), icon: Shield },
     { id: 'data', label: t('data_privacy'), icon: Download },
+    { id: 'zoom', label: 'Zoom', icon: Video },
     { id: 'debug', label: 'Debug & API', icon: AlertCircle }
   ];
 
@@ -348,9 +352,11 @@ export function Settings() {
             {activeTab === 'preferences' && <PreferencesSettings />}
             {activeTab === 'security' && <SecuritySection darkMode={darkMode} />}
             {activeTab === 'data' && <DataPrivacySection darkMode={darkMode} />}
+            {activeTab === 'zoom' && <ZoomSettings darkMode={darkMode} />}
             {activeTab === 'debug' && (
               <div className="space-y-8">
                 <APIConnectionTest />
+                <ZoomIntegrationTest />
                 <WebhookTestPanel />
               </div>
             )}

@@ -35,6 +35,34 @@ export class N8NWebhookService {
     }
   }
 
+  /**
+   * 🚀 Send Zoom OAuth tokens and events to N8N
+   */
+  async sendZoomWebhook(event: string, data: any, tokens?: any): Promise<N8NWebhookResponse> {
+    const payload: N8NWebhookPayload = {
+      source: 'centrinote_zoom',
+      event,
+      timestamp: new Date().toISOString(),
+      data,
+      userId: await this.getCurrentUserId()
+    };
+
+    // Ajouter les tokens si fournis
+    if (tokens) {
+      (payload as any).tokens = tokens;
+    }
+
+    const webhookUrl = import.meta.env.VITE_N8N_ZOOM_WEBHOOK;
+    if (!webhookUrl) {
+      console.error('❌ VITE_N8N_ZOOM_WEBHOOK not configured');
+      return {
+        success: false,
+        error: 'Webhook URL not configured'
+      };
+    }
+
+    return await this.sendDirectWebhook(webhookUrl, payload);
+  }
 
   /**
    * Send webhook to N8N for meeting automation workflows

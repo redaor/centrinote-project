@@ -172,6 +172,7 @@ export function AppHeader() {
       notes: 'Notes',
       vocabulary: t('vocabulary'),
       collaboration: t('collaboration'),
+      zoom: 'Zoom',
       search: t('search'),
       planning: t('planning'),
       automation: 'Automatisation',
