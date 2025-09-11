@@ -6,11 +6,15 @@
   # 📦 Commande de build Vite
   command = "npm run build"
   
-  # 📁 Dossier de sortie Vite (dist par défaut)
+  # 📁 Dossier de sortie Vite
   publish = "dist"
   
   # 🔧 Variables d'environnement pour le build
-  environment = { NODE_ENV = "production" }
+  environment = { 
+    NODE_ENV = "production",
+    NODE_VERSION = "18",
+    NPM_FLAGS = "--production=false"
+  }
 
 [build.processing]
   # ⚡ Optimisation CSS et JS
@@ -28,7 +32,7 @@
   # 🔐 Headers de sécurité pour tous les fichiers
   for = "/*"
   [headers.values]
-    # CSP mise à jour pour Google Meet + APIs Google
+    # CSP optimisé pour Supabase + Google APIs + n8n
     Content-Security-Policy = """
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com;
@@ -59,7 +63,7 @@
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
 [[headers]]
-  # 📱 Headers spéciaux pour les assets statiques (cache long)
+  # 📱 Cache long pour les assets statiques
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
@@ -75,13 +79,12 @@
   to = "/index.html"
   status = 200
 
-# 🚀 Redirection callback Zoom vers React (pour le state)
+# 🚀 Redirections OAuth callbacks
 [[redirects]]
   from = "/zoom/callback"
   to = "/index.html"
   status = 200
 
-# 🔗 Redirections callback Google Meet vers React (pour le state)
 [[redirects]]
   from = "/google-meet/callback"
   to = "/index.html"
@@ -99,16 +102,10 @@
   status = 200
 
 [functions]
-  # ⚡ Configuration des fonctions serverless (si utilisées)
+  # ⚡ Configuration des fonctions serverless
   node_bundler = "esbuild"
 
 [dev]
-  # 🛠️ Configuration pour `netlify dev` (développement local)
+  # 🛠️ Configuration pour développement local
   command = "npm run dev"
   port = 5173
-  
-# 🔄 Configuration du build et déploiement
-[build.environment]
-  # Force l'utilisation de Node.js 18+ pour la compatibilité Vite
-  NODE_VERSION = "18"
-  NPM_FLAGS = "--production=false"
