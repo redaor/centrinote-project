@@ -1,5 +1,8 @@
-// 🔐 Utilitaires OAuth Zoom - Génération URL dynamique avec state sécurisé
-// ================================================
+// ❌ ANCIEN SYSTÈME OAUTH - DÉSACTIVÉ
+// Remplacé par Supabase OAuth natif - voir supabaseZoomAuth.ts
+// ===================================================================
+
+/* SYSTÈME DÉSACTIVÉ - UTILISER supabaseZoomAuth.ts À LA PLACE
 
 interface ZoomOAuthConfig {
   clientId: string;
@@ -18,7 +21,7 @@ interface ZoomOAuthUrl {
  * @param config Configuration OAuth (client_id, redirect_uri, scope)
  * @returns Objet contenant l'URL complète et le state généré
  */
-export function generateZoomOAuthUrl(config: ZoomOAuthConfig): ZoomOAuthUrl {
+function generateZoomOAuthUrlDisabled(config: ZoomOAuthConfig): ZoomOAuthUrl {
   console.log('🔐 Génération URL OAuth Zoom dynamique...');
   
   // Validation des paramètres requis
@@ -104,11 +107,23 @@ export function validateOAuthState(state: string): boolean {
   return uuidPattern.test(state) || mathRandomPattern.test(state);
 }
 
-/**
- * Configuration par défaut pour Centrinote
- */
-export const CENTRINOTE_ZOOM_CONFIG: Partial<ZoomOAuthConfig> = {
-  clientId: import.meta.env.VITE_ZOOM_CLIENT_ID || '',
-  redirectUri: `${import.meta.env.VITE_APP_URL}/zoom/callback`,
-  scope: 'meeting:write meeting:read user:read recording:read'
+*/
+
+// ⚠️ ANCIEN SYSTÈME DÉSACTIVÉ - UTILISEZ supabaseZoomAuth.ts
+// Ce fichier générait les URLs zoom.us/oauth/authorize (ancien système)
+
+export function generateZoomOAuthUrl(): never {
+  throw new Error('❌ Ancien système OAuth désactivé - utilisez supabaseZoomAuth.signInWithZoomOAuth() à la place');
+}
+
+export function generateOAuthState(): never {
+  throw new Error('❌ Ancien système OAuth désactivé - utilisez supabaseZoomAuth.signInWithZoomOAuth() à la place');
+}
+
+export function validateOAuthState(): never {
+  throw new Error('❌ Ancien système OAuth désactivé - utilisez supabaseZoomAuth.signInWithZoomOAuth() à la place');
+}
+
+export const CENTRINOTE_ZOOM_CONFIG = {
+  warning: '❌ Configuration désactivée - utilisez supabaseZoomAuth.ts'
 };

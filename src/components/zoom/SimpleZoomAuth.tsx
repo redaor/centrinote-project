@@ -1,6 +1,8 @@
-// 🔄 Composant Auth OAuth Zoom - REFAIT AVEC /zoom/callback
-// ================================================
+// ❌ ANCIEN SYSTÈME OAUTH - DÉSACTIVÉ
+// Ce composant utilise l'ancien système OAuth manuel - remplacé par SupabaseZoomAuth.tsx
+// ==================================================================================
 
+/* COMPOSANT DÉSACTIVÉ - UTILISER SupabaseZoomAuth.tsx À LA PLACE
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useAuth } from '../AuthProvider';
 import { supabase } from '../../lib/supabase';
@@ -347,3 +349,17 @@ SimpleZoomAuth.displayName = 'SimpleZoomAuth';
 
 export default SimpleZoomAuth;
 export type { ZoomAuthRef };
+*/
+
+// ⚠️ COMPOSANT DÉSACTIVÉ - UTILISER src/components/zoom/SupabaseZoomAuth.tsx
+// Le nouveau composant utilise supabase.auth.signInWithOAuth({ provider: 'zoom' })
+export default function SimpleZoomAuthDisabled() {
+  return (
+    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+      <p className="text-red-800 font-medium">⚠️ Ancien système OAuth désactivé</p>
+      <p className="text-red-600 text-sm mt-1">
+        Utilisez SupabaseZoomAuth.tsx pour l'authentification Zoom via Supabase OAuth
+      </p>
+    </div>
+  );
+}

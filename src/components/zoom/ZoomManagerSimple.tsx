@@ -1,3 +1,8 @@
+// ❌ ANCIEN COMPOSANT ZOOM - DÉSACTIVÉ
+// Utilise l'ancien système OAuth - remplacé par SupabaseZoomManager.tsx
+// =====================================================================
+
+/* COMPOSANT DÉSACTIVÉ
 import React, { useState } from 'react';
 import ZoomConnectionStatus from '../ZoomConnectionStatus';
 import SimpleZoomAuth from './SimpleZoomAuth';
@@ -113,6 +118,27 @@ const ZoomManagerSimple: React.FC = () => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+export default ZoomManagerSimple;
+*/
+
+// ⚠️ COMPOSANT DÉSACTIVÉ - UTILISER src/components/zoom/SupabaseZoomManager.tsx
+import React from 'react';
+
+const ZoomManagerSimple: React.FC = () => {
+  return (
+    <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+      <h2 className="text-red-800 font-bold mb-2">⚠️ Ancien gestionnaire Zoom désactivé</h2>
+      <p className="text-red-600 mb-2">
+        Ce composant utilisait l'ancien système OAuth manuel.
+      </p>
+      <p className="text-red-600 text-sm">
+        Utilisez <code className="bg-red-200 px-1 rounded">SupabaseZoomManager.tsx</code> pour 
+        l'authentification Zoom via Supabase OAuth.
+      </p>
     </div>
   );
 };

@@ -1,8 +1,14 @@
+// ❌ ANCIEN SERVICE ZOOM - DÉSACTIVÉ  
+// Remplacé par supabaseZoomAuth.ts et useSupabaseZoom.ts
+// ======================================================
+
+/* SERVICE DÉSACTIVÉ - UTILISER supabaseZoomAuth.ts À LA PLACE
+
 import { ZoomMeeting, ZoomParticipant, ZoomInvitation, ZoomWebhookPayload, ZoomMeetingStats } from '../types/zoom';
 import { webhookService } from './webhookService';
 import { supabase } from '../lib/supabase';
 
-class ZoomService {
+class ZoomServiceDisabled {
   private baseUrl: string;
   private oauthConfig = {
     client_id: import.meta.env.VITE_ZOOM_CLIENT_ID,
@@ -465,5 +471,24 @@ class ZoomService {
   }
 }
 
-// Instance singleton
-export const zoomService = new ZoomService();
+*/
+
+// ⚠️ ANCIEN SERVICE DÉSACTIVÉ - UTILISEZ supabaseZoomAuth.ts ET useSupabaseZoom.ts
+import { ZoomMeeting } from '../types/zoom';
+
+class ZoomServiceDisabled {
+  generateOAuthUrl(): never {
+    throw new Error('❌ Ancien service désactivé - utilisez supabaseZoomAuth.signInWithZoomOAuth() à la place');
+  }
+  
+  createMeeting(): never {
+    throw new Error('❌ Ancien service désactivé - utilisez useSupabaseZoom.createMeeting() à la place'); 
+  }
+  
+  hasValidToken(): never {
+    throw new Error('❌ Ancien service désactivé - utilisez supabaseZoomAuth.isZoomConnected() à la place');
+  }
+}
+
+// Instance désactivée
+export const zoomService = new ZoomServiceDisabled();

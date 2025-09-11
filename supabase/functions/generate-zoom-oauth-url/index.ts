@@ -1,7 +1,11 @@
-// 🔐 Edge Function - Génération URL OAuth Zoom sécurisée
-// ================================================
+// ❌ EDGE FUNCTION DÉSACTIVÉE - ANCIEN SYSTÈME OAUTH
+// Remplacée par Supabase OAuth natif qui gère automatiquement les URLs
+// =================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+
+/* FONCTION DÉSACTIVÉE - SUPABASE OAUTH NATIF GÈRE AUTOMATIQUEMENT LES URLs
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -196,4 +200,30 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+*/
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+serve(async (req) => {
+  console.log('❌ Edge Function generate-zoom-oauth-url désactivée');
+  
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: 'Ancien système OAuth désactivé - utilisez Supabase OAuth natif à la place',
+      message: 'Cette Edge Function faisait partie de l\'ancien système OAuth manuel. Le nouveau système utilise supabase.auth.signInWithOAuth({ provider: "zoom" })'
+    }),
+    { 
+      status: 410, // Gone 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    }
+  );
 });
