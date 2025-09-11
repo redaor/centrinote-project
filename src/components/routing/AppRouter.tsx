@@ -11,7 +11,7 @@ import AuthForm from '../AuthForm';
 import { AppLayout } from '../layout/AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
 import ZoomOAuthCallback from '../../pages/ZoomOAuthCallback';
-import ZoomManagerSimple from '../zoom/ZoomManagerSimple';
+import SupabaseZoomManager from '../zoom/SupabaseZoomManager';
 import VerifyEmailPage from '../../pages/VerifyEmailPage';
 import EmailSentPage from '../../pages/EmailSentPage';
 
@@ -199,7 +199,7 @@ export function AppRouter() {
           path="/zoom-manager" 
           element={
             <ProtectedRoute>
-              <ZoomManagerSimple />
+              <SupabaseZoomManager />
             </ProtectedRoute>
           } 
         />

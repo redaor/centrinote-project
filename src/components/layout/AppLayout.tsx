@@ -14,7 +14,7 @@ import { StudyPlanning } from '../planning/StudyPlanning';
 import { Settings } from '../settings/Settings';
 import { Help } from '../help/Help';
 import { AutomationManager } from '../automation/AutomationManager';
-import ZoomManagerSimple from '../zoom/ZoomManagerSimple';
+import SupabaseZoomManager from '../zoom/SupabaseZoomManager';
 import { AdminFloatingButton } from '../admin/AdminFloatingButton';
 
 export function AppLayout() {
@@ -68,7 +68,7 @@ export function AppLayout() {
       case 'collaboration':
         return <Collaboration />;
       case 'zoom':
-        return <ZoomManagerSimple />;
+        return <SupabaseZoomManager />;
       case 'search':
         return <ModernAISearch />;
       case 'planning':
