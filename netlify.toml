@@ -10,11 +10,7 @@
   publish = "dist"
   
   # 🔧 Variables d'environnement pour le build
-  environment = { 
-    NODE_ENV = "production",
-    NODE_VERSION = "18",
-    NPM_FLAGS = "--production=false"
-  }
+  environment = { NODE_ENV = "production", NODE_VERSION = "18", NPM_FLAGS = "--production=false" }
 
 [build.processing]
   # ⚡ Optimisation CSS et JS
