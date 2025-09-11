@@ -14,8 +14,8 @@ export function FAQ() {
   const faqItems = [
     {
       id: '1',
-      question: 'Comment intégrer Centrinote avec Zoom ?',
-      answer: 'L\'intégration Zoom est disponible dans les plans Pro et Entreprise. Rendez-vous dans les paramètres de votre compte pour connecter votre compte Zoom. Une fois connecté, vous pourrez créer des réunions directement depuis Centrinote.',
+      question: 'Comment intégrer Centrinote avec une plateforme de visioconférence ?',
+      answer: 'L\'intégration avec les plateformes de visioconférence sera bientôt disponible dans les plans Pro et Entreprise. Vous pourrez connecter votre plateforme préférée depuis les paramètres de votre compte.',
       category: 'integration'
     },
     {

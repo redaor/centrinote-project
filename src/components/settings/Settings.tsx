@@ -29,7 +29,6 @@ import { ProfileSection } from './ProfileSection';
 import { SubscriptionSection } from './subscription/SubscriptionSection';
 import { WebhookTestPanel } from '../debug/WebhookTestPanel';
 import { APIConnectionTest } from '../debug/APIConnectionTest';
-import { SupabaseZoomDebug } from '../debug/SupabaseZoomDebug';
 
 export function Settings() {
   // 🔧 Protection mobile iOS - gestion d'erreur gracieuse
@@ -352,7 +351,6 @@ export function Settings() {
             {activeTab === 'debug' && (
               <div className="space-y-8">
                 <APIConnectionTest />
-                <SupabaseZoomDebug />
                 <WebhookTestPanel />
               </div>
             )}

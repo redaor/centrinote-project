@@ -13,7 +13,8 @@
       "Bash(curl:*)",
       "Bash(supabase status:*)",
       "Bash(supabase functions deploy:*)",
-      "Bash(npm run type-check:*)"
+      "Bash(npm run type-check:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

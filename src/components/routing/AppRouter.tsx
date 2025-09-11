@@ -10,8 +10,6 @@ import { Support } from '../legal/Support';
 import AuthForm from '../AuthForm';
 import { AppLayout } from '../layout/AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
-import ZoomOAuthCallback from '../../pages/ZoomOAuthCallback';
-import SupabaseZoomManager from '../zoom/SupabaseZoomManager';
 import VerifyEmailPage from '../../pages/VerifyEmailPage';
 import EmailSentPage from '../../pages/EmailSentPage';
 
@@ -37,11 +35,6 @@ export function AppRouter() {
     setShowAuthForm(true);
   };
 
-  // Fonction pour fermer le formulaire d'authentification
-  const handleCloseAuth = () => {
-    console.log('🔄 Fermeture du formulaire d\'authentification');
-    setShowAuthForm(false);
-  };
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -134,14 +127,6 @@ export function AppRouter() {
           } 
         />
         
-        <Route 
-          path="/zoom" 
-          element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          } 
-        />
         
         <Route 
           path="/search" 
@@ -188,22 +173,6 @@ export function AppRouter() {
           } 
         />
 
-        {/* ❌ ANCIEN SYSTÈME - Route callback OAuth Zoom désactivée 
-        <Route 
-          path="/zoom/callback" 
-          element={<ZoomOAuthCallback />} 
-        />
-        */}
-
-        {/* Route standalone pour gestionnaire Zoom */}
-        <Route 
-          path="/zoom-manager" 
-          element={
-            <ProtectedRoute>
-              <SupabaseZoomManager />
-            </ProtectedRoute>
-          } 
-        />
 
         {/* Redirection par défaut */}
         <Route path="*" element={<Navigate to="/" replace />} />

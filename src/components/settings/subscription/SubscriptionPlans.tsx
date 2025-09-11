@@ -61,7 +61,7 @@ export function SubscriptionPlans() {
       features: [
         'Notes illimitées',
         'IA & Assistant GPT-4o',
-        'Collaboration Zoom',
+        'Collaboration vidéo',
         'Stockage 50 GB',
         'Support prioritaire'
       ],

@@ -76,7 +76,7 @@ export function PrivacyPolicy() {
             <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-4">
               <li>Avec votre consentement explicite</li>
               <li>Pour respecter nos obligations légales</li>
-              <li>Avec nos partenaires techniques (Zoom) dans le cadre de l'intégration</li>
+              <li>Avec nos partenaires techniques dans le cadre des intégrations</li>
             </ul>
           </section>
 

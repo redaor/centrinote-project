@@ -18,15 +18,13 @@ interface N8NWebhookResponse {
 
 export class N8NWebhookService {
   private readonly baseUrl: string;
-  private readonly zoomWebhookUrl: string;
   private readonly defaultHeaders: Record<string, string>;
 
   constructor() {
     this.baseUrl = import.meta.env.VITE_N8N_WEBHOOK_BASE_URL || 'https://n8n.srv886297.hstgr.cloud';
-    this.zoomWebhookUrl = 'https://n8n.srv886297.hstgr.cloud/webhook/a27e69d1-9497-4816-adba-3dc85dd83f75';
     this.defaultHeaders = {
       'Content-Type': 'application/json',
-      'User-Agent': 'Centrinote-Zoom-Integration/1.0',
+      'User-Agent': 'Centrinote-Integration/1.0',
       'X-Source': 'centrinote'
     };
 
@@ -37,21 +35,6 @@ export class N8NWebhookService {
     }
   }
 
-  /**
-   * Send webhook to N8N for Zoom meeting events
-   */
-  async sendZoomWebhook(event: string, data: any, meetingId?: string): Promise<N8NWebhookResponse> {
-    const payload: N8NWebhookPayload = {
-      source: 'centrinote_zoom',
-      event,
-      timestamp: new Date().toISOString(),
-      data,
-      meetingId,
-      userId: await this.getCurrentUserId()
-    };
-
-    return await this.sendDirectWebhook(this.zoomWebhookUrl, payload);
-  }
 
   /**
    * Send webhook to N8N for meeting automation workflows
@@ -249,7 +232,7 @@ export class N8NWebhookService {
       data: {
         message: 'Test webhook from Centrinote',
         version: '1.0.0',
-        features: ['zoom_integration', 'ai_processing', 'email_notifications']
+        features: ['ai_processing', 'email_notifications']
       },
       userId: await this.getCurrentUserId()
     };
@@ -276,7 +259,6 @@ export class N8NWebhookService {
 
     // Check required endpoints
     const requiredEndpoints = [
-      'zoom-events',
       'meeting-automation',
       'recording-processing',
       'ai-processing',
@@ -296,56 +278,6 @@ export class N8NWebhookService {
    */
   async createWorkflowTemplates(): Promise<any> {
     const templates = {
-      zoomEventHandler: {
-        name: 'Centrinote - Zoom Event Handler',
-        nodes: [
-          {
-            name: 'Webhook',
-            type: 'webhook',
-            position: [100, 200],
-            parameters: {
-              path: 'zoom-events',
-              httpMethod: 'POST',
-              responseMode: 'onReceived'
-            }
-          },
-          {
-            name: 'Switch',
-            type: 'switch',
-            position: [300, 200],
-            parameters: {
-              rules: [
-                { field: 'event', operation: 'equal', value: 'meeting.started' },
-                { field: 'event', operation: 'equal', value: 'meeting.ended' },
-                { field: 'event', operation: 'equal', value: 'recording.completed' }
-              ]
-            }
-          },
-          {
-            name: 'Process Meeting Start',
-            type: 'function',
-            position: [500, 100],
-            parameters: {
-              functionCode: `
-                // Process meeting start event
-                const payload = items[0].json;
-                
-                return {
-                  processed: true,
-                  event: 'meeting.started',
-                  meetingId: payload.meetingId,
-                  timestamp: payload.timestamp,
-                  participants: payload.data.participants || []
-                };
-              `
-            }
-          }
-        ],
-        connections: {
-          'Webhook': { 'main': [[{ 'node': 'Switch', 'type': 'main', 'index': 0 }]] },
-          'Switch': { 'main': [[{ 'node': 'Process Meeting Start', 'type': 'main', 'index': 0 }]] }
-        }
-      },
 
       recordingProcessor: {
         name: 'Centrinote - Recording Processor',
@@ -411,7 +343,7 @@ export class N8NWebhookService {
     try {
       const { data, error } = await supabase
         .from('meetings')
-        .select('*, user_zoom_integrations(*)')
+        .select('*')
         .eq('id', meetingId)
         .single();
 
@@ -436,7 +368,7 @@ export class N8NWebhookService {
   private async getEmailTemplate(emailType: string): Promise<any> {
     const templates = {
       meeting_summary: {
-        subject: '📝 Résumé de votre réunion Zoom - {{ meeting.title }}',
+        subject: '📝 Résumé de votre réunion - {{ meeting.title }}',
         template: 'meeting_summary',
         variables: ['meeting', 'summary', 'actionItems', 'participants']
       },

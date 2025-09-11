@@ -743,10 +743,6 @@ class WebhookService {
     const actionMapping: Record<string, string> = {
       'test_connection': 'test_connection',
       'delete_automation': 'delete_automation',
-      'create_zoom_meeting': 'create_zoom_meeting',
-      'update_zoom_meeting': 'update_zoom_meeting',
-      'cancel_zoom_meeting': 'cancel_zoom_meeting',
-      'send_zoom_invitations': 'send_zoom_invitations',
       'ai_query': 'ai_query',
       'ai_status': 'ai_status',
       'ai_test': 'ai_test',
