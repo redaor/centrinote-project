@@ -3,6 +3,7 @@
 // ====================================================================
 
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 import { zoomOAuthService } from '../services/zoomOAuthService';
 import { ZoomAuthState, ZoomUser } from '../types/zoom';
 
@@ -293,6 +294,3 @@ export const useZoomAuth = (): UseZoomAuthReturn => {
     checkConnection
   };
 };
-
-// Import manquant
-import { supabase } from '../lib/supabase';

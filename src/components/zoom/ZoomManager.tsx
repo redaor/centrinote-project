@@ -2,39 +2,24 @@
 // Composant central pour gérer toutes les fonctionnalités Zoom
 // ===========================================================
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Video, Plus, Settings, Users, Calendar } from 'lucide-react';
 import { ZoomOAuthButton } from './ZoomOAuthButton';
 import { ZoomConnectionStatus } from './ZoomConnectionStatus';
 import { zoomOAuthService } from '../../services/zoomOAuthService';
 import { useApp } from '../../contexts/AppContext';
+import { useZoomAuth } from '../../hooks/useZoomAuth';
 
 export const ZoomManager: React.FC = () => {
   const { state } = useApp();
   const { darkMode } = state;
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Vérifier le statut de connexion au chargement
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        const connected = await zoomOAuthService.isConnectedToZoom();
-        setIsConnected(connected);
-      } catch (err) {
-        console.error('❌ Erreur vérification connexion:', err);
-        setIsConnected(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkConnection();
-  }, []);
+  
+  // Utiliser le hook centralisé pour l'état de connexion
+  const { isConnected, isLoading } = useZoomAuth();
 
   const handleConnectionSuccess = async (session: any) => {
     console.log('✅ Connexion Zoom réussie:', session);
-    setIsConnected(true);
+    // L'état sera automatiquement mis à jour par useZoomAuth
     
     // Envoyer automatiquement les tokens à n8n
     try {
@@ -50,7 +35,8 @@ export const ZoomManager: React.FC = () => {
   };
 
   const handleDisconnect = () => {
-    setIsConnected(false);
+    // L'état sera automatiquement mis à jour par useZoomAuth
+    console.log('🔄 Déconnexion déléguée à useZoomAuth');
   };
 
   if (isLoading) {
