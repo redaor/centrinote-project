@@ -188,11 +188,12 @@ export function AppRouter() {
           } 
         />
 
-        {/* Route spéciale pour callback OAuth Zoom */}
+        {/* ❌ ANCIEN SYSTÈME - Route callback OAuth Zoom désactivée 
         <Route 
           path="/zoom/callback" 
           element={<ZoomOAuthCallback />} 
         />
+        */}
 
         {/* Route standalone pour gestionnaire Zoom */}
         <Route 

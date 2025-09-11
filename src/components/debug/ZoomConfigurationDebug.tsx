@@ -25,7 +25,7 @@ export const ZoomConfigurationDebug: React.FC = () => {
     const clientId = import.meta.env.VITE_ZOOM_CLIENT_ID || 'NON_CONFIGURÉ';
     const redirectUri = import.meta.env.VITE_ZOOM_REDIRECT_URI || 'NON_CONFIGURÉ';
     const currentUrl = window.location.origin;
-    const expectedRedirectUri = `https://centrinote.fr/zoom/callback`;
+    const expectedRedirectUri = `https://your-project.supabase.co/auth/v1/callback`;
 
     setConfig({
       clientId,
