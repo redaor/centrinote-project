@@ -119,27 +119,38 @@ export const GoogleMeetIntegrationTest: React.FC = () => {
     const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
     const scopes = import.meta.env.VITE_GOOGLE_SCOPES;
     const webhookUrl = import.meta.env.VITE_N8N_GOOGLE_MEET_WEBHOOK;
+    const appUrl = import.meta.env.VITE_APP_URL;
+    const environment = import.meta.env.NODE_ENV || import.meta.env.MODE;
 
     const missing = [];
     if (!clientId || clientId === 'your_google_client_id_here') missing.push('VITE_GOOGLE_CLIENT_ID');
     if (!clientSecret || clientSecret === 'your_google_client_secret_here') missing.push('VITE_GOOGLE_CLIENT_SECRET');
     if (!scopes) missing.push('VITE_GOOGLE_SCOPES');
     if (!webhookUrl || webhookUrl.includes('your_google_meet_webhook_id_here')) missing.push('VITE_N8N_GOOGLE_MEET_WEBHOOK');
+    if (!appUrl && environment === 'production') missing.push('VITE_APP_URL');
 
     if (missing.length > 0) {
       updateTest(index, {
         status: 'error',
         message: `Variables manquantes: ${missing.join(', ')}`,
-        details: { missing, clientId: clientId?.substring(0, 20) + '...' }
+        details: { 
+          missing, 
+          clientId: clientId?.substring(0, 20) + '...',
+          environment,
+          currentOrigin: typeof window !== 'undefined' ? window.location.origin : 'N/A'
+        }
       });
     } else {
       updateTest(index, {
         status: 'success',
-        message: 'Toutes les variables d\'environnement sont configurées',
+        message: 'Variables d\'environnement configurées pour production',
         details: { 
           clientId: clientId.substring(0, 20) + '...',
           scopes: scopes.split(' ').length + ' scopes',
-          webhook: 'Configuré'
+          webhook: 'Configuré',
+          environment,
+          appUrl: appUrl || window.location.origin,
+          production: environment === 'production'
         }
       });
     }

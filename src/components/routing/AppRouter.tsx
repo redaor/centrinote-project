@@ -137,6 +137,15 @@ export function AppRouter() {
         />
         
         <Route 
+          path="/google-meet" 
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
           path="/search" 
           element={
             <ProtectedRoute>

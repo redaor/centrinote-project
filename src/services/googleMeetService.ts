@@ -22,10 +22,18 @@ import {
 export class GoogleMeetService {
   private readonly redirectUrl: string;
   private readonly scopes: string;
+  private readonly baseUrl: string;
 
   constructor() {
-    this.redirectUrl = `${import.meta.env.VITE_APP_URL}/dashboard`;
-    this.scopes = 'openid email profile https://www.googleapis.com/auth/calendar';
+    // URL dynamique basée sur l'environnement
+    this.baseUrl = import.meta.env.VITE_APP_URL || 
+                   (typeof window !== 'undefined' ? window.location.origin : 'https://centrinote.netlify.app');
+    
+    this.redirectUrl = `${this.baseUrl}/dashboard`;
+    this.scopes = import.meta.env.VITE_GOOGLE_SCOPES || 'openid email profile https://www.googleapis.com/auth/calendar';
+    
+    console.log('🌐 GoogleMeetService - Production URL:', this.baseUrl);
+    console.log('🔄 Redirect URL:', this.redirectUrl);
   }
 
   /**

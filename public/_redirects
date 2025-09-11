@@ -5,5 +5,9 @@
 # 🚀 Redirection callback Zoom vers React (pour le state)
 /zoom/callback         /index.html   200
 
+# 🔗 Redirection callback Google Meet vers React (pour le state)
+/google-meet/callback  /index.html   200
+/auth/callback         /index.html   200
+
 # 📌 Catch-all pour React Router
 /*                     /index.html   200

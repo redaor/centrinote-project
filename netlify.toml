@@ -1,15 +1,70 @@
+# 🚀 Configuration Netlify pour CentriNote - Production
+# Configuration optimisée pour React + Vite + SPA routing + OAuth Google/Zoom
+# =======================================================================
+
 [build]
-  publish = "dist"
+  # 📦 Commande de build Vite
   command = "npm run build"
+  
+  # 📁 Dossier de sortie Vite (dist par défaut)
+  publish = "dist"
+  
+  # 🔧 Variables d'environnement pour le build
+  environment = { NODE_ENV = "production" }
+
+[build.processing]
+  # ⚡ Optimisation CSS et JS
+  skip_processing = false
+
+[build.processing.css]
+  bundle = true
+  minify = true
+
+[build.processing.js]
+  bundle = true
+  minify = true
 
 [[headers]]
+  # 🔐 Headers de sécurité pour tous les fichiers
   for = "/*"
   [headers.values]
+    # CSP mise à jour pour Google Meet + APIs Google
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: https: blob:;
+      connect-src 'self' 
+                  https://*.supabase.co 
+                  https://api.supabase.co 
+                  https://www.googleapis.com 
+                  https://accounts.google.com 
+                  https://oauth2.googleapis.com 
+                  https://n8n.srv886297.hstgr.cloud 
+                  https://zoom.us 
+                  https://api.zoom.us 
+                  https://us02web.zoom.us;
+      frame-src 'self' 
+                https://accounts.google.com 
+                https://zoom.us 
+                https://us02web.zoom.us;
+      worker-src 'self' blob:;
+    """
+    X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co https://api.supabase.co https://n8n.srv886297.hstgr.cloud https://zoom.us; frame-ancestors 'none'"
+    X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
-# 🔐 Redirections d'authentification vers les pages React
+[[headers]]
+  # 📱 Headers spéciaux pour les assets statiques (cache long)
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# 🔐 Redirections d'authentification Supabase
 [[redirects]]
   from = "/auth/confirm-email"
   to = "/index.html"
@@ -20,14 +75,40 @@
   to = "/index.html"
   status = 200
 
-# 🚀 Redirige /zoom/callback vers React (pour que SimpleZoomAuth puisse gérer le state)
+# 🚀 Redirection callback Zoom vers React (pour le state)
 [[redirects]]
   from = "/zoom/callback"
   to = "/index.html"
   status = 200
 
-# 📌 Catch-all : toutes les autres routes vont vers React
+# 🔗 Redirections callback Google Meet vers React (pour le state)
+[[redirects]]
+  from = "/google-meet/callback"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/auth/callback"
+  to = "/index.html"
+  status = 200
+
+# 📌 Catch-all pour React Router (SPA routing)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[functions]
+  # ⚡ Configuration des fonctions serverless (si utilisées)
+  node_bundler = "esbuild"
+
+[dev]
+  # 🛠️ Configuration pour `netlify dev` (développement local)
+  command = "npm run dev"
+  port = 5173
+  
+# 🔄 Configuration du build et déploiement
+[build.environment]
+  # Force l'utilisation de Node.js 18+ pour la compatibilité Vite
+  NODE_VERSION = "18"
+  NPM_FLAGS = "--production=false"
