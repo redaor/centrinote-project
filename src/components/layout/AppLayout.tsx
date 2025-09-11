@@ -15,6 +15,7 @@ import { Settings } from '../settings/Settings';
 import { Help } from '../help/Help';
 import { AutomationManager } from '../automation/AutomationManager';
 import { ZoomManager } from '../zoom/ZoomManager';
+import { GoogleMeetManager } from '../google-meet/GoogleMeetManager';
 import { AdminFloatingButton } from '../admin/AdminFloatingButton';
 
 export function AppLayout() {
@@ -37,7 +38,7 @@ export function AppLayout() {
   useEffect(() => {
     const path = location.pathname.slice(1); // Enlever le '/' initial
     const validViews = [
-      'dashboard', 'notes', 'vocabulary', 'collaboration', 'zoom',
+      'dashboard', 'notes', 'vocabulary', 'collaboration', 'zoom', 'google-meet',
       'search', 'planning', 'automation', 'settings', 'help'
     ];
     
@@ -69,6 +70,8 @@ export function AppLayout() {
         return <Collaboration />;
       case 'zoom':
         return <ZoomManager />;
+      case 'google-meet':
+        return <GoogleMeetManager />;
       case 'search':
         return <ModernAISearch />;
       case 'planning':

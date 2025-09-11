@@ -24,6 +24,7 @@ const menuItems = [
   { id: 'vocabulary', label: 'vocabulary', icon: BookOpen },
   { id: 'collaboration', label: 'collaboration', icon: Users },
   { id: 'zoom', label: 'Zoom', icon: Video },
+  { id: 'google-meet', label: 'Google Meet', icon: Calendar },
   { id: 'search', label: 'search', icon: Search },
   { id: 'planning', label: 'planning', icon: Calendar },
   { id: 'automation', label: 'Automatisation', icon: Zap },

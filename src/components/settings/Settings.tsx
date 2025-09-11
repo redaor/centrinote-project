@@ -32,6 +32,8 @@ import { WebhookTestPanel } from '../debug/WebhookTestPanel';
 import { APIConnectionTest } from '../debug/APIConnectionTest';
 import { ZoomIntegrationTest } from '../zoom/ZoomIntegrationTest';
 import { ZoomSettings } from './ZoomSettings';
+import { GoogleMeetIntegrationTest } from '../google-meet/GoogleMeetIntegrationTest';
+import { GoogleMeetSettings } from './GoogleMeetSettings';
 
 export function Settings() {
   // 🔧 Protection mobile iOS - gestion d'erreur gracieuse
@@ -97,6 +99,7 @@ export function Settings() {
     { id: 'security', label: t('security'), icon: Shield },
     { id: 'data', label: t('data_privacy'), icon: Download },
     { id: 'zoom', label: 'Zoom', icon: Video },
+    { id: 'google-meet', label: 'Google Meet', icon: Calendar },
     { id: 'debug', label: 'Debug & API', icon: AlertCircle }
   ];
 
@@ -353,10 +356,12 @@ export function Settings() {
             {activeTab === 'security' && <SecuritySection darkMode={darkMode} />}
             {activeTab === 'data' && <DataPrivacySection darkMode={darkMode} />}
             {activeTab === 'zoom' && <ZoomSettings darkMode={darkMode} />}
+            {activeTab === 'google-meet' && <GoogleMeetSettings darkMode={darkMode} />}
             {activeTab === 'debug' && (
               <div className="space-y-8">
                 <APIConnectionTest />
                 <ZoomIntegrationTest />
+                <GoogleMeetIntegrationTest />
                 <WebhookTestPanel />
               </div>
             )}

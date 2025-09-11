@@ -173,6 +173,7 @@ export function AppHeader() {
       vocabulary: t('vocabulary'),
       collaboration: t('collaboration'),
       zoom: 'Zoom',
+      'google-meet': 'Google Meet',
       search: t('search'),
       planning: t('planning'),
       automation: 'Automatisation',
