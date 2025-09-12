@@ -63,8 +63,8 @@ interface InviteForm {
 
 export function Collaboration() {
   const { state } = useApp();
-  const { darkMode, documents } = state;
-  const [activeTab, setActiveTab] = useState<'sessions' | 'shared' | 'invites'>('sessions');
+  const { darkMode, documents, user } = state;
+  const [activeTab, setActiveTab] = useState<'sessions' | 'shared' | 'invites' | 'reports' | 'analytics'>('sessions');
   
   // États pour les modals et vues
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
@@ -94,6 +94,185 @@ export function Collaboration() {
     message: 'Rejoignez-moi sur Centrinote pour collaborer !',
     role: 'editor'
   });
+  
+  // 🎬 Nouveaux états pour l'enregistrement et rapports
+  const [globalRecordingStatus, setGlobalRecordingStatus] = useState<RecordingStatus[]>([]);
+  const [allGeneratedReports, setAllGeneratedReports] = useState<GeneratedReport[]>([]);
+  const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [recordingMetrics, setRecordingMetrics] = useState<RecordingMetrics | null>(null);
+  const [n8nWebhookStatus, setN8nWebhookStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected');
+  const [lastWebhookResponse, setLastWebhookResponse] = useState<N8nWebhookResponse | null>(null);
+  
+  // Configuration globale des enregistrements
+  const [globalRecordingConfig, setGlobalRecordingConfig] = useState<RecordingConfig>({
+    autoStart: false,
+    requireConsent: true,
+    saveToCloud: true,
+    generateReport: true,
+    n8nWebhookUrl: import.meta.env.VITE_N8N_JITSI_WEBHOOK || '',
+    storageProvider: 'jitsi',
+    maxDuration: 120,
+    quality: 'high',
+    includeAudio: true,
+    includeVideo: true,
+    includeScreenShare: true,
+    enableTranscription: true,
+    language: 'fr-FR',
+    notifyParticipants: true,
+    retentionPeriod: 30
+  });
+
+  // 📊 Charger les métriques et rapports au démarrage
+  useEffect(() => {
+    loadAllReports();
+    checkN8nWebhookStatus();
+    loadRecordingMetrics();
+  }, []);
+
+  // 📄 Charger tous les rapports générés
+  const loadAllReports = async () => {
+    setIsLoadingReports(true);
+    try {
+      const allReports: GeneratedReport[] = [];
+      
+      // Charger les rapports pour chaque salle Jitsi active
+      for (const meeting of jitsiMeetings) {
+        const result = await jitsiService.getGeneratedReports(meeting.id);
+        if (result.success && result.reports) {
+          allReports.push(...result.reports);
+        }
+      }
+      
+      setAllGeneratedReports(allReports);
+    } catch (error) {
+      console.error('❌ Erreur chargement rapports:', error);
+    } finally {
+      setIsLoadingReports(false);
+    }
+  };
+
+  // 🔗 Vérifier le statut des webhooks n8n
+  const checkN8nWebhookStatus = async () => {
+    const webhookUrl = import.meta.env.VITE_N8N_JITSI_WEBHOOK;
+    
+    if (!webhookUrl) {
+      setN8nWebhookStatus('error');
+      return;
+    }
+
+    try {
+      // Test ping vers n8n
+      const response = await jitsiService.triggerWebhook('health_check', {
+        timestamp: new Date().toISOString(),
+        source: 'collaboration_hub'
+      });
+      
+      if (response.success) {
+        setN8nWebhookStatus('connected');
+        setLastWebhookResponse({
+          success: true,
+          message: 'Webhook n8n opérationnel',
+          workflowId: response.workflowId,
+          timestamp: new Date()
+        });
+      } else {
+        setN8nWebhookStatus('error');
+      }
+    } catch (error) {
+      setN8nWebhookStatus('disconnected');
+      console.warn('⚠️ Webhooks n8n non disponibles:', error);
+    }
+  };
+
+  // 📈 Charger les métriques d'enregistrement
+  const loadRecordingMetrics = async () => {
+    try {
+      // Simuler des métriques (en production, viendrait d'une API dédiée)
+      const mockMetrics: RecordingMetrics = {
+        totalRecordings: allGeneratedReports.length,
+        totalDuration: allGeneratedReports.reduce((acc, report) => acc + (report.metadata.duration || 0), 0),
+        totalParticipants: allGeneratedReports.reduce((acc, report) => acc + (report.metadata.participantCount || 0), 0),
+        averageDuration: allGeneratedReports.length > 0 
+          ? allGeneratedReports.reduce((acc, report) => acc + (report.metadata.duration || 0), 0) / allGeneratedReports.length 
+          : 0,
+        successRate: allGeneratedReports.length > 0 
+          ? allGeneratedReports.filter(r => r.status === 'completed').length / allGeneratedReports.length 
+          : 0,
+        reportGenerationRate: allGeneratedReports.length > 0 
+          ? allGeneratedReports.filter(r => r.status === 'completed' && r.content).length / allGeneratedReports.length 
+          : 0,
+        storageUsed: allGeneratedReports.reduce((acc, report) => acc + (report.metadata?.duration || 0) * 50 * 1024 * 1024, 0), // 50MB par minute
+        processingTime: {
+          avg: 3.5,
+          min: 1.2,
+          max: 8.1
+        },
+        topSessionTypes: [
+          { type: 'collaboration', count: 12, percentage: 40 },
+          { type: 'study', count: 9, percentage: 30 },
+          { type: 'discussion', count: 6, percentage: 20 },
+          { type: 'video', count: 3, percentage: 10 }
+        ],
+        participantEngagement: {
+          averageSpeakingTime: 180,
+          averageQuestions: 3.2,
+          sentimentDistribution: {
+            positive: 0.65,
+            neutral: 0.28,
+            negative: 0.07
+          }
+        }
+      };
+      
+      setRecordingMetrics(mockMetrics);
+    } catch (error) {
+      console.error('❌ Erreur chargement métriques:', error);
+    }
+  };
+
+  // 🎬 Gérer les changements d'état d'enregistrement
+  const handleRecordingStateChange = (meetingId: string, isRecording: boolean) => {
+    setGlobalRecordingStatus(prev => {
+      const existing = prev.find(r => r.roomName === meetingId);
+      if (existing) {
+        return prev.map(r => r.roomName === meetingId ? { ...r, isRecording } : r);
+      }
+      return [...prev, {
+        isRecording,
+        roomName: meetingId,
+        status: isRecording ? 'recording' : 'idle',
+        participantConsents: [],
+        allParticipantsConsented: false,
+        consentPending: [],
+        organizerId: user?.id || '',
+        organizerName: user?.name || '',
+        sessionType: 'collaboration',
+        participantCount: 1,
+        processingStatus: 'pending'
+      }];
+    });
+  };
+
+  // 📄 Télécharger un rapport
+  const handleDownloadReport = (report: GeneratedReport) => {
+    if (report.fileUrl) {
+      const link = document.createElement('a');
+      link.href = report.fileUrl;
+      link.download = `${report.title}.${report.format}`;
+      link.click();
+    }
+  };
+
+  // 🗑️ Supprimer un rapport
+  const handleDeleteReport = async (reportId: string) => {
+    try {
+      // Ici, appel API pour supprimer le rapport
+      setAllGeneratedReports(prev => prev.filter(r => r.id !== reportId));
+      showMessage('Rapport supprimé avec succès');
+    } catch (error) {
+      showMessage('Erreur lors de la suppression du rapport');
+    }
+  };
 
   // Mock data pour les sessions actives (étendu avec statut en temps réel)
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([
