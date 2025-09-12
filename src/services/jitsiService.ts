@@ -428,6 +428,327 @@ class JitsiService {
     
     return { valid: true };
   }
+  // ========================================
+  // 🎬 NOUVELLES MÉTHODES D'ENREGISTREMENT
+  // ========================================
+
+  /**
+   * 🎬 Démarrer l'enregistrement avec gestion consentement RGPD
+   */
+  async startRecording(
+    roomName: string, 
+    options: {
+      participants: Array<{ id: string; name: string; email?: string; }>;
+      documentIds?: string[];
+      sessionType: string;
+      organizerId: string;
+      organizerName: string;
+      requireConsent?: boolean;
+    }
+  ): Promise<{ success: boolean; recordingId?: string; error?: string }> {
+    try {
+      if (!this.api) {
+        throw new Error('API Jitsi non initialisée');
+      }
+
+      console.log('🎬 Démarrage enregistrement pour salle:', roomName);
+
+      // Démarrer l'enregistrement via l'API Jitsi
+      this.api.executeCommand('startRecording', {
+        mode: 'stream',
+        dropboxToken: undefined,
+        shouldShare: true,
+        rtmpStreamKey: undefined,
+        rtmpBroadcastID: undefined,
+        youtubeStreamKey: undefined,
+        youtubeBroadcastID: undefined
+      });
+
+      // Générer un ID d'enregistrement unique
+      const recordingId = `rec_${roomName}_${Date.now()}`;
+
+      // Déclencher le webhook n8n pour démarrage
+      await this.triggerWebhook('recording_started', {
+        roomName,
+        recordingId,
+        participants: options.participants,
+        sessionType: options.sessionType,
+        organizerId: options.organizerId,
+        organizerName: options.organizerName,
+        documentIds: options.documentIds || []
+      });
+
+      console.log('✅ Enregistrement démarré avec ID:', recordingId);
+      return { success: true, recordingId };
+
+    } catch (error) {
+      console.error('❌ Erreur démarrage enregistrement:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Erreur inconnue'
+      };
+    }
+  }
+
+  /**
+   * ⏹️ Arrêter l'enregistrement et déclencher le traitement
+   */
+  async stopRecording(
+    roomName: string,
+    recordingId: string,
+    duration: number
+  ): Promise<{ success: boolean; recordingUrl?: string; error?: string }> {
+    try {
+      if (!this.api) {
+        throw new Error('API Jitsi non initialisée');
+      }
+
+      console.log('⏹️ Arrêt enregistrement pour salle:', roomName);
+
+      // Arrêter l'enregistrement via l'API Jitsi
+      this.api.executeCommand('stopRecording', 'stream');
+
+      // Simuler URL de l'enregistrement (en production, viendrait de Jitsi)
+      const recordingUrl = `https://recordings.centrinote.com/${recordingId}.mp4`;
+
+      // Déclencher le webhook n8n pour traitement
+      await this.triggerWebhook('recording_stopped', {
+        roomName,
+        recordingId,
+        recordingUrl,
+        duration,
+        status: 'completed'
+      });
+
+      console.log('✅ Enregistrement arrêté, URL:', recordingUrl);
+      return { success: true, recordingUrl };
+
+    } catch (error) {
+      console.error('❌ Erreur arrêt enregistrement:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erreur inconnue'
+      };
+    }
+  }
+
+  /**
+   * 📡 Déclencher un webhook n8n
+   */
+  async triggerWebhook(
+    event: string,
+    data: any
+  ): Promise<{ success: boolean; workflowId?: string; error?: string }> {
+    const webhookUrl = import.meta.env.VITE_N8N_JITSI_WEBHOOK;
+    
+    if (!webhookUrl) {
+      console.warn('⚠️ URL webhook n8n non configurée');
+      return { success: false, error: 'Webhook URL non configurée' };
+    }
+
+    try {
+      const payload = {
+        event,
+        timestamp: new Date().toISOString(),
+        data,
+        source: 'centrinote_jitsi'
+      };
+
+      console.log('📡 Envoi webhook n8n:', event, data);
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Centrinote-Jitsi/1.0'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur webhook HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Webhook n8n envoyé avec succès');
+      
+      return { 
+        success: true, 
+        workflowId: result.workflowId || result.executionId 
+      };
+
+    } catch (error) {
+      console.error('❌ Erreur envoi webhook n8n:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erreur inconnue'
+      };
+    }
+  }
+
+  /**
+   * ✅ Enregistrer le consentement d'un participant
+   */
+  async recordConsent(
+    roomName: string,
+    participantId: string,
+    participantName: string,
+    hasConsented: boolean,
+    consentMethod: 'explicit' | 'implicit' = 'explicit'
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const consentData = {
+        participantId,
+        participantName,
+        hasConsented,
+        timestamp: new Date().toISOString(),
+        consentMethod,
+        ipAddress: await this.getClientIP(),
+        userAgent: navigator.userAgent,
+        roomName
+      };
+
+      // Envoyer le consentement via webhook n8n
+      await this.triggerWebhook('consent_recorded', {
+        roomName,
+        consent: consentData
+      });
+
+      console.log(`✅ Consentement enregistré pour ${participantName}:`, hasConsented);
+      return { success: true };
+
+    } catch (error) {
+      console.error('❌ Erreur enregistrement consentement:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erreur inconnue'
+      };
+    }
+  }
+
+  /**
+   * 🌐 Obtenir l'IP client (pour le consentement RGPD)
+   */
+  private async getClientIP(): Promise<string> {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip || 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * 📊 Obtenir le statut de l'enregistrement
+   */
+  getRecordingStatus(): {
+    isRecording: boolean;
+    canRecord: boolean;
+    recordingMode?: string;
+  } {
+    if (!this.api) {
+      return { isRecording: false, canRecord: false };
+    }
+
+    // En production, cette info viendrait de l'API Jitsi
+    // Pour l'instant, simulation basique
+    return {
+      isRecording: false, // À implémenter selon les événements Jitsi
+      canRecord: true,
+      recordingMode: 'stream'
+    };
+  }
+
+  /**
+   * 🔄 Synchroniser les métadonnées de session
+   */
+  async syncSessionMetadata(
+    roomName: string,
+    metadata: {
+      documentIds?: string[];
+      sessionTitle?: string;
+      sessionType: string;
+      participants: Array<{ id: string; name: string; email?: string; }>;
+      startTime: Date;
+    }
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.triggerWebhook('session_metadata', {
+        roomName,
+        metadata: {
+          ...metadata,
+          timestamp: new Date().toISOString(),
+          jitsiDomain: this.domain,
+          e2eeEnabled: true
+        }
+      });
+
+      console.log('✅ Métadonnées session synchronisées');
+      return { success: true };
+
+    } catch (error) {
+      console.error('❌ Erreur sync métadonnées:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erreur inconnue'
+      };
+    }
+  }
+
+  /**
+   * 📄 Récupérer les rapports générés
+   */
+  async getGeneratedReports(roomName: string): Promise<{
+    success: boolean;
+    reports?: Array<{
+      id: string;
+      type: string;
+      status: string;
+      fileUrl?: string;
+      generatedAt: Date;
+    }>;
+    error?: string;
+  }> {
+    try {
+      // En production, ceci ferait appel à une API dédiée
+      // Pour l'instant, simulation avec webhook n8n
+      const response = await this.triggerWebhook('get_reports', {
+        roomName,
+        requestType: 'list_reports'
+      });
+
+      if (response.success) {
+        // Simulation des rapports - en production, viendrait de n8n
+        const mockReports = [
+          {
+            id: `report_${roomName}_transcript`,
+            type: 'transcript',
+            status: 'completed',
+            fileUrl: `https://reports.centrinote.com/${roomName}_transcript.pdf`,
+            generatedAt: new Date()
+          },
+          {
+            id: `report_${roomName}_summary`,
+            type: 'summary',
+            status: 'generating',
+            generatedAt: new Date()
+          }
+        ];
+
+        return { success: true, reports: mockReports };
+      }
+
+      return { success: false, error: 'Erreur récupération rapports' };
+
+    } catch (error) {
+      console.error('❌ Erreur récupération rapports:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erreur inconnue'
+      };
+    }
+  }
 }
 
 // Instance singleton

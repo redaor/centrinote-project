@@ -14,7 +14,8 @@
       "Bash(supabase status:*)",
       "Bash(supabase functions deploy:*)",
       "Bash(npm run type-check:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(npm run lint)"
     ],
     "deny": []
   }

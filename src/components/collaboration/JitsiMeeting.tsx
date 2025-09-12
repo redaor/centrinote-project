@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { 
   ArrowLeft, 
   Users, 
@@ -13,17 +13,36 @@ import {
   AlertCircle,
   CheckCircle,
   Copy,
-  ExternalLink
+  ExternalLink,
+  FileText,
+  Clock
 } from 'lucide-react';
 import { jitsiService, JitsiMeetingRoom } from '../../services/jitsiService';
 import { useApp } from '../../contexts/AppContext';
+import { RecordingControls } from './RecordingControls';
+import { ConsentDialog } from './ConsentDialog';
+import { ReportsList } from './ReportsList';
+import { 
+  RecordingStatus, 
+  RecordingConfig, 
+  RecordingConsent, 
+  GeneratedReport,
+  RecordingEventType 
+} from '../../types/recording';
 
 interface JitsiMeetingProps {
   room: JitsiMeetingRoom;
   onLeave: () => void;
+  sessionDocumentIds?: string[];
+  sessionType?: string;
 }
 
-export function JitsiMeeting({ room, onLeave }: JitsiMeetingProps) {
+export function JitsiMeeting({ 
+  room, 
+  onLeave, 
+  sessionDocumentIds = [], 
+  sessionType = 'video' 
+}: JitsiMeetingProps) {
   const { state } = useApp();
   const { darkMode, user } = state;
   const jitsiContainerRef = useRef<HTMLDivElement>(null);
@@ -36,6 +55,295 @@ export function JitsiMeeting({ room, onLeave }: JitsiMeetingProps) {
     isRecording: false
   });
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // ========================================
+  // 🎬 NOUVEAUX ÉTATS POUR L'ENREGISTREMENT
+  // ========================================
+  const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>({
+    isRecording: false,
+    status: 'idle',
+    participantConsents: [],
+    allParticipantsConsented: false,
+    consentPending: []
+  });
+
+  const [recordingConfig, setRecordingConfig] = useState<RecordingConfig>({
+    autoStart: false,
+    requireConsent: true,
+    saveToCloud: true,
+    generateReport: true,
+    n8nWebhookUrl: import.meta.env.VITE_N8N_JITSI_WEBHOOK || '',
+    storageProvider: 'drive',
+    maxDuration: 120,
+    quality: 'high',
+    includeScreenShare: true,
+    includeChat: true
+  });
+
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [generatedReports, setGeneratedReports] = useState<GeneratedReport[]>([]);
+  const [showReportsModal, setShowReportsModal] = useState(false);
+  const [recordingDurationTimer, setRecordingDurationTimer] = useState<NodeJS.Timeout | null>(null);
+
+  // Participants simulés (en production, viendrait de l'API Jitsi)
+  const [participants, setParticipants] = useState<Array<{
+    id: string;
+    name: string;
+    email?: string;
+    joinedAt: Date;
+  }>>([
+    { 
+      id: 'current-user', 
+      name: user?.name || 'Utilisateur', 
+      email: user?.email,
+      joinedAt: new Date() 
+    }
+  ]);
+
+  // ========================================
+  // 🎬 NOUVELLES MÉTHODES D'ENREGISTREMENT
+  // ========================================
+
+  /**
+   * 🎬 Démarrer l'enregistrement avec gestion consentement
+   */
+  const handleStartRecording = useCallback(async () => {
+    if (!user || recordingStatus.isRecording) return;
+
+    try {
+      setRecordingStatus(prev => ({ ...prev, status: 'starting' }));
+
+      // Vérifier les consentements si requis
+      if (recordingConfig.requireConsent && !recordingStatus.allParticipantsConsented) {
+        setShowConsentDialog(true);
+        setRecordingStatus(prev => ({ ...prev, status: 'idle' }));
+        return;
+      }
+
+      // Démarrer l'enregistrement via le service
+      const result = await jitsiService.startRecording(room.name, {
+        participants: participants,
+        documentIds: sessionDocumentIds,
+        sessionType: sessionType,
+        organizerId: user.id,
+        organizerName: user.name,
+        requireConsent: recordingConfig.requireConsent
+      });
+
+      if (result.success) {
+        setCurrentRecordingId(result.recordingId || null);
+        setStartTime(new Date());
+        setRecordingStatus(prev => ({
+          ...prev,
+          isRecording: true,
+          status: 'recording',
+          recordingId: result.recordingId,
+          startTime: new Date()
+        }));
+        setMeetingStats(prev => ({ ...prev, isRecording: true }));
+
+        // Démarrer le timer de durée
+        const timer = setInterval(() => {
+          setRecordingStatus(prev => ({
+            ...prev,
+            duration: startTime ? Math.floor((Date.now() - startTime.getTime()) / 1000) : 0
+          }));
+        }, 1000);
+        setRecordingDurationTimer(timer);
+
+      } else {
+        setRecordingStatus(prev => ({ 
+          ...prev, 
+          status: 'error', 
+          error: result.error 
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Erreur démarrage enregistrement:', error);
+      setRecordingStatus(prev => ({ 
+        ...prev, 
+        status: 'error', 
+        error: error instanceof Error ? error.message : 'Erreur inconnue'
+      }));
+    }
+  }, [user, recordingStatus, recordingConfig, room.name, participants, sessionDocumentIds, sessionType, startTime]);
+
+  /**
+   * ⏹️ Arrêter l'enregistrement
+   */
+  const handleStopRecording = useCallback(async () => {
+    if (!recordingStatus.isRecording || !currentRecordingId) return;
+
+    try {
+      setRecordingStatus(prev => ({ ...prev, status: 'stopping' }));
+
+      const duration = startTime ? Math.floor((Date.now() - startTime.getTime()) / 1000) : 0;
+      
+      const result = await jitsiService.stopRecording(
+        room.name,
+        currentRecordingId,
+        duration
+      );
+
+      if (result.success) {
+        setRecordingStatus(prev => ({
+          ...prev,
+          isRecording: false,
+          status: 'processing',
+          recordingUrl: result.recordingUrl
+        }));
+        setMeetingStats(prev => ({ ...prev, isRecording: false }));
+
+        // Arrêter le timer
+        if (recordingDurationTimer) {
+          clearInterval(recordingDurationTimer);
+          setRecordingDurationTimer(null);
+        }
+
+        // Déclencher génération rapports après traitement
+        setTimeout(() => {
+          handleRefreshReports();
+        }, 5000);
+
+      } else {
+        setRecordingStatus(prev => ({ 
+          ...prev, 
+          status: 'error', 
+          error: result.error 
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Erreur arrêt enregistrement:', error);
+      setRecordingStatus(prev => ({ 
+        ...prev, 
+        status: 'error', 
+        error: error instanceof Error ? error.message : 'Erreur inconnue'
+      }));
+    }
+  }, [recordingStatus.isRecording, currentRecordingId, room.name, startTime, recordingDurationTimer]);
+
+  /**
+   * ✅ Gérer le consentement utilisateur
+   */
+  const handleConsentResponse = useCallback(async (hasConsented: boolean) => {
+    if (!user) return;
+
+    try {
+      // Enregistrer le consentement
+      await jitsiService.recordConsent(
+        room.name,
+        user.id,
+        user.name,
+        hasConsented,
+        'explicit'
+      );
+
+      // Mettre à jour l'état local
+      setRecordingStatus(prev => {
+        const updatedConsents = prev.participantConsents.filter(
+          c => c.participantId !== user.id
+        );
+        updatedConsents.push({
+          participantId: user.id,
+          participantName: user.name,
+          hasConsented,
+          timestamp: new Date(),
+          consentMethod: 'explicit'
+        });
+
+        const consentPending = participants
+          .filter(p => !updatedConsents.find(c => c.participantId === p.id && c.hasConsented))
+          .map(p => p.id);
+
+        return {
+          ...prev,
+          participantConsents: updatedConsents,
+          allParticipantsConsented: consentPending.length === 0,
+          consentPending
+        };
+      });
+
+      setShowConsentDialog(false);
+
+      // Si consentement accordé et tous les participants ont consenti, démarrer l'enregistrement
+      if (hasConsented) {
+        // Vérifier si tous ont consenti
+        const allConsented = participants.every(p => 
+          recordingStatus.participantConsents.find(c => 
+            c.participantId === p.id && c.hasConsented
+          ) || p.id === user.id
+        );
+
+        if (allConsented) {
+          setTimeout(() => {
+            handleStartRecording();
+          }, 1000);
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur enregistrement consentement:', error);
+    }
+  }, [user, room.name, participants, recordingStatus.participantConsents, handleStartRecording]);
+
+  /**
+   * 📄 Rafraîchir les rapports générés
+   */
+  const handleRefreshReports = useCallback(async () => {
+    try {
+      const result = await jitsiService.getGeneratedReports(room.name);
+      
+      if (result.success && result.reports) {
+        const mappedReports: GeneratedReport[] = result.reports.map(report => ({
+          id: report.id,
+          sessionId: room.id,
+          roomName: room.name,
+          title: `${getReportTypeLabel(report.type)} - ${room.name}`,
+          generatedAt: report.generatedAt,
+          status: report.status as 'generating' | 'completed' | 'error',
+          type: report.type as 'transcript' | 'summary' | 'action_items' | 'full_report',
+          fileUrl: report.fileUrl,
+          metadata: {
+            duration: Math.floor((recordingStatus.duration || 0) / 60),
+            participantCount: participants.length
+          }
+        }));
+        
+        setGeneratedReports(mappedReports);
+      }
+    } catch (error) {
+      console.error('❌ Erreur récupération rapports:', error);
+    }
+  }, [room.name, room.id, recordingStatus.duration, participants.length]);
+
+  const getReportTypeLabel = (type: string) => {
+    switch (type) {
+      case 'transcript': return 'Transcription';
+      case 'summary': return 'Résumé';
+      case 'action_items': return 'Actions';
+      case 'full_report': return 'Rapport complet';
+      default: return 'Rapport';
+    }
+  };
+
+  /**
+   * 📥 Télécharger un rapport
+   */
+  const handleDownloadReport = useCallback((report: GeneratedReport) => {
+    if (report.fileUrl) {
+      window.open(report.fileUrl, '_blank');
+    }
+  }, []);
+
+  // Calculer les permissions d'enregistrement
+  const canStartRecording = useMemo(() => {
+    return user && 
+           !recordingStatus.isRecording && 
+           recordingStatus.status === 'idle' &&
+           (!recordingConfig.requireConsent || recordingStatus.allParticipantsConsented);
+  }, [user, recordingStatus, recordingConfig.requireConsent]);
 
   // Charger le script Jitsi Meet
   useEffect(() => {
@@ -95,23 +403,114 @@ export function JitsiMeeting({ room, onLeave }: JitsiMeetingProps) {
         api.addEventListener('videoConferenceJoined', () => {
           setIsLoading(false);
           setMeetingStats(prev => ({ ...prev, participants: prev.participants + 1 }));
+          
+          // Synchroniser les métadonnées de session
+          jitsiService.syncSessionMetadata(room.name, {
+            documentIds: sessionDocumentIds,
+            sessionTitle: room.name,
+            sessionType: sessionType,
+            participants: participants,
+            startTime: new Date()
+          });
         });
 
-        api.addEventListener('participantJoined', () => {
+        api.addEventListener('participantJoined', (event: any) => {
           setMeetingStats(prev => ({ ...prev, participants: prev.participants + 1 }));
+          
+          // Ajouter le participant à la liste locale
+          const newParticipant = {
+            id: event.id || `participant-${Date.now()}`,
+            name: event.displayName || 'Participant',
+            joinedAt: new Date()
+          };
+          
+          setParticipants(prev => {
+            if (!prev.find(p => p.id === newParticipant.id)) {
+              return [...prev, newParticipant];
+            }
+            return prev;
+          });
+
+          // Déclencher webhook n8n pour nouveau participant
+          jitsiService.triggerWebhook('participant_joined', {
+            roomName: room.name,
+            participant: newParticipant,
+            totalParticipants: participants.length + 1
+          });
+
+          // Si enregistrement requis et en cours, demander consentement
+          if (recordingStatus.isRecording && recordingConfig.requireConsent) {
+            // Simuler demande de consentement pour nouveau participant
+            console.log('🔔 Nouveau participant - consentement requis:', newParticipant.name);
+          }
         });
 
-        api.addEventListener('participantLeft', () => {
+        api.addEventListener('participantLeft', (event: any) => {
           setMeetingStats(prev => ({ ...prev, participants: Math.max(0, prev.participants - 1) }));
+          
+          // Retirer le participant de la liste locale
+          setParticipants(prev => prev.filter(p => p.id !== event.id));
+
+          // Déclencher webhook n8n
+          jitsiService.triggerWebhook('participant_left', {
+            roomName: room.name,
+            participantId: event.id,
+            totalParticipants: participants.length - 1
+          });
         });
 
+        // 🎬 NOUVEAUX ÉVÉNEMENTS D'ENREGISTREMENT
         api.addEventListener('recordingStatusChanged', (event: any) => {
+          console.log('🎬 Statut enregistrement changé:', event);
+          
           setMeetingStats(prev => ({ ...prev, isRecording: event.on }));
+          
+          if (event.on) {
+            // Enregistrement démarré par Jitsi
+            setRecordingStatus(prev => ({
+              ...prev,
+              isRecording: true,
+              status: 'recording'
+            }));
+          } else {
+            // Enregistrement arrêté par Jitsi
+            setRecordingStatus(prev => ({
+              ...prev,
+              isRecording: false,
+              status: 'processing'
+            }));
+          }
+        });
+
+        api.addEventListener('recordingLinkAvailable', (event: any) => {
+          console.log('🔗 Lien d\'enregistrement disponible:', event);
+          
+          setRecordingStatus(prev => ({
+            ...prev,
+            recordingUrl: event.link,
+            status: 'completed'
+          }));
+
+          // Déclencher le traitement via n8n
+          jitsiService.triggerWebhook('recording_available', {
+            roomName: room.name,
+            recordingUrl: event.link,
+            recordingId: currentRecordingId
+          });
         });
 
         api.addEventListener('errorOccurred', (event: any) => {
-          console.error('Erreur Jitsi:', event);
+          console.error('❌ Erreur Jitsi:', event);
           setError(`Erreur de connexion: ${event.error?.message || 'Erreur inconnue'}`);
+          
+          // Si erreur pendant enregistrement
+          if (recordingStatus.isRecording) {
+            setRecordingStatus(prev => ({
+              ...prev,
+              status: 'error',
+              error: event.error?.message || 'Erreur pendant l\'enregistrement'
+            }));
+          }
         });
 
         console.log('Réunion Jitsi initialisée avec succès');
@@ -266,6 +665,27 @@ export function JitsiMeeting({ room, onLeave }: JitsiMeetingProps) {
         </div>
         
         <div className="flex items-center space-x-2">
+          {/* Bouton rapports */}
+          <button
+            onClick={() => setShowReportsModal(true)}
+            className={`
+              flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors
+              ${darkMode 
+                ? 'hover:bg-gray-700 text-gray-400 hover:text-white' 
+                : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+              }
+            `}
+            title="Voir les rapports"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Rapports</span>
+            {generatedReports.length > 0 && (
+              <span className="bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                {generatedReports.length}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setShowShareModal(true)}
             className={`
@@ -280,6 +700,20 @@ export function JitsiMeeting({ room, onLeave }: JitsiMeetingProps) {
             <span>Partager</span>
           </button>
         </div>
+      </div>
+
+      {/* 🎬 CONTRÔLES D'ENREGISTREMENT */}
+      <div className="px-6 py-4">
+        <RecordingControls
+          isRecording={recordingStatus.isRecording}
+          onStartRecording={handleStartRecording}
+          onStopRecording={handleStopRecording}
+          recordingStatus={recordingStatus}
+          canStartRecording={canStartRecording}
+          isLoading={recordingStatus.status === 'starting' || recordingStatus.status === 'stopping'}
+          darkMode={darkMode}
+          onShowConsentDialog={() => setShowConsentDialog(true)}
+        />
       </div>
 
       {/* Contenu principal */}
@@ -409,6 +843,109 @@ export function JitsiMeeting({ room, onLeave }: JitsiMeetingProps) {
                   <li>• Serveurs Jitsi Meet officiels</li>
                   {room.password && <li>• Protection par mot de passe</li>}
                 </ul>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 🔐 MODAL DE CONSENTEMENT RGPD */}
+      <ConsentDialog
+        isOpen={showConsentDialog}
+        onClose={() => setShowConsentDialog(false)}
+        onAccept={() => handleConsentResponse(true)}
+        onDecline={() => handleConsentResponse(false)}
+        participantName={user?.name || 'Utilisateur'}
+        sessionTitle={room.name}
+        organizerName={room.createdBy}
+        recordingConfig={recordingConfig}
+        isLoading={recordingStatus.status === 'starting'}
+        darkMode={darkMode}
+      />
+
+      {/* 📄 MODAL RAPPORTS GÉNÉRÉS */}
+      {showReportsModal && (
+        <>
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowReportsModal(false)} />
+          <div className={`
+            fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50
+            ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden
+          `}>
+            <div className={`
+              ${darkMode ? 'border-gray-700 bg-gray-750' : 'border-gray-200 bg-gray-50'}
+              border-b p-6 flex items-center justify-between
+            `}>
+              <div className="flex items-center space-x-3">
+                <FileText className={`w-6 h-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                <div>
+                  <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Rapports générés
+                  </h3>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Session: {room.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowReportsModal(false)}
+                className={`
+                  p-2 rounded-lg transition-colors
+                  ${darkMode 
+                    ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                    : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
+                  }
+                `}
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <ReportsList
+                reports={generatedReports}
+                isLoading={false}
+                onRefresh={handleRefreshReports}
+                onDownload={handleDownloadReport}
+                darkMode={darkMode}
+                showActions={true}
+              />
+            </div>
+
+            {/* Footer avec informations */}
+            <div className={`
+              ${darkMode ? 'border-gray-700 bg-gray-750' : 'border-gray-200 bg-gray-50'}
+              border-t p-4
+            `}>
+              <div className="flex items-center justify-between text-sm">
+                <div className={`flex items-center space-x-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <div className="flex items-center space-x-1">
+                    <Users className="w-4 h-4" />
+                    <span>{participants.length} participants</span>
+                  </div>
+                  {recordingStatus.duration && (
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-4 h-4" />
+                      <span>{Math.floor(recordingStatus.duration / 60)}m {recordingStatus.duration % 60}s</span>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-1">
+                    <Shield className="w-4 h-4" />
+                    <span>Traitement sécurisé</span>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => setShowReportsModal(false)}
+                  className={`
+                    px-4 py-2 rounded-lg border font-medium transition-colors
+                    ${darkMode 
+                      ? 'border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    }
+                  `}
+                >
+                  Fermer
+                </button>
               </div>
             </div>
           </div>
