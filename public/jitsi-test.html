@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Jitsi Meet - CentriNote</title>
+    <script src="https://meet.jit.si/external_api.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-results {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        #jitsi-container {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Test Jitsi Meet Integration</h1>
+        <p>Test de l'intégration Jitsi Meet avec configuration Netlify</p>
+
+        <div id="test-results"></div>
+
+        <div>
+            <button onclick="testJitsiAPI()">🧪 Test API Jitsi</button>
+            <button onclick="testMediaPermissions()">🎥 Test Permissions Média</button>
+            <button onclick="testN8nWebhook()">📡 Test Webhook n8n</button>
+            <button onclick="startJitsiMeeting()">🚀 Démarrer Réunion Test</button>
+        </div>
+
+        <div id="jitsi-container"></div>
+    </div>
+
+    <script>
+        let api = null;
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('test-results');
+            const div = document.createElement('div');
+            div.className = `test-results ${type}`;
+            div.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
+            results.appendChild(div);
+        }
+
+        async function testJitsiAPI() {
+            try {
+                addResult('🔍 Test de chargement external_api.js...', 'info');
+                
+                if (typeof JitsiMeetExternalAPI === 'undefined') {
+                    throw new Error('JitsiMeetExternalAPI non disponible - external_api.js non chargé');
+                }
+                
+                addResult('✅ API Jitsi chargée avec succès', 'success');
+                return true;
+            } catch (error) {
+                addResult(`❌ Erreur API Jitsi: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testMediaPermissions() {
+            try {
+                addResult('🔍 Test des permissions média...', 'info');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                
+                // Arrêter le stream de test
+                stream.getTracks().forEach(track => track.stop());
+                
+                addResult('✅ Permissions caméra et microphone accordées', 'success');
+                return true;
+            } catch (error) {
+                addResult(`❌ Erreur permissions média: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testN8nWebhook() {
+            try {
+                addResult('🔍 Test du webhook n8n...', 'info');
+                
+                const response = await fetch('https://n8n.srv886297.hstgr.cloud/webhook/jitsi-recording', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        event: 'test_connection',
+                        timestamp: new Date().toISOString(),
+                        source: 'jitsi_test_page'
+                    })
+                });
+                
+                if (response.ok) {
+                    addResult('✅ Webhook n8n accessible', 'success');
+                } else {
+                    addResult(`⚠️ Webhook n8n répond mais avec statut ${response.status}`, 'info');
+                }
+                return true;
+            } catch (error) {
+                addResult(`❌ Erreur webhook n8n: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function startJitsiMeeting() {
+            try {
+                // Nettoyer la réunion précédente si elle existe
+                if (api) {
+                    api.dispose();
+                    api = null;
+                }
+
+                addResult('🚀 Démarrage réunion Jitsi test...', 'info');
+
+                // Configuration de la réunion
+                const options = {
+                    roomName: `centrinote-test-${Date.now()}`,
+                    width: '100%',
+                    height: '100%',
+                    parentNode: document.getElementById('jitsi-container'),
+                    configOverwrite: {
+                        enableE2EE: true,
+                        enableWelcomePage: false,
+                        enableClosePage: false,
+                        toolbarButtons: [
+                            'microphone', 'camera', 'closedcaptions',
+                            'desktop', 'fullscreen', 'fodeviceselection',
+                            'hangup', 'profile', 'chat', 'recording',
+                            'settings', 'raisehand', 'videoquality',
+                            'filmstrip', 'invite', 'feedback', 'stats',
+                            'shortcuts', 'tileview', 'help'
+                        ]
+                    },
+                    interfaceConfigOverwrite: {
+                        SHOW_JITSI_WATERMARK: false,
+                        SHOW_WATERMARK_FOR_GUESTS: false,
+                        SHOW_BRAND_WATERMARK: false,
+                        TOOLBAR_ALWAYS_VISIBLE: false,
+                        MOBILE_APP_PROMO: false
+                    }
+                };
+
+                // Créer l'API Jitsi
+                api = new JitsiMeetExternalAPI('meet.jit.si', options);
+
+                // Event listeners
+                api.addEventListener('videoConferenceJoined', () => {
+                    addResult('✅ Rejoint la conférence Jitsi avec succès!', 'success');
+                });
+
+                api.addEventListener('videoConferenceLeft', () => {
+                    addResult('ℹ️ Quitté la conférence Jitsi', 'info');
+                });
+
+                api.addEventListener('readyToClose', () => {
+                    addResult('ℹ️ Réunion fermée', 'info');
+                });
+
+                api.addEventListener('participantJoined', (event) => {
+                    addResult(`👤 Participant rejoint: ${event.displayName || 'Utilisateur'}`, 'info');
+                });
+
+                api.addEventListener('errorOccurred', (event) => {
+                    addResult(`❌ Erreur Jitsi: ${event.error}`, 'error');
+                });
+
+                addResult('🎉 Interface Jitsi initialisée avec succès!', 'success');
+
+            } catch (error) {
+                addResult(`❌ Erreur création réunion: ${error.message}`, 'error');
+            }
+        }
+
+        // Tests automatiques au chargement
+        window.addEventListener('load', async () => {
+            addResult('🚀 Début des tests automatiques...', 'info');
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testJitsiAPI();
+            
+            await new Promise(resolve => setTimeout(resolve, 500));
+            // Note: Le test des permissions média nécessite une interaction utilisateur
+            // Il ne peut pas être fait automatiquement
+            
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await testN8nWebhook();
+            
+            addResult('✅ Tests automatiques terminés', 'success');
+        });
+    </script>
+</body>
+</html>
