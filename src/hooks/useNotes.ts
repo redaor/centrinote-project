@@ -15,8 +15,10 @@ export function useNotes() {
 
   // Charger les notes depuis Supabase
   const loadNotes = useCallback(async () => {
+    const isDev = import.meta.env.DEV;
+    
     if (!user?.id) {
-      console.warn("⚠️ Tentative de chargement des notes sans ID utilisateur");
+      if (isDev) console.warn("⚠️ Tentative de chargement des notes sans ID utilisateur");
       setLoading(false);
       setInitialized(true);
       return;
@@ -26,15 +28,20 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      console.log("🔄 Chargement des notes pour l'utilisateur:", user.id);
-      const notesData = await notesService.getNotes(user.id);
-      console.log("✅ Notes chargées:", notesData.length);
-      setNotes(notesData);
+      const startTime = Date.now();
+      if (isDev) console.log("🔄 Chargement des notes pour l'utilisateur:", user.id);
       
-      console.log("🔄 Chargement des tags pour l'utilisateur:", user.id);
-      const tagsData = await notesService.getTags(user.id);
-      console.log("✅ Tags chargés:", tagsData.length);
+      // ⚡ Chargement parallèle optimisé
+      const [notesData, tagsData] = await Promise.all([
+        notesService.getNotes(user.id),
+        notesService.getTags(user.id)
+      ]);
+      
+      setNotes(notesData);
       setTags(tagsData);
+      
+      const loadTime = Date.now() - startTime;
+      if (isDev) console.log(`⚡ Données chargées en ${loadTime}ms: ${notesData.length} notes, ${tagsData.length} tags`);
       
       setInitialized(true);
     } catch (err) {

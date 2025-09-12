@@ -16,16 +16,31 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   },
   global: {
     headers: {
-      'apikey': supabaseKey
+      'apikey': supabaseKey,
+      'x-client-info': 'centrinote-web/1.0'
     }
   },
   db: {
     schema: 'public'
   },
-  // Ajouter des logs pour le debugging
+  // ⚡ Optimisations Performances
   realtime: {
     params: {
-      eventsPerSecond: 10
+      eventsPerSecond: 2  // Réduit de 10 à 2 pour économiser la bande passante
+    }
+  },
+  // 🔧 Connection pooling et timeouts
+  options: {
+    db: {
+      pooling: {
+        max: 15,              // Max 15 connexions simultanées
+        idleTimeoutMillis: 30000,  // 30s timeout inactif
+        connectionTimeoutMillis: 2000  // 2s timeout connexion
+      }
+    },
+    // Cache des requêtes identiques
+    cache: {
+      ttl: 60 // Cache 60 secondes
     }
   }
 }

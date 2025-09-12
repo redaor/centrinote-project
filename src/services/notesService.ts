@@ -6,9 +6,13 @@ class NotesService {
    * Récupère toutes les notes d'un utilisateur
    */
   async getNotes(userId: string): Promise<Note[]> {
+    const isDev = import.meta.env.DEV;
+    const startTime = Date.now();
+    
     try {
-      console.log('🔄 Chargement des notes pour:', userId);
+      if (isDev) console.log('🔄 Chargement optimisé des notes pour:', userId);
       
+      // 🚀 UNE SEULE REQUÊTE avec JOINs optimisés
       const { data, error } = await supabase
         .from('notes')
         .select(`
@@ -18,7 +22,17 @@ class NotesService {
           content,
           is_pinned,
           created_at,
-          updated_at
+          updated_at,
+          note_tags (
+            tags (
+              id,
+              name,
+              color
+            )
+          ),
+          note_attachments (
+            id
+          )
         `)
         .eq('userId', userId)
         .order('is_pinned', { ascending: false })
@@ -29,45 +43,16 @@ class NotesService {
         throw error;
       }
       
-      // Récupérer les tags pour chaque note
-      const notesWithTags = await Promise.all(data.map(async (note) => {
-        const { data: tagData, error: tagError } = await supabase
-          .from('note_tags')
-          .select(`
-            tags (
-              id,
-              name,
-              color
-            )
-          `)
-          .eq('note_id', note.id);
-          
-        if (tagError) {
-          console.warn('⚠️ Erreur lors du chargement des tags pour la note:', note.id, tagError);
-          return {
-            ...note,
-            tags: []
-          };
-        }
-        
-        // Vérifier si la note a des pièces jointes
-        const { count, error: attachmentError } = await supabase
-          .from('note_attachments')
-          .select('id', { count: 'exact', head: true })
-          .eq('note_id', note.id);
-          
-        if (attachmentError) {
-          console.warn('⚠️ Erreur lors de la vérification des pièces jointes:', note.id, attachmentError);
-        }
-        
-        return {
-          ...note,
-          tags: tagData?.map(item => item.tags) || [],
-          has_attachment: count ? count > 0 : false
-        };
+      // 🔄 Traitement des données en une fois
+      const notesWithTags = data.map(note => ({
+        ...note,
+        tags: note.note_tags?.map(nt => nt.tags).filter(Boolean) || [],
+        has_attachment: (note.note_attachments?.length || 0) > 0
       }));
       
-      console.log(`✅ ${notesWithTags.length} notes chargées`);
+      const loadTime = Date.now() - startTime;
+      if (isDev) console.log(`⚡ ${notesWithTags.length} notes chargées en ${loadTime}ms (1 requête)`);
+      
       return notesWithTags;
     } catch (error) {
       console.error('❌ Erreur lors du chargement des notes:', error);
