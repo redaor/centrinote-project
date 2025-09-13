@@ -129,6 +129,11 @@
 [functions]
   # ⚡ Configuration des fonctions serverless
   node_bundler = "esbuild"
+  directory = "netlify/functions"
+  
+  # 🔧 Variables d'environnement pour les functions
+  [functions.environment]
+    NODE_ENV = "production"
 
 [dev]
   # 🛠️ Configuration pour développement local
