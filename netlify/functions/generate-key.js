@@ -290,4 +290,4 @@ exports.handler = async (event, context) => {
       supportedMethods: ['GET', 'POST', 'OPTIONS']
     })
   };
-};
+};// Force redeploy Dim 14 sep 2025 18:50:01 CET
