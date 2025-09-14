@@ -14,7 +14,7 @@ const supabase = createClient(
 // 🔑 Validation des clés API (serverless)
 async function validateApiKey(apiKey) {
   try {
-    if (!apiKey || !apiKey.startsWith('cnt_')) {
+    if (!apiKey || !apiKey.startsWith('cnt_live_')) {
       return { valid: false, error: 'Invalid API key format' };
     }
 
@@ -27,7 +27,13 @@ async function validateApiKey(apiKey) {
       .eq('is_active', true)
       .single();
 
-    if (error || !data) {
+    if (error) {
+      console.error('🔍 Supabase validation error:', error);
+      return { valid: false, error: `Database error: ${error.message}` };
+    }
+    
+    if (!data) {
+      console.error('🔍 API key not found in database:', { keyHash: keyHash.substring(0, 10) + '...' });
       return { valid: false, error: 'API key not found or inactive' };
     }
 
