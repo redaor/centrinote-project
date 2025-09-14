@@ -227,12 +227,20 @@ exports.handler = async (event, context) => {
 
       if (error) {
         console.error('❌ Erreur stockage clé:', error);
+        console.error('📊 Détails erreur Supabase:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         return {
           statusCode: 500,
           headers: corsHeaders,
           body: JSON.stringify({
             error: 'Storage Error',
-            message: 'Failed to store API key'
+            message: `Failed to store API key: ${error.message}`,
+            details: error.code,
+            supabaseError: true
           })
         };
       }
