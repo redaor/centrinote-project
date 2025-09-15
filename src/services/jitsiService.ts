@@ -68,6 +68,43 @@ class JitsiService {
     return room;
   }
 
+  // Rejoindre une salle existante par nom (pour liens d'email)
+  joinExistingRoom(roomName: string, displayName: string, email?: string): JitsiMeetingRoom {
+    // Valider et nettoyer le nom de salle
+    const cleanRoomName = roomName.replace(/[^a-zA-Z0-9_-]/g, '');
+    
+    if (!cleanRoomName) {
+      throw new Error('Nom de salle invalide');
+    }
+
+    const fullConfig: JitsiMeetingConfig = {
+      roomName: cleanRoomName,
+      displayName,
+      email,
+      subject: `Réunion ${cleanRoomName}`,
+      enableE2EE: true,
+      enableLobby: false,
+      enableRecording: true,
+      enableChat: true,
+      enableScreenSharing: true,
+      enableWhiteboard: true
+    };
+
+    const room: JitsiMeetingRoom = {
+      id: cleanRoomName,
+      name: `Réunion ${cleanRoomName}`,
+      url: `${this.baseUrl}/${cleanRoomName}`,
+      createdAt: new Date(),
+      createdBy: displayName,
+      participants: [],
+      isActive: true, // Salle existante, donc active
+      config: fullConfig
+    };
+
+    console.log('🔗 Rejoignant salle existante:', cleanRoomName);
+    return room;
+  }
+
   // Initialiser l'API Jitsi Meet
   async initializeJitsiAPI(containerId: string, config: JitsiMeetingConfig): Promise<any> {
     return new Promise((resolve, reject) => {

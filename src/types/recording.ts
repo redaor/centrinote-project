@@ -17,11 +17,13 @@ export interface RecordingConfig {
   saveToCloud: boolean;
   generateReport: boolean;
   n8nWebhookUrl: string;
-  storageProvider: 'drive' | 's3' | 'local';
+  storageProvider: 'drive' | 's3' | 'local' | 'jitsi';
   maxDuration: number; // en minutes
   quality: 'low' | 'medium' | 'high';
   includeScreenShare: boolean;
   includeChat: boolean;
+  notifyParticipants: boolean;
+  retentionPeriod: number; // en jours
 }
 
 export interface N8nWebhookPayload {
@@ -126,6 +128,30 @@ export interface RecordingControlsProps {
   canStartRecording: boolean;
   isLoading: boolean;
   disabled?: boolean;
+}
+
+// Types manquants pour le composant Collaboration
+export interface RecordingMetrics {
+  totalRecordings: number;
+  totalDuration: number; // en minutes
+  averageParticipants: number;
+  reportGenerationRate: number; // pourcentage
+  storageUsed: number; // en MB
+  costEstimate: number; // en euros
+  topTopics: string[];
+  monthlyStats: Array<{
+    month: string;
+    recordings: number;
+    duration: number;
+  }>;
+}
+
+export interface N8nWebhookResponse {
+  success: boolean;
+  workflowId?: string;
+  executionId?: string;
+  error?: string;
+  timestamp: Date;
 }
 
 export interface ReportsListProps {

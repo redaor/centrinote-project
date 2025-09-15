@@ -27,6 +27,13 @@ import { ChatWindow } from './ChatWindow';
 import { JitsiMeeting } from './JitsiMeeting';
 import { JitsiMeetingCreator } from './JitsiMeetingCreator';
 import { jitsiService, JitsiMeetingRoom } from '../../services/jitsiService';
+import { 
+  RecordingStatus, 
+  GeneratedReport, 
+  RecordingMetrics, 
+  RecordingConfig,
+  N8nWebhookResponse
+} from '../../types/recording';
 
 interface ActiveSession {
   id: string;
@@ -121,6 +128,48 @@ export function Collaboration() {
     notifyParticipants: true,
     retentionPeriod: 30
   });
+
+  // 🔗 Vérifier les paramètres URL pour auto-join d'une salle
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomName = urlParams.get('room');
+    
+    if (roomName && user) {
+      console.log('🔗 Détection paramètre room dans URL:', roomName);
+      
+      try {
+        // Créer la room à partir du nom dans l'URL
+        const existingRoom = jitsiService.joinExistingRoom(
+          roomName, 
+          user.name, 
+          user.email
+        );
+        
+        // Ajouter à la liste des réunions
+        setJitsiMeetings(prev => {
+          // Éviter les doublons
+          const existing = prev.find(meeting => meeting.id === existingRoom.id);
+          if (existing) {
+            return prev;
+          }
+          return [...prev, existingRoom];
+        });
+        
+        // Lancer automatiquement la réunion
+        setCurrentJitsiMeeting(existingRoom);
+        
+        // Nettoyer l'URL pour éviter de rejoindre à nouveau
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+        
+        showMessage(`🎯 Rejoindre la réunion "${roomName}"`);
+        
+      } catch (error) {
+        console.error('❌ Erreur lors du join de la salle:', error);
+        showMessage(`❌ Impossible de rejoindre la salle "${roomName}"`);
+      }
+    }
+  }, [user]); // Se déclenche quand l'utilisateur est chargé
 
   // 📊 Charger les métriques et rapports au démarrage
   useEffect(() => {
