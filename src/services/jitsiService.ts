@@ -28,6 +28,11 @@ class JitsiService {
   private baseUrl = 'https://meet.jit.si';
   private domain = 'meet.jit.si';
   private api: any = null;
+  
+  // 🚫 Système anti-spam webhook
+  private webhookCache = new Map<string, number>();
+  private readonly WEBHOOK_DEBOUNCE_MS = 2000; // 2 secondes entre webhooks identiques
+  private emailOnlyEvents = new Set(['recording_started', 'recording_stopped']); // Seuls ces événements déclenchent des emails
 
   // Générer un nom de salle unique et sécurisé
   generateRoomName(prefix: string = 'centrinote'): string {
@@ -504,7 +509,7 @@ class JitsiService {
       // Générer un ID d'enregistrement unique
       const recordingId = `rec_${roomName}_${Date.now()}`;
 
-      // Déclencher le webhook n8n pour démarrage
+      // Déclencher le webhook n8n pour démarrage (AVEC EMAIL)
       await this.triggerWebhook('recording_started', {
         roomName,
         recordingId,
@@ -513,7 +518,7 @@ class JitsiService {
         organizerId: options.organizerId,
         organizerName: options.organizerName,
         documentIds: options.documentIds || []
-      });
+      }, { forceEmail: true }); // 📧 Cet événement DOIT envoyer un email
 
       console.log('✅ Enregistrement démarré avec ID:', recordingId);
       return { success: true, recordingId };
@@ -548,14 +553,14 @@ class JitsiService {
       // Simuler URL de l'enregistrement (en production, viendrait de Jitsi)
       const recordingUrl = `https://recordings.centrinote.com/${recordingId}.mp4`;
 
-      // Déclencher le webhook n8n pour traitement
+      // Déclencher le webhook n8n pour traitement (AVEC EMAIL)
       await this.triggerWebhook('recording_stopped', {
         roomName,
         recordingId,
         recordingUrl,
         duration,
         status: 'completed'
-      });
+      }, { forceEmail: true }); // 📧 Cet événement DOIT envoyer un email
 
       console.log('✅ Enregistrement arrêté, URL:', recordingUrl);
       return { success: true, recordingUrl };
@@ -570,12 +575,34 @@ class JitsiService {
   }
 
   /**
-   * 📡 Déclencher un webhook n8n
+   * 🚫 Vérifier si un webhook doit être bloqué (anti-spam)
+   */
+  private shouldBlockWebhook(event: string, roomName: string): boolean {
+    const cacheKey = `${event}_${roomName}`;
+    const now = Date.now();
+    const lastSent = this.webhookCache.get(cacheKey);
+    
+    if (lastSent && now - lastSent < this.WEBHOOK_DEBOUNCE_MS) {
+      console.log(`🚫 Webhook bloqué (debounce): ${event} pour ${roomName}`);
+      return true;
+    }
+    
+    // Mettre à jour le cache
+    this.webhookCache.set(cacheKey, now);
+    return false;
+  }
+
+  /**
+   * 📡 Déclencher un webhook n8n avec anti-spam
    */
   async triggerWebhook(
     event: string,
-    data: any
-  ): Promise<{ success: boolean; workflowId?: string; error?: string }> {
+    data: any,
+    options: { 
+      forceEmail?: boolean; // Forcer l'envoi d'email même si pas dans emailOnlyEvents
+      skipDebounce?: boolean; // Ignorer le debounce
+    } = {}
+  ): Promise<{ success: boolean; workflowId?: string; error?: string; blocked?: boolean }> {
     const webhookUrl = import.meta.env.VITE_N8N_JITSI_WEBHOOK;
     
     if (!webhookUrl) {
@@ -583,15 +610,38 @@ class JitsiService {
       return { success: false, error: 'Webhook URL non configurée' };
     }
 
+    const roomName = data.roomName || data.room || 'unknown';
+    
+    // 🚫 Vérifier anti-spam (sauf si skipDebounce)
+    if (!options.skipDebounce && this.shouldBlockWebhook(event, roomName)) {
+      return { 
+        success: false, 
+        blocked: true, 
+        error: 'Webhook bloqué par système anti-spam' 
+      };
+    }
+
     try {
       const payload = {
         event,
         timestamp: new Date().toISOString(),
         data,
-        source: 'centrinote_jitsi'
+        source: 'centrinote_jitsi',
+        // 📧 Indiquer à n8n si cet événement doit déclencher un email
+        shouldSendEmail: options.forceEmail || this.emailOnlyEvents.has(event),
+        debugInfo: {
+          eventType: event,
+          roomName,
+          participantCount: data.participants?.length || data.totalParticipants || 0
+        }
       };
 
-      console.log('📡 Envoi webhook n8n:', event, data);
+      console.log('📡 Envoi webhook n8n:', {
+        event,
+        roomName,
+        shouldSendEmail: payload.shouldSendEmail,
+        dataKeys: Object.keys(data)
+      });
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -607,7 +657,7 @@ class JitsiService {
       }
 
       const result = await response.json();
-      console.log('✅ Webhook n8n envoyé avec succès');
+      console.log('✅ Webhook n8n envoyé avec succès:', event);
       
       return { 
         success: true, 

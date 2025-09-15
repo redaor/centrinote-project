@@ -129,13 +129,24 @@ export function Collaboration() {
     retentionPeriod: 30
   });
 
-  // 🔗 Vérifier les paramètres URL pour auto-join d'une salle
+  // 🔒 Flag pour éviter les re-jointures multiples
+  const [hasProcessedUrlRoom, setHasProcessedUrlRoom] = useState(false);
+
+  // 🔗 Vérifier les paramètres URL pour auto-join d'une salle (UNE SEULE FOIS)
   useEffect(() => {
+    // Éviter redéclenchement si déjà traité ou si user pas encore chargé
+    if (hasProcessedUrlRoom || !user) {
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const roomName = urlParams.get('room');
     
-    if (roomName && user) {
-      console.log('🔗 Détection paramètre room dans URL:', roomName);
+    if (roomName) {
+      console.log('🔗 [UNIQUE] Détection paramètre room dans URL:', roomName);
+      
+      // Marquer comme traité IMMÉDIATEMENT pour éviter redéclenchement
+      setHasProcessedUrlRoom(true);
       
       try {
         // Créer la room à partir du nom dans l'URL
@@ -145,13 +156,17 @@ export function Collaboration() {
           user.email
         );
         
+        console.log('🔗 Room créée:', existingRoom.id);
+        
         // Ajouter à la liste des réunions
         setJitsiMeetings(prev => {
           // Éviter les doublons
           const existing = prev.find(meeting => meeting.id === existingRoom.id);
           if (existing) {
+            console.log('🔗 Room déjà existante, pas de doublon');
             return prev;
           }
+          console.log('🔗 Ajout nouvelle room à la liste');
           return [...prev, existingRoom];
         });
         
@@ -167,9 +182,11 @@ export function Collaboration() {
       } catch (error) {
         console.error('❌ Erreur lors du join de la salle:', error);
         showMessage(`❌ Impossible de rejoindre la salle "${roomName}"`);
+        // Reset flag en cas d'erreur pour permettre retry
+        setHasProcessedUrlRoom(false);
       }
     }
-  }, [user]); // Se déclenche quand l'utilisateur est chargé
+  }, [user, hasProcessedUrlRoom]); // Dépendances optimisées
 
   // 📊 Charger les métriques et rapports au démarrage
   useEffect(() => {
