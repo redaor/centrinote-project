@@ -26,7 +26,7 @@ import { useApp } from '../../contexts/AppContext';
 import { ChatWindow } from './ChatWindow';
 import { JitsiMeeting } from './JitsiMeeting';
 import { JitsiMeetingCreator } from './JitsiMeetingCreator';
-import { JitsiMeetingRoom } from '../../services/jitsiService';
+import { jitsiService, JitsiMeetingRoom } from '../../services/jitsiService';
 
 interface ActiveSession {
   id: string;

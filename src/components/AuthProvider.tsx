@@ -20,7 +20,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log('🔄 AuthProvider: Initialisation avec Supabase...');
     
-    // Écouter les changements d'état d'authentification
+    // 1. Vérifier d'abord s'il y a une session existante
+    const checkInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('🔍 AuthProvider: Session initiale:', session ? 'Trouvée' : 'Aucune');
+        
+        if (session?.user) {
+          console.log('✅ AuthProvider: Session initiale trouvée pour:', session.user.email);
+          
+          const userData: User = {
+            id: session.user.id,
+            email: session.user.email || '',
+            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Utilisateur',
+            avatar: session.user.user_metadata?.avatar_url,
+            role: 'user',
+            subscription: 'free'
+          };
+          
+          setUser(userData);
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error('❌ AuthProvider: Erreur vérification session:', err);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkInitialSession();
+    
+    // 2. Écouter les changements d'état d'authentification
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔄 AuthProvider: Changement d\'état auth:', event);
@@ -33,11 +65,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: session.user.id,
             email: session.user.email || '',
             name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Utilisateur',
-            avatar_url: session.user.user_metadata?.avatar_url || null,
+            avatar: session.user.user_metadata?.avatar_url,
             role: 'user',
-            subscription: 'free',
-            created_at: session.user.created_at,
-            updated_at: new Date().toISOString()
+            subscription: 'free'
           };
           
           console.log('👤 AuthProvider: Utilisateur final créé:', userData);
