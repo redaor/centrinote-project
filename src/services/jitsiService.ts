@@ -595,8 +595,7 @@ class JitsiService {
           timestamp: new Date().toISOString(),
           jitsiDomain: this.domain,
           e2eeEnabled: true
-        }
-      });
+        }      });
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Erreur inconnue' };
