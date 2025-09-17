@@ -1,445 +1,161 @@
-// 🚀 Service Google Meet via Supabase OAuth
-// Gestion complète de l'authentification et des réunions Google Meet
-// ====================================================================
+import { gapi } from 'gapi-script';
 
-import { supabase } from '../lib/supabase';
-import {
-  GoogleMeetSession,
-  GoogleMeetAuthResult,
-  GoogleTokens,
-  GoogleUser,
-  GoogleCalendarEvent,
-  CreateMeetingRequest,
-  GoogleMeetingResponse,
-  GoogleMeetError,
-  GoogleMeetErrorCode,
-  GoogleCalendarListResponse
-} from '../types/google-meet';
+export interface GoogleMeetRoom {
+  id: string;
+  meetingCode: string;
+  meetingUrl: string;
+  title: string;
+  organizerEmail: string;
+  startTime?: string;
+  endTime?: string;
+  attendees?: string[];
+}
 
-/**
- * 🔐 Classe principale pour gérer Google Meet via Supabase OAuth
- */
-export class GoogleMeetService {
-  private readonly redirectUrl: string;
-  private readonly scopes: string;
-  private readonly baseUrl: string;
+class GoogleMeetService {
+  private isInitialized = false;
+  private webhookUrl: string;
 
   constructor() {
-    // URL dynamique basée sur l'environnement
-    this.baseUrl = import.meta.env.VITE_APP_URL || 
-                   (typeof window !== 'undefined' ? window.location.origin : 'https://centrinote.netlify.app');
-    
-    this.redirectUrl = `${this.baseUrl}/dashboard`;
-    this.scopes = import.meta.env.VITE_GOOGLE_SCOPES || 'openid email profile https://www.googleapis.com/auth/calendar';
-    
-    console.log('🌐 GoogleMeetService - Production URL:', this.baseUrl);
-    console.log('🔄 Redirect URL:', this.redirectUrl);
+    this.webhookUrl = import.meta.env.VITE_N8N_GOOGLE_MEET_WEBHOOK ||
+      'https://n8n.srv886297.hstgr.cloud/webhook/google-meet-events';
   }
 
-  /**
-   * 🚀 Initier la connexion Google Meet via Supabase OAuth
-   */
-  async signInWithGoogle(): Promise<GoogleMeetAuthResult> {
-    console.log('🚀 Démarrage authentification Google Meet via Supabase OAuth...');
-    
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          scopes: this.scopes,
-          redirectTo: this.redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent' // Force consent pour obtenir refresh_token
-          }
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
+    return new Promise((resolve, reject) => {
+      gapi.load('client:auth2', async () => {
+        try {
+          await gapi.client.init({
+            apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
+            clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
+            scope: 'https://www.googleapis.com/auth/calendar.events'
+          });
+          this.isInitialized = true;
+          console.log('✅ Google API initialized');
+          resolve();
+        } catch (error) {
+          console.error('❌ Google API init failed:', error);
+          reject(error);
         }
       });
-
-      if (error) {
-        console.error('❌ Erreur Supabase OAuth Google:', error);
-        return {
-          success: false,
-          error: error.message || 'Erreur lors de l\'authentification Google'
-        };
-      }
-
-      console.log('✅ Authentification Google initiée via Supabase OAuth');
-      console.log('🔄 Redirection vers Google en cours...');
-      
-      return {
-        success: true,
-        session: data as any
-      };
-
-    } catch (err) {
-      console.error('❌ Erreur inattendue authentification Google:', err);
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Erreur inconnue'
-      };
-    }
+    });
   }
 
-  /**
-   * 📱 Récupérer la session Google active avec tokens
-   */
-  async getCurrentGoogleSession(): Promise<GoogleMeetSession | null> {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('❌ Erreur récupération session:', error);
-        return null;
+  async createMeeting(
+    title: string,
+    startTime: Date,
+    duration: number = 60,
+    attendees: string[] = []
+  ): Promise<GoogleMeetRoom> {
+    await this.initialize();
+
+    const endTime = new Date(startTime.getTime() + duration * 60000);
+
+    const event = {
+      summary: title,
+      start: {
+        dateTime: startTime.toISOString(),
+        timeZone: 'Europe/Paris'
+      },
+      end: {
+        dateTime: endTime.toISOString(),
+        timeZone: 'Europe/Paris'
+      },
+      attendees: attendees.map(email => ({ email })),
+      conferenceData: {
+        createRequest: {
+          requestId: `centrinote-${Date.now()}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet'
+          }
+        }
+      },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'email', minutes: 10 },
+          { method: 'popup', minutes: 10 }
+        ]
       }
-
-      if (!session) {
-        console.log('ℹ️ Aucune session active');
-        return null;
-      }
-
-      // Vérifier si c'est une session Google avec les bons scopes
-      if (!session.provider_token || session.user?.app_metadata?.provider !== 'google') {
-        console.log('ℹ️ Session trouvée mais pas de token Google');
-        return null;
-      }
-
-      console.log('✅ Session Google active récupérée');
-      
-      return {
-        user: session.user?.user_metadata as GoogleUser,
-        session: session,
-        access_token: session.provider_token,
-        refresh_token: session.provider_refresh_token,
-        expires_at: session.expires_at
-      };
-
-    } catch (err) {
-      console.error('❌ Erreur récupération session Google:', err);
-      return null;
-    }
-  }
-
-  /**
-   * 🔑 Récupérer uniquement les tokens Google
-   */
-  async getGoogleTokens(): Promise<GoogleTokens | null> {
-    const session = await this.getCurrentGoogleSession();
-    
-    if (!session?.access_token) {
-      return null;
-    }
-
-    return {
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-      expires_at: session.expires_at
     };
-  }
-
-  /**
-   * 🔄 Rafraîchir les tokens automatiquement (géré par Supabase)
-   */
-  async refreshTokens(): Promise<GoogleMeetAuthResult> {
-    try {
-      const { data, error } = await supabase.auth.refreshSession();
-      
-      if (error) {
-        console.error('❌ Erreur rafraîchissement tokens:', error);
-        return {
-          success: false,
-          error: error.message
-        };
-      }
-
-      console.log('✅ Tokens Google rafraîchis avec succès');
-      
-      return {
-        success: true,
-        session: {
-          user: data.user?.user_metadata as GoogleUser,
-          session: data.session,
-          access_token: data.session?.provider_token,
-          refresh_token: data.session?.provider_refresh_token,
-          expires_at: data.session?.expires_at
-        }
-      };
-
-    } catch (err) {
-      console.error('❌ Erreur rafraîchissement:', err);
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Erreur inconnue'
-      };
-    }
-  }
-
-  /**
-   * 🚪 Déconnecter de Google (garde la session Supabase)
-   */
-  async signOutFromGoogle(): Promise<boolean> {
-    try {
-      console.log('ℹ️ Déconnexion Google (via suppression tokens côté client)');
-      
-      // Pour l'instant, on peut marquer la session comme non-Google côté client
-      localStorage.removeItem('google-meet-connected');
-      
-      return true;
-    } catch (err) {
-      console.error('❌ Erreur déconnexion Google:', err);
-      return false;
-    }
-  }
-
-  /**
-   * ✅ Vérifier si l'utilisateur est connecté à Google
-   */
-  async isConnectedToGoogle(): Promise<boolean> {
-    const session = await this.getCurrentGoogleSession();
-    return !!session?.access_token;
-  }
-
-  /**
-   * 📊 Obtenir les informations de l'utilisateur Google
-   */
-  async getGoogleUserInfo(): Promise<GoogleUser | null> {
-    const session = await this.getCurrentGoogleSession();
-    
-    if (!session?.access_token) {
-      console.log('❌ Pas de token Google disponible');
-      return null;
-    }
 
     try {
-      const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
+      const response = await gapi.client.calendar.events.insert({
+        calendarId: 'primary',
+        conferenceDataVersion: 1,
+        resource: event
       });
 
-      if (!response.ok) {
-        throw new GoogleMeetError(
-          GoogleMeetErrorCode.AUTHENTICATION_FAILED,
-          `Erreur API Google: ${response.status}`
-        );
-      }
+      const meetingData: GoogleMeetRoom = {
+        id: response.result.id,
+        meetingCode: response.result.conferenceData?.conferenceId || '',
+        meetingUrl: response.result.hangoutLink || '',
+        title: title,
+        organizerEmail: response.result.organizer?.email || '',
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        attendees: attendees
+      };
 
-      const userInfo = await response.json();
-      console.log('✅ Informations utilisateur Google récupérées');
-      
-      return userInfo as GoogleUser;
+      await this.triggerWebhook('meeting_created', meetingData);
 
-    } catch (err) {
-      console.error('❌ Erreur récupération infos utilisateur:', err);
-      return null;
+      console.log('✅ Google Meet created:', meetingData);
+      return meetingData;
+    } catch (error) {
+      console.error('❌ Failed to create Google Meet:', error);
+      throw error;
     }
   }
 
-  /**
-   * 📅 Créer une réunion Google Meet
-   */
-  async createMeeting(request: CreateMeetingRequest): Promise<GoogleMeetingResponse> {
-    const tokens = await this.getGoogleTokens();
-    
-    if (!tokens) {
-      return {
-        success: false,
-        error: 'Pas de tokens Google disponibles'
-      };
-    }
-
-    try {
-      const eventData = {
-        summary: request.title,
-        description: request.description || '',
-        start: {
-          dateTime: request.startTime,
-          timeZone: request.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone
-        },
-        end: {
-          dateTime: request.endTime,
-          timeZone: request.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone
-        },
-        attendees: request.attendees?.map(email => ({ email })) || [],
-        conferenceData: {
-          createRequest: {
-            requestId: `meet-${Date.now()}`,
-            conferenceSolutionKey: {
-              type: 'hangoutsMeet'
-            }
-          }
-        }
-      };
-
-      const response = await fetch(
-        'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${tokens.access_token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(eventData)
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new GoogleMeetError(
-          GoogleMeetErrorCode.INVALID_REQUEST,
-          `Erreur création réunion: ${response.status}`,
-          errorData
-        );
-      }
-
-      const meeting = await response.json() as GoogleCalendarEvent;
-      const meetingUrl = meeting.conferenceData?.entryPoints?.find(
-        ep => ep.entryPointType === 'video'
-      )?.uri || meeting.htmlLink;
-
-      console.log('✅ Réunion Google Meet créée avec succès');
-      
-      return {
-        success: true,
-        meeting,
-        meetingUrl
-      };
-
-    } catch (err) {
-      console.error('❌ Erreur création réunion:', err);
-      return {
-        success: false,
-        error: err instanceof GoogleMeetError ? err.message : 'Erreur de création de réunion'
-      };
-    }
+  async createInstantMeeting(title: string = 'Réunion instantanée'): Promise<GoogleMeetRoom> {
+    const now = new Date();
+    return this.createMeeting(title, now, 60);
   }
 
-  /**
-   * 📋 Récupérer les réunions Google Calendar
-   */
-  async getMeetings(maxResults: number = 10): Promise<GoogleCalendarEvent[]> {
-    const tokens = await this.getGoogleTokens();
-    
-    if (!tokens) {
-      console.log('❌ Pas de tokens Google disponibles');
-      return [];
-    }
+  private async triggerWebhook(event: string, data: any): Promise<void> {
+    console.log(`📤 [Google Meet Webhook] Sending ${event}:`, data);
 
     try {
-      const now = new Date().toISOString();
-      const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
-      url.searchParams.set('timeMin', now);
-      url.searchParams.set('maxResults', maxResults.toString());
-      url.searchParams.set('singleEvents', 'true');
-      url.searchParams.set('orderBy', 'startTime');
-
-      const response = await fetch(url.toString(), {
-        headers: {
-          'Authorization': `Bearer ${tokens.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new GoogleMeetError(
-          GoogleMeetErrorCode.INVALID_REQUEST,
-          `Erreur récupération réunions: ${response.status}`
-        );
-      }
-
-      const data = await response.json() as GoogleCalendarListResponse;
-      console.log(`✅ ${data.items.length} réunions récupérées`);
-      
-      return data.items;
-
-    } catch (err) {
-      console.error('❌ Erreur récupération réunions:', err);
-      return [];
-    }
-  }
-
-  /**
-   * 🔗 Envoyer les tokens à n8n pour les workflows
-   */
-  async sendTokensToN8n(): Promise<boolean> {
-    const tokens = await this.getGoogleTokens();
-    const webhookUrl = import.meta.env.VITE_N8N_GOOGLE_MEET_WEBHOOK;
-    
-    if (!tokens || !webhookUrl) {
-      console.log('❌ Tokens ou webhook URL manquants');
-      return false;
-    }
-
-    try {
-      const response = await fetch(webhookUrl, {
+      const response = await fetch(this.webhookUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          event: 'google_meet_oauth_connected',
-          data: {
-            tokens: {
-              access_token: tokens.access_token,
-              refresh_token: tokens.refresh_token,
-              expires_at: tokens.expires_at
-            }
-          },
-          timestamp: new Date().toISOString(),
-          source: 'centrinote_google_meet'
+          event,
+          ...data,
+          timestamp: new Date().toISOString()
         })
       });
 
       if (!response.ok) {
-        throw new Error(`Erreur webhook n8n: ${response.status}`);
+        throw new Error(`Webhook failed: ${response.status}`);
       }
 
-      console.log('✅ Tokens envoyés à n8n avec succès');
-      return true;
-
-    } catch (err) {
-      console.error('❌ Erreur envoi tokens à n8n:', err);
-      return false;
+      console.log(`✅ [Google Meet Webhook] ${event} sent successfully`);
+    } catch (error) {
+      console.error(`❌ [Google Meet Webhook] Failed to send ${event}:`, error);
     }
   }
 
-  /**
-   * 🔗 Supprimer/Annuler une réunion
-   */
-  async deleteMeeting(eventId: string): Promise<boolean> {
-    const tokens = await this.getGoogleTokens();
-    
-    if (!tokens) {
-      return false;
+  async signIn(): Promise<void> {
+    const authInstance = gapi.auth2.getAuthInstance();
+    if (!authInstance.isSignedIn.get()) {
+      await authInstance.signIn();
     }
+  }
 
-    try {
-      const response = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${tokens.access_token}`
-          }
-        }
-      );
+  async signOut(): Promise<void> {
+    const authInstance = gapi.auth2.getAuthInstance();
+    await authInstance.signOut();
+  }
 
-      if (!response.ok) {
-        throw new GoogleMeetError(
-          GoogleMeetErrorCode.MEETING_NOT_FOUND,
-          `Erreur suppression réunion: ${response.status}`
-        );
-      }
-
-      console.log('✅ Réunion supprimée avec succès');
-      return true;
-
-    } catch (err) {
-      console.error('❌ Erreur suppression réunion:', err);
-      return false;
-    }
+  isSignedIn(): boolean {
+    const authInstance = gapi.auth2.getAuthInstance();
+    return authInstance && authInstance.isSignedIn.get();
   }
 }
 
-// 🎯 Instance singleton du service
 export const googleMeetService = new GoogleMeetService();

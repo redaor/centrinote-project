@@ -11,3 +11,26 @@
 
 # 📌 Catch-all pour React Router
 /*                     /index.html   200
+# === OPTIONNEL - À ajouter avant le catch-all /* ===
+
+# 🔄 Redirections pour reset password Supabase
+/auth/reset-password   /index.html   200
+/auth/verify           /index.html   200
+
+# 📹 Redirections Jitsi si vous utilisez des deep links
+/meeting/*            /index.html   200
+/room/*               /index.html   200
+/collaboration        /index.html   200
+
+# 🔗 API proxy (si vous voulez cacher votre backend)
+/api/*  https://api.centrinote.fr/api/:splat  200
+/webhook/*  https://n8n.srv886297.hstgr.cloud/webhook/:splat  200
+
+# ⚡ Redirections pour les anciennes URLs (si migration)
+/old-meeting-page     /collaboration   301
+/zoom-meeting         /collaboration   301
+
+# 🚫 Bloquer l'accès aux fichiers sensibles (sécurité)
+/.env                 /404.html   404
+/.env.*               /404.html   404
+/netlify.toml         /404.html   404

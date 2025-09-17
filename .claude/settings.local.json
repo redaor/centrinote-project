@@ -15,7 +15,10 @@
       "Bash(supabase functions deploy:*)",
       "Bash(npm run type-check:*)",
       "Bash(rm:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

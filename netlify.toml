@@ -139,3 +139,44 @@
   # 🛠️ Configuration pour développement local
   command = "npm run dev"
   port = 5173
+  # ========== AJOUTER À LA FIN ==========
+
+# 🚀 Plugins Netlify pour optimisation
+[[plugins]]
+  # Compression Brotli automatique
+  package = "netlify-plugin-compress"
+
+[[plugins]]
+  # Optimisation des images
+  package = "netlify-plugin-image-optim"
+
+# 📊 Analytics et monitoring (optionnel)
+[[plugins]]
+  package = "@netlify/plugin-lighthouse"
+  [plugins.inputs]
+    fail_deploy_on_score_thresholds = false
+    thresholds = {
+      performance = 0.9,
+      accessibility = 0.9,
+      best-practices = 0.9,
+      seo = 0.9
+    }
+
+# 🔄 Post-processing
+[build.processing.images]
+  compress = true
+
+# ⚡ Edge functions (si vous en avez)
+[[edge_functions]]
+  path = "/api/*"
+  function = "api-handler"
+
+# 🌍 Contextes de déploiement
+[context.production]
+  environment = { NODE_ENV = "production" }
+
+[context.deploy-preview]
+  environment = { NODE_ENV = "preview" }
+
+[context.branch-deploy]
+  environment = { NODE_ENV = "staging" }
