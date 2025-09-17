@@ -221,38 +221,36 @@ export function Collaboration() {
     }
   };
 
-  // 🔗 Vérifier le statut des webhooks n8n (avec limitation de fréquence)
+  // 🔗 Vérifier le statut des webhooks n8n (LIMITÉ - UNE SEULE FOIS)
   const checkN8nWebhookStatus = useCallback(async () => {
-    const webhookUrl = import.meta.env.VITE_N8N_JITSI_WEBHOOK;
-    
-    if (!webhookUrl) {
-      setN8nWebhookStatus('error');
-      return;
-    }
-
     try {
-      // Test ping vers n8n avec skipDebounce pour éviter le spam
-      const response = await jitsiService.triggerWebhook('health_check', {
-        timestamp: new Date().toISOString(),
-        source: 'collaboration_hub'
-      }, { skipDebounce: true }); // 🔧 Skip debounce pour health check
+      // Test de connectivité via WebhookRouter (plus efficace que health_check)
+      const { webhookRouter } = await import('../../services/webhookRouter');
+      const connectivity = await webhookRouter.testConnectivity();
       
-      if (response.success) {
+      if (connectivity.primary.success || connectivity.recording.success) {
         setN8nWebhookStatus('connected');
         setLastWebhookResponse({
           success: true,
-          message: 'Webhook n8n opérationnel',
-          workflowId: response.workflowId,
+          message: 'Webhooks n8n opérationnels',
+          workflowId: 'connectivity_test',
           timestamp: new Date()
         });
+        console.log('✅ [HEALTH] N8N webhooks OK');
       } else {
         setN8nWebhookStatus('error');
+        setLastWebhookResponse({
+          success: false,
+          message: 'Erreur connectivité webhooks',
+          timestamp: new Date()
+        });
+        console.warn('⚠️ [HEALTH] N8N webhooks failed:', connectivity);
       }
     } catch (error) {
       setN8nWebhookStatus('disconnected');
-      console.warn('⚠️ Webhooks n8n non disponibles:', error);
+      console.warn('⚠️ [HEALTH] Webhooks n8n non disponibles:', error);
     }
-  }, []); // 🔧 useCallback pour éviter les re-créations
+  }, []); // 🔧 Pas de dépendances pour éviter les boucles
 
   // 📊 Charger les métriques et rapports au démarrage (UNE SEULE FOIS)
   useEffect(() => {
@@ -268,7 +266,7 @@ export function Collaboration() {
     return () => {
       mounted = false;
     };
-  }, [checkN8nWebhookStatus]);
+  }, []); // 🔧 CORRECTION: Retiré checkN8nWebhookStatus des dépendances pour éviter la boucle infinie
 
   // 📈 Charger les métriques d'enregistrement
   const loadRecordingMetrics = async () => {
