@@ -20,7 +20,8 @@ import {
   Mic,
   MicOff,
   Shield,
-  ExternalLink
+  ExternalLink,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { ChatWindow } from './ChatWindow';
@@ -129,99 +130,74 @@ export function Collaboration() {
     retentionPeriod: 30
   });
 
-  // 🔒 Flag pour éviter les re-jointures multiples
-  const [hasProcessedUrlRoom, setHasProcessedUrlRoom] = useState(false);
+  // 🔒 État de chargement de la room
+  const [isLoadingRoom, setIsLoadingRoom] = useState(false);
 
-  // 🔗 Vérifier les paramètres URL pour auto-join d'une salle (UNE SEULE FOIS)
+  // 🔗 Gérer les paramètres URL pour auto-join d'une salle
   useEffect(() => {
-    console.log('🔄 [AUDIT] useEffect URL room triggered:', {
-      hasProcessedUrlRoom,
-      user: !!user,
-      userName: user?.name,
-      location: window.location.href
-    });
-
-    // Éviter redéclenchement si déjà traité ou si user pas encore chargé
-    if (hasProcessedUrlRoom || !user) {
-      console.log('⏭️ [AUDIT] Skipping URL processing:', {
-        reason: hasProcessedUrlRoom ? 'already_processed' : 'no_user',
-        hasProcessedUrlRoom,
-        user: !!user
-      });
-      return;
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomName = urlParams.get('room');
-    
-    console.log('🔍 [AUDIT] URL params analysis:', {
-      allParams: Object.fromEntries(urlParams.entries()),
-      roomName,
-      hasRoomParam: !!roomName
-    });
-    
-    if (roomName) {
-      console.log('🔗 [UNIQUE] Détection paramètre room dans URL:', roomName);
+    const handleRoomFromUrl = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const roomParam = params.get('room');
       
-      // Marquer comme traité IMMÉDIATEMENT pour éviter redéclenchement
-      setHasProcessedUrlRoom(true);
-      console.log('🔒 [AUDIT] hasProcessedUrlRoom mis à true');
-      
-      try {
-        console.log('🚀 [AUDIT] Création room depuis URL...');
-        // Créer la room à partir du nom dans l'URL
-        const existingRoom = jitsiService.joinExistingRoom(
-          roomName, 
-          user.name, 
-          user.email
-        );
+      if (roomParam) {
+        console.log('📍 [ROOM] Paramètre détecté:', roomParam);
         
-        console.log('✅ [AUDIT] Room créée depuis URL:', {
-          id: existingRoom.id,
-          name: existingRoom.name,
-          url: existingRoom.url
-        });
+        const currentRoom = jitsiService.getCurrentRoom();
+        if (currentRoom && currentRoom.id === roomParam) {
+          console.log('✅ [ROOM] Déjà dans cette salle');
+          setCurrentJitsiMeeting(currentRoom);
+          return;
+        }
         
-        // Ajouter à la liste des réunions
-        setJitsiMeetings(prev => {
-          // Éviter les doublons
-          const existing = prev.find(meeting => meeting.id === existingRoom.id);
-          if (existing) {
-            console.log('🔗 [AUDIT] Room déjà existante, pas de doublon');
-            return prev;
+        try {
+          setIsLoadingRoom(true);
+          const existingRoom = await jitsiService.joinExistingRoom(
+            roomParam,
+            user?.name || 'Invité',
+            user?.email || ''
+          );
+          
+          if (existingRoom) {
+            console.log('🎥 [ROOM] Salle rejointe:', existingRoom);
+            setCurrentJitsiMeeting(existingRoom);
+            
+            sessionStorage.setItem('activeJitsiRoom', JSON.stringify({
+              roomId: roomParam,
+              joinedAt: new Date().toISOString()
+            }));
+            
+            showNotification('Réunion rejointe avec succès', 'success');
           }
-          console.log('🔗 [AUDIT] Ajout nouvelle room à la liste:', existingRoom.id);
-          return [...prev, existingRoom];
-        });
-        
-        // Attendre un tick avant de lancer la réunion pour que le DOM soit prêt
-        setTimeout(() => {
-          console.log('🎬 [AUDIT] Lancement de la réunion...');
-          setCurrentJitsiMeeting(existingRoom);
-        }, 100);
-        
-        // Nettoyer l'URL pour éviter de rejoindre à nouveau
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, newUrl);
-        console.log('🧹 [AUDIT] URL nettoyée:', newUrl);
-        
-        showMessage(`🎯 Rejoindre la réunion "${roomName}"`);
-        
-      } catch (error) {
-        console.error('❌ [AUDIT] Erreur lors du join de la salle:', {
-          roomName,
-          error: error instanceof Error ? error.message : error,
-          stack: error instanceof Error ? error.stack : undefined
-        });
-        showMessage(`❌ Impossible de rejoindre la salle "${roomName}"`);
-        // Reset flag en cas d'erreur pour permettre retry
-        setHasProcessedUrlRoom(false);
-        console.log('🔄 [AUDIT] hasProcessedUrlRoom reset à false pour retry');
+        } catch (error) {
+          console.error('❌ [ROOM] Erreur:', error);
+          showNotification('Impossible de rejoindre la réunion', 'error');
+        } finally {
+          setIsLoadingRoom(false);
+        }
+      } else {
+        const savedRoom = sessionStorage.getItem('activeJitsiRoom');
+        if (savedRoom) {
+          const { roomId, joinedAt } = JSON.parse(savedRoom);
+          const hoursElapsed = (new Date().getTime() - new Date(joinedAt).getTime()) / (1000 * 60 * 60);
+          
+          if (hoursElapsed < 2) {
+            console.log('🔄 [ROOM] Restauration de la session:', roomId);
+            window.location.href = `/collaboration?room=${roomId}`;
+          } else {
+            sessionStorage.removeItem('activeJitsiRoom');
+          }
+        }
       }
-    } else {
-      console.log('ℹ️ [AUDIT] Aucun paramètre room dans URL');
-    }
-  }, [user, hasProcessedUrlRoom]); // Dépendances optimisées
+    };
+    
+    handleRoomFromUrl();
+    
+    window.addEventListener('popstate', handleRoomFromUrl);
+    
+    return () => {
+      window.removeEventListener('popstate', handleRoomFromUrl);
+    };
+  }, [user]);
 
   // 📄 Charger tous les rapports générés
   const loadAllReports = async () => {
@@ -440,6 +416,10 @@ export function Collaboration() {
   const showMessage = (msg: string) => {
     setMessage(msg);
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  const showNotification = (msg: string, type: 'success' | 'error' = 'success') => {
+    showMessage(msg);
   };
 
   const resetNewSessionForm = () => {

@@ -24,13 +24,27 @@ interface JitsiMeetingRoom {
   config: JitsiMeetingConfig;
 }
 
+interface JitsiRoom {
+  id: string;
+  name: string;
+  participants: string[];
+  createdBy: string;
+  createdAt: string;
+  status: 'active' | 'inactive';
+}
+
 class JitsiService {
   private baseUrl = 'https://meet.jit.si';
   private domain = 'meet.jit.si';
   private api: any = null;
+  private currentRoom: JitsiRoom | null = null;
   private webhookCache = new Map<string, number>();
   private readonly WEBHOOK_DEBOUNCE_MS = 2000;
   private emailOnlyEvents = new Set(['recording_started', 'recording_stopped']);
+
+  getCurrentRoom(): JitsiRoom | null {
+    return this.currentRoom;
+  }
 
   generateRoomName(prefix: string = 'centrinote'): string {
     const timestamp = Date.now();
@@ -93,63 +107,110 @@ class JitsiService {
     return room;
   }
 
-  joinExistingRoom(roomName: string, displayName: string, email?: string): JitsiMeetingRoom {
-    const cleanRoomName = roomName.trim();
-
-    if (!cleanRoomName) throw new Error('Nom de salle invalide');
-
-    // Pattern harmonisé
-    if (!/^[a-zA-Z0-9._-]+$/.test(cleanRoomName)) {
-      console.warn('Nom de salle contient des caractères non-standards:', cleanRoomName);
-    }
-
-    const fullConfig: JitsiMeetingConfig = {
-      roomName: cleanRoomName,
-      displayName,
-      email,
-      subject: `Réunion ${cleanRoomName}`,
-      enableE2EE: false,
-      enableLobby: false,
-      enableRecording: true,
-      enableChat: true,
-      enableScreenSharing: true,
-      enableWhiteboard: true
-    };
-
-    const room: JitsiMeetingRoom = {
-      id: cleanRoomName,
-      name: `Réunion ${cleanRoomName}`,
-      url: `${this.baseUrl}/${cleanRoomName}`,
-      createdAt: new Date(),
-      createdBy: displayName,
-      participants: [],
-      isActive: true,
-      config: fullConfig
-    };
-
-    this.triggerWebhook('room_joined', {
-      roomName: cleanRoomName,
-      participant: {
-        id: `user_${Date.now()}`,
-        name: displayName,
-        email: email,
-        joinedAt: new Date().toISOString(),
-        joinMethod: 'email_link'
-      },
-      roomUrl: room.url,
-      roomConfig: {
-        enableE2EE: room.config.enableE2EE,
-        enableRecording: room.config.enableRecording,
-        enableChat: room.config.enableChat
-      },
-      metadata: {
-        createdBy: displayName,
-        createdAt: room.createdAt.toISOString(),
-        source: 'centrinote_join_existing'
+  async joinExistingRoom(
+    roomId: string,
+    userName: string,
+    userEmail: string
+  ): Promise<JitsiMeetingRoom | null> {
+    try {
+      // Vérifier si on est déjà dans cette salle
+      if (this.currentRoom && this.currentRoom.id === roomId) {
+        console.log('🔄 [Jitsi] Déjà dans la salle:', roomId);
+        // Convertir JitsiRoom vers JitsiMeetingRoom pour la compatibilité
+        return {
+          id: this.currentRoom.id,
+          name: this.currentRoom.name,
+          url: `${this.baseUrl}/${roomId}`,
+          createdAt: new Date(this.currentRoom.createdAt),
+          createdBy: this.currentRoom.createdBy,
+          participants: this.currentRoom.participants,
+          isActive: this.currentRoom.status === 'active',
+          config: {
+            roomName: roomId,
+            displayName: userName,
+            email: userEmail,
+            subject: `Réunion ${roomId}`,
+            enableE2EE: false,
+            enableLobby: false,
+            enableRecording: true,
+            enableChat: true,
+            enableScreenSharing: true,
+            enableWhiteboard: true
+          }
+        };
       }
-    }).catch(() => {});
+      
+      // Quitter la salle actuelle si différente
+      if (this.currentRoom && this.currentRoom.id !== roomId) {
+        await this.leaveRoom();
+      }
+      
+      // Créer l'objet room interne
+      const room: JitsiRoom = {
+        id: roomId,
+        name: `Réunion ${roomId}`,
+        participants: [userEmail],
+        createdBy: userEmail,
+        createdAt: new Date().toISOString(),
+        status: 'active'
+      };
+      
+      this.currentRoom = room;
+      
+      // Créer l'objet JitsiMeetingRoom pour l'interface
+      const meetingRoom: JitsiMeetingRoom = {
+        id: roomId,
+        name: `Réunion ${roomId}`,
+        url: `${this.baseUrl}/${roomId}`,
+        createdAt: new Date(),
+        createdBy: userName,
+        participants: [userEmail],
+        isActive: true,
+        config: {
+          roomName: roomId,
+          displayName: userName,
+          email: userEmail,
+          subject: `Réunion ${roomId}`,
+          enableE2EE: false,
+          enableLobby: false,
+          enableRecording: true,
+          enableChat: true,
+          enableScreenSharing: true,
+          enableWhiteboard: true
+        }
+      };
+      
+      // Déclencher le webhook
+      await this.triggerSimpleWebhook('room_joined', {
+        roomId,
+        userName,
+        userEmail,
+        joinedAt: new Date().toISOString()
+      });
+      
+      return meetingRoom;
+    } catch (error) {
+      console.error('❌ [Jitsi] Erreur joinExistingRoom:', error);
+      throw error;
+    }
+  }
 
-    return room;
+  async leaveRoom(): Promise<void> {
+    if (this.api) {
+      this.api.dispose();
+      this.api = null;
+    }
+    
+    if (this.currentRoom) {
+      await this.triggerSimpleWebhook('room_left', {
+        roomId: this.currentRoom.id,
+        leftAt: new Date().toISOString()
+      });
+      
+      this.currentRoom = null;
+    }
+    
+    sessionStorage.removeItem('activeJitsiRoom');
   }
 
   async initializeJitsiAPI(containerId: string, config: JitsiMeetingConfig): Promise<any> {
@@ -445,6 +506,35 @@ class JitsiService {
     return false;
   }
 
+  private async triggerSimpleWebhook(event: string, data: any): Promise<void> {
+    const WEBHOOK_URL = import.meta.env.VITE_N8N_JITSI_WEBHOOK || 
+                        'https://n8n.srv886297.hstgr.cloud/webhook/jitsi-recording';
+    
+    console.log(`📤 [Webhook] Sending ${event}:`, data);
+    
+    try {
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event,
+          ...data,
+          timestamp: new Date().toISOString()
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Webhook failed: ${response.status}`);
+      }
+      
+      console.log(`✅ [Webhook] ${event} sent successfully`);
+    } catch (error) {
+      console.error(`❌ [Webhook] Failed to send ${event}:`, error);
+    }
+  }
+
   async triggerWebhook(
     event: string,
     data: any,
@@ -644,4 +734,4 @@ class JitsiService {
 }
 
 export const jitsiService = new JitsiService();
-export type { JitsiMeetingConfig, JitsiMeetingRoom };
+export type { JitsiMeetingConfig, JitsiMeetingRoom, JitsiRoom };
