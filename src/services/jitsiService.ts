@@ -70,16 +70,72 @@ class JitsiService {
       config: fullConfig
     };
 
+    // 📡 Webhook vers n8n pour synchroniser la création de room
+    console.log('🚀 [DEBUG] ABOUT TO SEND room_created webhook with data:', {
+      roomName: roomName,
+      roomId: room.id,
+      organizer: {
+        name: config.displayName,
+        email: config.email
+      }
+    });
+    
+    this.triggerWebhook('room_created', {
+      roomName: roomName,
+      roomId: room.id,
+      organizer: {
+        name: config.displayName,
+        email: config.email
+      },
+      roomUrl: room.url,
+      roomConfig: {
+        enableE2EE: fullConfig.enableE2EE,
+        enableRecording: fullConfig.enableRecording,
+        enableChat: fullConfig.enableChat,
+        enableScreenSharing: fullConfig.enableScreenSharing,
+        enableWhiteboard: fullConfig.enableWhiteboard
+      },
+      metadata: {
+        createdBy: config.displayName,
+        createdAt: room.createdAt.toISOString(),
+        source: 'centrinote_create_new',
+        subject: fullConfig.subject,
+        password: !!fullConfig.password
+      }
+    }).then(response => {
+      if (response.success) {
+        console.log('✅ [WEBHOOK] room_created envoyé avec succès vers n8n');
+      } else {
+        console.warn('⚠️ [WEBHOOK] Échec envoi room_created vers n8n:', response.error);
+      }
+    }).catch(error => {
+      console.error('❌ [WEBHOOK] Erreur room_created:', error);
+    });
+
+    // Note: On retourne immédiatement, le webhook se déclenche en arrière-plan
     return room;
   }
 
   // Rejoindre une salle existante par nom (pour liens d'email)
   joinExistingRoom(roomName: string, displayName: string, email?: string): JitsiMeetingRoom {
-    // Valider et nettoyer le nom de salle
-    const cleanRoomName = roomName.replace(/[^a-zA-Z0-9_-]/g, '');
+    console.log('🔗 [AUDIT] joinExistingRoom appelé avec:', {
+      originalRoomName: roomName,
+      displayName,
+      email
+    });
+
+    // Nettoyer le nom de salle (MOINS restrictif pour préserver les noms Jitsi valides)
+    const cleanRoomName = roomName.trim();
     
     if (!cleanRoomName) {
+      console.error('❌ [AUDIT] Nom de salle vide après nettoyage');
       throw new Error('Nom de salle invalide');
+    }
+
+    // Vérifier si le nom contient des caractères problématiques
+    if (!/^[a-zA-Z0-9._-]+$/.test(cleanRoomName)) {
+      console.warn('⚠️ [AUDIT] Nom de salle contient des caractères non-standards:', cleanRoomName);
+      // Ne pas rejeter, Jitsi peut gérer certains caractères
     }
 
     const fullConfig: JitsiMeetingConfig = {
@@ -87,7 +143,7 @@ class JitsiService {
       displayName,
       email,
       subject: `Réunion ${cleanRoomName}`,
-      enableE2EE: true,
+      enableE2EE: false, // 🔧 Désactiver E2EE pour éviter les problèmes de connexion
       enableLobby: false,
       enableRecording: true,
       enableChat: true,
@@ -106,16 +162,86 @@ class JitsiService {
       config: fullConfig
     };
 
-    console.log('🔗 Rejoignant salle existante:', cleanRoomName);
+    console.log('✅ [AUDIT] Room créée:', {
+      id: room.id,
+      roomName: room.config.roomName,
+      url: room.url,
+      enableE2EE: room.config.enableE2EE
+    });
+
+    // 📡 Webhook vers n8n pour synchroniser la room
+    this.triggerWebhook('room_joined', {
+      roomName: cleanRoomName,
+      participant: {
+        id: `user_${Date.now()}`,
+        name: displayName,
+        email: email,
+        joinedAt: new Date().toISOString(),
+        joinMethod: 'email_link'
+      },
+      roomUrl: room.url,
+      roomConfig: {
+        enableE2EE: room.config.enableE2EE,
+        enableRecording: room.config.enableRecording,
+        enableChat: room.config.enableChat
+      },
+      metadata: {
+        createdBy: displayName,
+        createdAt: room.createdAt.toISOString(),
+        source: 'centrinote_join_existing'
+      }
+    }).then(response => {
+      if (response.success) {
+        console.log('✅ [WEBHOOK] room_joined envoyé avec succès vers n8n');
+      } else {
+        console.warn('⚠️ [WEBHOOK] Échec envoi room_joined vers n8n:', response.error);
+      }
+    }).catch(error => {
+      console.error('❌ [WEBHOOK] Erreur room_joined:', error);
+    });
+    
     return room;
   }
 
   // Initialiser l'API Jitsi Meet
   async initializeJitsiAPI(containerId: string, config: JitsiMeetingConfig): Promise<any> {
+    console.log('🚀 [AUDIT] initializeJitsiAPI appelé:', {
+      containerId,
+      roomName: config.roomName,
+      displayName: config.displayName
+    });
+
     return new Promise((resolve, reject) => {
       // Vérifier si l'API Jitsi est disponible
-      if (typeof window === 'undefined' || !(window as any).JitsiMeetExternalAPI) {
+      if (typeof window === 'undefined') {
+        console.error('❌ [AUDIT] Window undefined - environnement serveur?');
+        reject(new Error('Window undefined'));
+        return;
+      }
+
+      if (!(window as any).JitsiMeetExternalAPI) {
+        console.error('❌ [AUDIT] JitsiMeetExternalAPI non disponible');
+        console.log('🔍 [AUDIT] Scripts dans head:', Array.from(document.head.querySelectorAll('script')).map(s => s.src));
         reject(new Error('Jitsi Meet API not loaded. Please ensure the script is included.'));
+        return;
+      }
+
+      // Vérifier le container DOM
+      const containerElement = document.getElementById(containerId);
+      console.log('🔍 [AUDIT] Container DOM:', {
+        containerId,
+        found: !!containerElement,
+        element: containerElement,
+        dimensions: containerElement ? {
+          width: containerElement.offsetWidth,
+          height: containerElement.offsetHeight,
+          visible: containerElement.offsetParent !== null
+        } : null
+      });
+
+      if (!containerElement) {
+        console.error('❌ [AUDIT] Container DOM introuvable:', containerId);
+        reject(new Error(`Container element not found: ${containerId}`));
         return;
       }
 
@@ -123,7 +249,7 @@ class JitsiService {
         roomName: config.roomName,
         width: '100%',
         height: '100%',
-        parentNode: document.getElementById(containerId),
+        parentNode: containerElement,
         configOverwrite: {
           // Configuration de sécurité
           enableE2EE: config.enableE2EE,
@@ -226,35 +352,71 @@ class JitsiService {
         }
       };
 
+      console.log('🔧 [AUDIT] Configuration Jitsi finale:', {
+        domain: this.domain,
+        roomName: options.roomName,
+        containerDimensions: {
+          width: containerElement.offsetWidth,
+          height: containerElement.offsetHeight
+        },
+        enableE2EE: config.enableE2EE
+      });
+
       try {
+        console.log('🚀 [AUDIT] Création JitsiMeetExternalAPI...');
         this.api = new (window as any).JitsiMeetExternalAPI(this.domain, options);
+        console.log('✅ [AUDIT] JitsiMeetExternalAPI créé avec succès');
 
         // Configuration des événements
+        console.log('🔧 [AUDIT] Configuration des événements...');
         this.setupEventListeners();
 
-        // Configuration utilisateur
-        if (config.displayName) {
-          this.api.executeCommand('displayName', config.displayName);
-        }
-        if (config.email) {
-          this.api.executeCommand('email', config.email);
-        }
-        if (config.subject) {
-          this.api.executeCommand('subject', config.subject);
-        }
+        // Attendre que Jitsi soit prêt avant de configurer
+        this.api.addEventListener('videoConferenceJoined', () => {
+          console.log('✅ [AUDIT] Conférence rejointe, configuration utilisateur...');
+          
+          // Configuration utilisateur
+          if (config.displayName) {
+            console.log('🔧 [AUDIT] Configuration displayName:', config.displayName);
+            this.api.executeCommand('displayName', config.displayName);
+          }
+          if (config.email) {
+            console.log('🔧 [AUDIT] Configuration email:', config.email);
+            this.api.executeCommand('email', config.email);
+          }
+          if (config.subject) {
+            console.log('🔧 [AUDIT] Configuration subject:', config.subject);
+            this.api.executeCommand('subject', config.subject);
+          }
 
-        // Activer le chiffrement E2EE si demandé
-        if (config.enableE2EE) {
-          this.api.executeCommand('toggleE2EE');
-        }
+          // Désactiver E2EE par défaut pour éviter les problèmes
+          if (config.enableE2EE) {
+            console.log('🔧 [AUDIT] Activation E2EE...');
+            this.api.executeCommand('toggleE2EE');
+          }
 
-        // Configuration du mot de passe si fourni
-        if (config.password) {
-          this.api.executeCommand('password', config.password);
-        }
+          // Configuration du mot de passe si fourni
+          if (config.password) {
+            console.log('🔧 [AUDIT] Configuration password');
+            this.api.executeCommand('password', config.password);
+          }
+        });
 
+        // Événement d'erreur
+        this.api.addEventListener('readyToClose', () => {
+          console.log('🔄 [AUDIT] Jitsi prêt à fermer');
+        });
+
+        console.log('✅ [AUDIT] API Jitsi complètement initialisée');
         resolve(this.api);
       } catch (error) {
+        console.error('❌ [AUDIT] Erreur création JitsiMeetExternalAPI:', {
+          error: error instanceof Error ? error.message : error,
+          stack: error instanceof Error ? error.stack : undefined,
+          domain: this.domain,
+          roomName: config.roomName,
+          containerFound: !!containerElement
+        });
         reject(error);
       }
     });
@@ -593,7 +755,7 @@ class JitsiService {
   }
 
   /**
-   * 📡 Déclencher un webhook n8n avec anti-spam
+   * 📡 Déclencher un webhook n8n avec routing intelligent
    */
   async triggerWebhook(
     event: string,
@@ -603,13 +765,6 @@ class JitsiService {
       skipDebounce?: boolean; // Ignorer le debounce
     } = {}
   ): Promise<{ success: boolean; workflowId?: string; error?: string; blocked?: boolean }> {
-    const webhookUrl = import.meta.env.VITE_N8N_JITSI_WEBHOOK;
-    
-    if (!webhookUrl) {
-      console.warn('⚠️ URL webhook n8n non configurée');
-      return { success: false, error: 'Webhook URL non configurée' };
-    }
-
     const roomName = data.roomName || data.room || 'unknown';
     
     // 🚫 Vérifier anti-spam (sauf si skipDebounce)
@@ -622,50 +777,28 @@ class JitsiService {
     }
 
     try {
-      const payload = {
-        event,
-        timestamp: new Date().toISOString(),
-        data,
-        source: 'centrinote_jitsi',
-        // 📧 Indiquer à n8n si cet événement doit déclencher un email
-        shouldSendEmail: options.forceEmail || this.emailOnlyEvents.has(event),
-        debugInfo: {
-          eventType: event,
-          roomName,
-          participantCount: data.participants?.length || data.totalParticipants || 0
-        }
-      };
-
-      console.log('📡 Envoi webhook n8n:', {
-        event,
-        roomName,
-        shouldSendEmail: payload.shouldSendEmail,
-        dataKeys: Object.keys(data)
-      });
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Centrinote-Jitsi/1.0'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erreur webhook HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log('✅ Webhook n8n envoyé avec succès:', event);
+      // 🎯 Utiliser le WebhookRouter pour routing intelligent
+      const { webhookRouter } = await import('./webhookRouter');
       
-      return { 
-        success: true, 
-        workflowId: result.workflowId || result.executionId 
-      };
-
+      const routerResult = await webhookRouter.routeEvent(event, data, options);
+      
+      if (routerResult.success) {
+        const primaryResult = routerResult.results.find(r => r.webhook === 'primary');
+        console.log('✅ Webhook n8n envoyé avec succès:', event);
+        
+        return {
+          success: true,
+          workflowId: primaryResult?.workflowId
+        };
+      } else {
+        console.error('❌ Tous les webhooks ont échoué:', routerResult.error);
+        return {
+          success: false,
+          error: routerResult.error
+        };
+      }
     } catch (error) {
-      console.error('❌ Erreur envoi webhook n8n:', error);
+      console.error('❌ Erreur router webhook n8n:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Erreur inconnue'

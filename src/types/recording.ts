@@ -27,7 +27,7 @@ export interface RecordingConfig {
 }
 
 export interface N8nWebhookPayload {
-  event: 'recording_started' | 'recording_stopped' | 'participant_joined' | 'participant_left' | 'consent_changed';
+  event: 'recording_started' | 'recording_stopped' | 'participant_joined' | 'participant_left' | 'consent_changed' | 'room_joined' | 'session_started' | 'session_ended' | 'room_created';
   roomName: string;
   roomId: string;
   timestamp: Date;

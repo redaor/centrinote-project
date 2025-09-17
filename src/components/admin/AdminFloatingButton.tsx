@@ -11,18 +11,10 @@ export function AdminFloatingButton({ user }: AdminFloatingButtonProps) {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const { isAdmin } = useAdminMode();
 
-  // DEBUG TEMPORAIRE - À voir dans console centrinote.fr
-  console.log("🔧 AdminFloatingButton - User email:", user?.email);
-  console.log("🔧 AdminFloatingButton - Is admin:", isAdmin(user));
-  console.log("🔧 AdminFloatingButton - Should render:", !!user && isAdmin(user));
-
   // Seulement visible pour l'administrateur
   if (!isAdmin(user)) {
-    console.log("❌ AdminFloatingButton NOT RENDERED - Not admin user");
     return null;
   }
-
-  console.log("✅ AdminFloatingButton RENDERED - Admin user detected");
 
   return (
     <>

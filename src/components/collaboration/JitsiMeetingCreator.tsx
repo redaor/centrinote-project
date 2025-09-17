@@ -101,7 +101,9 @@ export function JitsiMeetingCreator({ darkMode, onMeetingCreated, onCancel }: Ji
         enableWhiteboard: formData.enableWhiteboard
       };
       
+      console.log('🚀 [DEBUG] CALLING createMeetingRoom with config:', config);
       const room = jitsiService.createMeetingRoom(config);
+      console.log('✅ [DEBUG] createMeetingRoom RETURNED room:', room.id);
       
       // Simuler un délai de création
       await new Promise(resolve => setTimeout(resolve, 1000));

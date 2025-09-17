@@ -34,6 +34,10 @@ import { ZoomIntegrationTest } from '../zoom/ZoomIntegrationTest';
 import { ZoomSettings } from './ZoomSettings';
 import { GoogleMeetIntegrationTest } from '../google-meet/GoogleMeetIntegrationTest';
 import { GoogleMeetSettings } from './GoogleMeetSettings';
+import { WebhookDiagnostic } from '../debug/WebhookDiagnostic';
+import { UrlRedirectTester } from '../debug/UrlRedirectTester';
+import { JitsiFlowDiagnostic } from '../debug/JitsiFlowDiagnostic';
+import { N8nSyncDiagnostic } from '../debug/N8nSyncDiagnostic';
 
 export function Settings() {
   // 🔧 Protection mobile iOS - gestion d'erreur gracieuse
@@ -363,6 +367,10 @@ export function Settings() {
                 <ZoomIntegrationTest />
                 <GoogleMeetIntegrationTest />
                 <WebhookTestPanel />
+                <JitsiFlowDiagnostic />
+                <N8nSyncDiagnostic />
+                <WebhookDiagnostic />
+                <UrlRedirectTester />
               </div>
             )}
           </div>

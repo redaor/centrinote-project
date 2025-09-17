@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Users,
   Plus,
@@ -134,21 +134,41 @@ export function Collaboration() {
 
   // 🔗 Vérifier les paramètres URL pour auto-join d'une salle (UNE SEULE FOIS)
   useEffect(() => {
+    console.log('🔄 [AUDIT] useEffect URL room triggered:', {
+      hasProcessedUrlRoom,
+      user: !!user,
+      userName: user?.name,
+      location: window.location.href
+    });
+
     // Éviter redéclenchement si déjà traité ou si user pas encore chargé
     if (hasProcessedUrlRoom || !user) {
+      console.log('⏭️ [AUDIT] Skipping URL processing:', {
+        reason: hasProcessedUrlRoom ? 'already_processed' : 'no_user',
+        hasProcessedUrlRoom,
+        user: !!user
+      });
       return;
     }
 
     const urlParams = new URLSearchParams(window.location.search);
     const roomName = urlParams.get('room');
     
+    console.log('🔍 [AUDIT] URL params analysis:', {
+      allParams: Object.fromEntries(urlParams.entries()),
+      roomName,
+      hasRoomParam: !!roomName
+    });
+    
     if (roomName) {
       console.log('🔗 [UNIQUE] Détection paramètre room dans URL:', roomName);
       
       // Marquer comme traité IMMÉDIATEMENT pour éviter redéclenchement
       setHasProcessedUrlRoom(true);
+      console.log('🔒 [AUDIT] hasProcessedUrlRoom mis à true');
       
       try {
+        console.log('🚀 [AUDIT] Création room depuis URL...');
         // Créer la room à partir du nom dans l'URL
         const existingRoom = jitsiService.joinExistingRoom(
           roomName, 
@@ -156,44 +176,52 @@ export function Collaboration() {
           user.email
         );
         
-        console.log('🔗 Room créée:', existingRoom.id);
+        console.log('✅ [AUDIT] Room créée depuis URL:', {
+          id: existingRoom.id,
+          name: existingRoom.name,
+          url: existingRoom.url
+        });
         
         // Ajouter à la liste des réunions
         setJitsiMeetings(prev => {
           // Éviter les doublons
           const existing = prev.find(meeting => meeting.id === existingRoom.id);
           if (existing) {
-            console.log('🔗 Room déjà existante, pas de doublon');
+            console.log('🔗 [AUDIT] Room déjà existante, pas de doublon');
             return prev;
           }
-          console.log('🔗 Ajout nouvelle room à la liste');
+          console.log('🔗 [AUDIT] Ajout nouvelle room à la liste:', existingRoom.id);
           return [...prev, existingRoom];
         });
         
-        // Lancer automatiquement la réunion
-        setCurrentJitsiMeeting(existingRoom);
+        // Attendre un tick avant de lancer la réunion pour que le DOM soit prêt
+        setTimeout(() => {
+          console.log('🎬 [AUDIT] Lancement de la réunion...');
+          setCurrentJitsiMeeting(existingRoom);
+        }, 100);
         
         // Nettoyer l'URL pour éviter de rejoindre à nouveau
         const newUrl = window.location.pathname;
         window.history.replaceState({}, document.title, newUrl);
+        console.log('🧹 [AUDIT] URL nettoyée:', newUrl);
         
         showMessage(`🎯 Rejoindre la réunion "${roomName}"`);
         
       } catch (error) {
-        console.error('❌ Erreur lors du join de la salle:', error);
+        console.error('❌ [AUDIT] Erreur lors du join de la salle:', {
+          roomName,
+          error: error instanceof Error ? error.message : error,
+          stack: error instanceof Error ? error.stack : undefined
+        });
         showMessage(`❌ Impossible de rejoindre la salle "${roomName}"`);
         // Reset flag en cas d'erreur pour permettre retry
         setHasProcessedUrlRoom(false);
+        console.log('🔄 [AUDIT] hasProcessedUrlRoom reset à false pour retry');
       }
+    } else {
+      console.log('ℹ️ [AUDIT] Aucun paramètre room dans URL');
     }
   }, [user, hasProcessedUrlRoom]); // Dépendances optimisées
-
-  // 📊 Charger les métriques et rapports au démarrage
-  useEffect(() => {
-    loadAllReports();
-    checkN8nWebhookStatus();
-    loadRecordingMetrics();
-  }, []);
 
   // 📄 Charger tous les rapports générés
   const loadAllReports = async () => {
@@ -217,8 +245,8 @@ export function Collaboration() {
     }
   };
 
-  // 🔗 Vérifier le statut des webhooks n8n
-  const checkN8nWebhookStatus = async () => {
+  // 🔗 Vérifier le statut des webhooks n8n (avec limitation de fréquence)
+  const checkN8nWebhookStatus = useCallback(async () => {
     const webhookUrl = import.meta.env.VITE_N8N_JITSI_WEBHOOK;
     
     if (!webhookUrl) {
@@ -227,11 +255,11 @@ export function Collaboration() {
     }
 
     try {
-      // Test ping vers n8n
+      // Test ping vers n8n avec skipDebounce pour éviter le spam
       const response = await jitsiService.triggerWebhook('health_check', {
         timestamp: new Date().toISOString(),
         source: 'collaboration_hub'
-      });
+      }, { skipDebounce: true }); // 🔧 Skip debounce pour health check
       
       if (response.success) {
         setN8nWebhookStatus('connected');
@@ -248,7 +276,23 @@ export function Collaboration() {
       setN8nWebhookStatus('disconnected');
       console.warn('⚠️ Webhooks n8n non disponibles:', error);
     }
-  };
+  }, []); // 🔧 useCallback pour éviter les re-créations
+
+  // 📊 Charger les métriques et rapports au démarrage (UNE SEULE FOIS)
+  useEffect(() => {
+    loadAllReports();
+    loadRecordingMetrics();
+    
+    // Health check webhook une seule fois au montage
+    let mounted = true;
+    if (mounted) {
+      checkN8nWebhookStatus();
+    }
+    
+    return () => {
+      mounted = false;
+    };
+  }, [checkN8nWebhookStatus]);
 
   // 📈 Charger les métriques d'enregistrement
   const loadRecordingMetrics = async () => {

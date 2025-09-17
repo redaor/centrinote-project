@@ -373,38 +373,120 @@ export function JitsiMeeting({
 
   // Initialiser la réunion Jitsi
   useEffect(() => {
-    if (!isJitsiLoaded || !jitsiContainerRef.current || !user) return;
+    console.log('🔄 [AUDIT] JitsiMeeting useEffect triggered:', {
+      isJitsiLoaded,
+      hasContainerRef: !!jitsiContainerRef.current,
+      user: !!user,
+      userName: user?.name,
+      roomName: room?.name,
+      roomConfig: room?.config
+    });
+
+    if (!isJitsiLoaded || !jitsiContainerRef.current || !user) {
+      console.log('⏭️ [AUDIT] JitsiMeeting prerequisites not ready:', {
+        isJitsiLoaded,
+        hasContainerRef: !!jitsiContainerRef.current,
+        user: !!user
+      });
+      return;
+    }
 
     const initializeMeeting = async () => {
       try {
+        console.log('🚀 [AUDIT] Starting Jitsi meeting initialization...');
         setIsLoading(true);
         setError(null);
 
+        // Double vérification que le container DOM existe
+        const container = document.getElementById('jitsi-container');
+        console.log('🔍 [AUDIT] DOM container verification:', {
+          containerFound: !!container,
+          containerElement: container,
+          refCurrent: jitsiContainerRef.current,
+          containerDimensions: container ? {
+            width: container.offsetWidth,
+            height: container.offsetHeight,
+            visible: container.offsetParent !== null
+          } : null
+        });
+
+        if (!container) {
+          console.error('❌ [AUDIT] Container jitsi-container not found in DOM!');
+          throw new Error('Container DOM introuvable');
+        }
+
         // Vérifier la compatibilité du navigateur
+        console.log('🔍 [AUDIT] Checking browser compatibility...');
         const compatibility = jitsiService.checkBrowserCompatibility();
+        console.log('🔍 [AUDIT] Browser compatibility result:', compatibility);
         if (!compatibility.compatible) {
           throw new Error(`Navigateur non compatible: ${compatibility.issues.join(', ')}`);
         }
 
         // Tester les permissions média
+        console.log('🎥 [AUDIT] Testing media permissions...');
         const permissions = await jitsiService.testMediaPermissions();
+        console.log('🎥 [AUDIT] Media permissions result:', permissions);
         if (!permissions.camera && !permissions.microphone) {
-          console.warn('Permissions caméra/microphone non accordées:', permissions.error);
+          console.warn('⚠️ [AUDIT] Permissions caméra/microphone non accordées:', permissions.error);
         }
 
-        // Initialiser l'API Jitsi
+        // Initialiser l'API Jitsi avec logging supplémentaire
+        console.log('🚀 [AUDIT] Calling initializeJitsiAPI with config:', {
+          containerId: 'jitsi-container',
+          roomName: room.config.roomName,
+          displayName: user.name,
+          email: user.email,
+          enableE2EE: room.config.enableE2EE
+        });
+        
         const api = await jitsiService.initializeJitsiAPI('jitsi-container', {
           ...room.config,
           displayName: user.name,
           email: user.email
         });
+        
+        console.log('✅ [AUDIT] initializeJitsiAPI completed successfully:', !!api);
 
         // Configurer les événements spécifiques
         api.addEventListener('videoConferenceJoined', () => {
           setIsLoading(false);
           setMeetingStats(prev => ({ ...prev, participants: prev.participants + 1 }));
           
-          // Synchroniser les métadonnées de session
+          // 📡 Webhook session_started vers n8n
+          jitsiService.triggerWebhook('session_started', {
+            roomName: room.name,
+            roomId: room.id,
+            organizer: {
+              id: user?.id || 'unknown',
+              name: user?.name || 'Utilisateur',
+              email: user?.email || 'unknown@example.com'
+            },
+            sessionMetadata: {
+              sessionTitle: room.name,
+              sessionType: sessionType,
+              startTime: new Date().toISOString(),
+              documentIds: sessionDocumentIds,
+              roomConfig: room.config,
+              expectedParticipants: participants.length,
+              jitsiUrl: room.url
+            },
+            roomCapabilities: {
+              recording: room.config.enableRecording,
+              chat: room.config.enableChat,
+              screenSharing: room.config.enableScreenSharing,
+              whiteboard: room.config.enableWhiteboard,
+              e2ee: room.config.enableE2EE
+            }
+          }).then(response => {
+            if (response.success) {
+              console.log('✅ [WEBHOOK] session_started envoyé vers n8n pour room:', room.name);
+            }
+          }).catch(error => {
+            console.error('❌ [WEBHOOK] Erreur session_started:', error);
+          });
+          
+          // Synchroniser les métadonnées de session (méthode existante)
           jitsiService.syncSessionMetadata(room.name, {
             documentIds: sessionDocumentIds,
             sessionTitle: room.name,
@@ -431,11 +513,33 @@ export function JitsiMeeting({
             return prev;
           });
 
-          // Déclencher webhook n8n pour nouveau participant
+          // 📡 Webhook détaillé vers n8n pour nouveau participant
           jitsiService.triggerWebhook('participant_joined', {
             roomName: room.name,
-            participant: newParticipant,
-            totalParticipants: participants.length + 1
+            roomId: room.id,
+            participant: {
+              ...newParticipant,
+              email: event.email || 'unknown@example.com',
+              device: {
+                browser: navigator.userAgent,
+                platform: navigator.platform,
+                hasCamera: event.hasVideo !== false,
+                hasMicrophone: event.hasAudio !== false
+              }
+            },
+            sessionMetadata: {
+              totalParticipants: participants.length + 1,
+              sessionType: sessionType,
+              isRecording: recordingStatus.isRecording,
+              roomConfig: room.config,
+              timestamp: new Date().toISOString()
+            }
+          }).then(response => {
+            if (response.success) {
+              console.log('✅ [WEBHOOK] participant_joined envoyé vers n8n:', newParticipant.name);
+            }
+          }).catch(error => {
+            console.error('❌ [WEBHOOK] Erreur participant_joined:', error);
           });
 
           // Si enregistrement requis et en cours, demander consentement
@@ -451,11 +555,34 @@ export function JitsiMeeting({
           // Retirer le participant de la liste locale
           setParticipants(prev => prev.filter(p => p.id !== event.id));
 
-          // Déclencher webhook n8n
+          // 📡 Webhook détaillé vers n8n pour départ participant
+          const leftParticipant = participants.find(p => p.id === event.id);
           jitsiService.triggerWebhook('participant_left', {
             roomName: room.name,
-            participantId: event.id,
-            totalParticipants: participants.length - 1
+            roomId: room.id,
+            participant: {
+              id: event.id,
+              name: leftParticipant?.name || 'Participant inconnu',
+              email: leftParticipant?.email || 'unknown@example.com',
+              joinedAt: leftParticipant?.joinedAt,
+              leftAt: new Date().toISOString(),
+              sessionDuration: leftParticipant?.joinedAt 
+                ? Math.floor((Date.now() - new Date(leftParticipant.joinedAt).getTime()) / 1000)
+                : 0
+            },
+            sessionMetadata: {
+              totalParticipants: Math.max(0, participants.length - 1),
+              sessionType: sessionType,
+              isRecording: recordingStatus.isRecording,
+              roomConfig: room.config,
+              timestamp: new Date().toISOString()
+            }
+          }).then(response => {
+            if (response.success) {
+              console.log('✅ [WEBHOOK] participant_left envoyé vers n8n:', event.id);
+            }
+          }).catch(error => {
+            console.error('❌ [WEBHOOK] Erreur participant_left:', error);
           });
         });
 
@@ -513,10 +640,60 @@ export function JitsiMeeting({
           }
         });
 
+        // Événement de sortie de conférence
+        api.addEventListener('videoConferenceLeft', () => {
+          console.log('👋 Conférence quittée automatiquement');
+          
+          // 📡 Webhook session_ended vers n8n pour sortie automatique
+          const sessionDuration = startTime 
+            ? Math.floor((Date.now() - startTime.getTime()) / 1000)
+            : 0;
+
+          jitsiService.triggerWebhook('session_ended', {
+            roomName: room.name,
+            roomId: room.id,
+            organizer: {
+              id: user?.id || 'unknown',
+              name: user?.name || 'Utilisateur', 
+              email: user?.email || 'unknown@example.com'
+            },
+            sessionSummary: {
+              startTime: startTime?.toISOString() || new Date().toISOString(),
+              endTime: new Date().toISOString(),
+              duration: sessionDuration,
+              totalParticipants: participants.length,
+              participantsList: participants.map(p => ({
+                id: p.id,
+                name: p.name,
+                email: p.email,
+                joinedAt: p.joinedAt
+              })),
+              wasRecorded: recordingStatus.isRecording || !!currentRecordingId,
+              recordingId: currentRecordingId,
+              sessionType: sessionType,
+              documentIds: sessionDocumentIds
+            },
+            endReason: 'conference_ended'
+          }).then(response => {
+            if (response.success) {
+              console.log('✅ [WEBHOOK] session_ended envoyé vers n8n (auto):', room.name);
+            }
+          }).catch(error => {
+            console.error('❌ [WEBHOOK] Erreur session_ended (auto):', error);
+          });
+        });
+
         console.log('Réunion Jitsi initialisée avec succès');
 
       } catch (err) {
-        console.error('Erreur lors de l\'initialisation de Jitsi:', err);
+        console.error('❌ [AUDIT] ERREUR lors de l\'initialisation de Jitsi:', {
+          error: err instanceof Error ? err.message : err,
+          stack: err instanceof Error ? err.stack : undefined,
+          roomName: room?.name,
+          roomConfig: room?.config,
+          userName: user?.name,
+          timestamp: new Date().toISOString()
+        });
         setError(err instanceof Error ? err.message : 'Erreur lors de l\'initialisation de la réunion');
         setIsLoading(false);
       }
@@ -532,6 +709,48 @@ export function JitsiMeeting({
 
   // Gestionnaire de sortie
   const handleLeave = () => {
+    // 📡 Webhook session_ended vers n8n AVANT de quitter
+    const sessionDuration = startTime 
+      ? Math.floor((Date.now() - startTime.getTime()) / 1000)
+      : 0;
+
+    jitsiService.triggerWebhook('session_ended', {
+      roomName: room.name,
+      roomId: room.id,
+      organizer: {
+        id: user?.id || 'unknown',
+        name: user?.name || 'Utilisateur', 
+        email: user?.email || 'unknown@example.com'
+      },
+      sessionSummary: {
+        startTime: startTime?.toISOString() || new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        duration: sessionDuration,
+        totalParticipants: participants.length,
+        participantsList: participants.map(p => ({
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          joinedAt: p.joinedAt,
+          sessionDuration: p.joinedAt 
+            ? Math.floor((Date.now() - new Date(p.joinedAt).getTime()) / 1000)
+            : 0
+        })),
+        wasRecorded: recordingStatus.isRecording || !!currentRecordingId,
+        recordingId: currentRecordingId,
+        sessionType: sessionType,
+        documentIds: sessionDocumentIds
+      },
+      endReason: 'user_initiated'
+    }).then(response => {
+      if (response.success) {
+        console.log('✅ [WEBHOOK] session_ended envoyé vers n8n pour room:', room.name);
+      }
+    }).catch(error => {
+      console.error('❌ [WEBHOOK] Erreur session_ended:', error);
+    });
+
+    // Nettoyer et quitter
     jitsiService.leaveMeeting();
     onLeave();
   };
