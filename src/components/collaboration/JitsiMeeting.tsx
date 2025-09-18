@@ -55,6 +55,7 @@ export function JitsiMeeting({
     isRecording: false
   });
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showRecordingWarning, setShowRecordingWarning] = useState(false);
 
   // ========================================
   // 🎬 NOUVEAUX ÉTATS POUR L'ENREGISTREMENT
@@ -111,6 +112,12 @@ export function JitsiMeeting({
    */
   const handleStartRecording = useCallback(async () => {
     if (!user || recordingStatus.isRecording) return;
+
+    // ⚠️ Afficher l'avertissement sur les limitations de meet.jit.si
+    if (window.location.hostname.includes('jit.si') || room.url.includes('meet.jit.si')) {
+      setShowRecordingWarning(true);
+      return;
+    }
 
     try {
       setRecordingStatus(prev => ({ ...prev, status: 'starting' }));
@@ -1166,6 +1173,71 @@ export function JitsiMeeting({
                   Fermer
                 </button>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal d'avertissement limitations meet.jit.si */}
+      {showRecordingWarning && (
+        <>
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowRecordingWarning(false)} />
+          <div className={`
+            fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50
+            ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl p-6 w-96 max-w-[90vw]
+          `}>
+            <div className="flex items-start mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mr-3">
+                <AlertCircle className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2`}>
+                  ⚠️ Enregistrement Non Disponible
+                </h3>
+                <div className={`space-y-3 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <p>
+                    <strong>meet.jit.si</strong> (service public gratuit) ne supporte pas :
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>L'enregistrement automatique côté serveur</li>
+                    <li>Le stockage cloud des enregistrements</li>
+                    <li>L'envoi automatique des fichiers</li>
+                  </ul>
+                  <div className={`p-3 rounded-lg ${darkMode ? 'bg-blue-900/20 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+                    <p className={`font-medium ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
+                      💡 Solution temporaire :
+                    </p>
+                    <p className={`text-sm ${darkMode ? 'text-blue-200' : 'text-blue-700'}`}>
+                      Utilisez l'enregistrement local de votre navigateur (bouton d'enregistrement dans Jitsi) 
+                      et partagez le fichier manuellement.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowRecordingWarning(false)}
+                className={`
+                  flex-1 px-4 py-2 rounded-lg border font-medium transition-colors
+                  ${darkMode 
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  }
+                `}
+              >
+                Compris
+              </button>
+              <button
+                onClick={() => {
+                  setShowRecordingWarning(false);
+                  window.open('https://docs.centrinote.fr/recording-limitations', '_blank');
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                En Savoir Plus
+              </button>
             </div>
           </div>
         </>
