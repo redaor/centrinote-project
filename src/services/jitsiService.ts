@@ -42,8 +42,31 @@ class JitsiService {
   private readonly WEBHOOK_DEBOUNCE_MS = 2000;
   private emailOnlyEvents = new Set(['recording_started', 'recording_stopped']);
 
-  getCurrentRoom(): JitsiRoom | null {
-    return this.currentRoom;
+  getCurrentRoom(): JitsiMeetingRoom | null {
+    if (!this.currentRoom) return null;
+    
+    // Convertir JitsiRoom vers JitsiMeetingRoom pour la compatibilité
+    return {
+      id: this.currentRoom.id,
+      name: this.currentRoom.name,
+      url: `${this.baseUrl}/${this.currentRoom.id}`,
+      createdAt: new Date(this.currentRoom.createdAt),
+      createdBy: this.currentRoom.createdBy,
+      participants: this.currentRoom.participants,
+      isActive: this.currentRoom.status === 'active',
+      config: {
+        roomName: this.currentRoom.id,
+        displayName: this.currentRoom.createdBy,
+        email: this.currentRoom.participants[0] || '',
+        subject: `Réunion ${this.currentRoom.id}`,
+        enableE2EE: false,
+        enableLobby: false,
+        enableRecording: true,
+        enableChat: true,
+        enableScreenSharing: true,
+        enableWhiteboard: true
+      }
+    };
   }
 
   generateRoomName(prefix: string = 'centrinote'): string {

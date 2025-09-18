@@ -141,42 +141,66 @@ export function Collaboration() {
       
       if (roomParam) {
         console.log('📍 [ROOM] Paramètre détecté:', roomParam);
+        console.log('👤 [ROOM] User state:', { hasUser: !!user, userName: user?.name });
         
-        const currentRoom = jitsiService.getCurrentRoom();
-        if (currentRoom && currentRoom.id === roomParam) {
-          console.log('✅ [ROOM] Déjà dans cette salle');
-          setCurrentJitsiMeeting(currentRoom);
+        // Si l'utilisateur n'est pas encore chargé, attendez
+        if (!user) {
+          console.log('⏳ [ROOM] En attente de l\'utilisateur...');
+          return;
+        }
+        
+        // Vérifier si on est déjà dans cette salle
+        if (currentJitsiMeeting && currentJitsiMeeting.id === roomParam) {
+          console.log('✅ [ROOM] Déjà dans cette salle (currentJitsiMeeting)');
           return;
         }
         
         try {
           setIsLoadingRoom(true);
+          console.log('🚀 [ROOM] Appel joinExistingRoom...');
+          
           const existingRoom = await jitsiService.joinExistingRoom(
             roomParam,
-            user?.name || 'Invité',
-            user?.email || ''
+            user.name || 'Invité',
+            user.email || ''
           );
           
           if (existingRoom) {
-            console.log('🎥 [ROOM] Salle rejointe:', existingRoom);
+            console.log('🎥 [ROOM] Salle créée/rejointe:', existingRoom);
+            
+            // Ajouter à la liste des réunions si pas déjà présent
+            setJitsiMeetings(prev => {
+              const exists = prev.some(m => m.id === existingRoom.id);
+              if (!exists) {
+                return [...prev, existingRoom];
+              }
+              return prev;
+            });
+            
+            // Définir comme réunion active
             setCurrentJitsiMeeting(existingRoom);
             
+            // Sauvegarder en sessionStorage
             sessionStorage.setItem('activeJitsiRoom', JSON.stringify({
               roomId: roomParam,
               joinedAt: new Date().toISOString()
             }));
             
-            showNotification('Réunion rejointe avec succès', 'success');
+            showNotification('🎥 Rejoindre la réunion...', 'success');
+          } else {
+            console.error('❌ [ROOM] joinExistingRoom a retourné null');
+            showNotification('Impossible de créer/rejoindre la réunion', 'error');
           }
         } catch (error) {
           console.error('❌ [ROOM] Erreur:', error);
-          showNotification('Impossible de rejoindre la réunion', 'error');
+          showNotification('Erreur lors du chargement de la réunion', 'error');
         } finally {
           setIsLoadingRoom(false);
         }
       } else {
+        // Gestion de la restauration de session
         const savedRoom = sessionStorage.getItem('activeJitsiRoom');
-        if (savedRoom) {
+        if (savedRoom && !currentJitsiMeeting) {
           const { roomId, joinedAt } = JSON.parse(savedRoom);
           const hoursElapsed = (new Date().getTime() - new Date(joinedAt).getTime()) / (1000 * 60 * 60);
           
@@ -197,7 +221,7 @@ export function Collaboration() {
     return () => {
       window.removeEventListener('popstate', handleRoomFromUrl);
     };
-  }, [user]);
+  }, [user, currentJitsiMeeting]); // Ajout de currentJitsiMeeting pour éviter les doublons
 
   // 📄 Charger tous les rapports générés
   const loadAllReports = async () => {
