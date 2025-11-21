@@ -118,9 +118,11 @@ export function NotifyProvider({
     }) => {
       console.log('🔔 [NOTIFY] Notification déclenchée:', params);
       
+      // Générer un ID unique qui sera utilisé à la fois dans pendingNotifications et dans le reducer
+      const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const newNotification: Notification = {
         ...params,
-        id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: notificationId,
         timestamp: Date.now(),
       };
 
