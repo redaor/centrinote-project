@@ -9,6 +9,16 @@ interface NotificationLayerProps {
 export function NotificationLayer({ theme = 'light' }: NotificationLayerProps) {
   const { state, removeNotification, clearAggregated } = useNotifyContext();
 
+  // Debug logs
+  if (import.meta.env.DEV) {
+    console.log('🔔 [NotificationLayer] State:', {
+      notificationsCount: state.notifications.length,
+      aggregatedCount: state.aggregated.length,
+      isVisible: state.isVisible,
+      isRetracted: state.isRetracted,
+    });
+  }
+
   const handleRetract = () => {
     // Retract logic is handled by the provider
   };

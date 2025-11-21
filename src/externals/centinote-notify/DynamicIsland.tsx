@@ -29,6 +29,16 @@ export function DynamicIsland({
     return null;
   }
 
+  // Debug logs
+  if (import.meta.env.DEV) {
+    console.log('🔔 [DynamicIsland] Render:', {
+      hasNotification: !!notification,
+      aggregatedCount: aggregated.length,
+      isVisible,
+      isRetracted,
+    });
+  }
+
   const isDark = theme === 'dark';
   const bgColor = isDark
     ? 'bg-gray-900/90 border-gray-700/50'

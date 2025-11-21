@@ -115,6 +115,8 @@ export function NotifyProvider({
       actions?: NotificationAction[];
       icon?: string;
     }) => {
+      console.log('🔔 [NOTIFY] Notification déclenchée:', params);
+      
       const newNotification: Notification = {
         ...params,
         id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -130,12 +132,14 @@ export function NotifyProvider({
 
       // If this is the first notification, show it immediately
       if (pendingNotificationsRef.current.length === 1) {
+        console.log('🔔 [NOTIFY] Ajout de la première notification immédiatement');
         dispatch({ type: 'ADD', payload: params });
       }
 
       // Set timer to aggregate if more notifications arrive
       aggregationTimerRef.current = setTimeout(() => {
         if (pendingNotificationsRef.current.length > 1) {
+          console.log(`🔔 [NOTIFY] Agrégation de ${pendingNotificationsRef.current.length} notifications`);
           dispatch({ type: 'AGGREGATE', payload: [...pendingNotificationsRef.current] });
         }
         pendingNotificationsRef.current = [];
