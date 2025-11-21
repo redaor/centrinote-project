@@ -14,8 +14,7 @@ import {
   Send
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { useToast } from '../../hooks/useToast';
-import { ToastContainer } from '../ui/Toast';
+import { useNotify } from '../../externals/centinote-notify';
 import { supabase } from '../../lib/supabase';
 
 interface RealActionStatus {
@@ -34,7 +33,7 @@ interface AutomationSandboxV2Props {
 export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
   const { state } = useApp();
   const { darkMode, user } = state;
-  const { toasts, success, error: showError, info } = useToast();
+  const { notify } = useNotify();
 
   const [actionStatuses, setActionStatuses] = useState<Record<string, RealActionStatus>>({});
 
@@ -289,7 +288,12 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      success('Email envoyé !', `Vérifiez ${userEmail}`, 5000);
+      notify({
+        level: 'success',
+        title: 'Email envoyé !',
+        body: `Vérifiez ${userEmail}`,
+        icon: '📧',
+      });
     } catch (err: any) {
       console.error('Erreur envoi email:', err);
 
@@ -361,7 +365,12 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      success('Notification envoyée !', 'Vérifiez vos notifications système', 3000);
+      notify({
+        level: 'success',
+        title: 'Notification envoyée !',
+        body: 'Vérifiez vos notifications système',
+        icon: '🔔',
+      });
     } catch (err: any) {
       console.error('Erreur notification:', err);
       setActionStatuses(prev => ({
@@ -417,7 +426,12 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      success('Session créée !', 'Visible dans votre calendrier', 4000);
+      notify({
+        level: 'success',
+        title: 'Session créée !',
+        body: 'Visible dans votre calendrier',
+        icon: '📅',
+      });
     } catch (err: any) {
       console.error('Erreur création session:', err);
 
