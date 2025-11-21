@@ -47,9 +47,11 @@
 @keyframes fadeOut {
   from {
     opacity: 1;
+    transform: translateY(0);
   }
   to {
     opacity: 0;
+    transform: translateY(-20px);
   }
 }
 
@@ -67,6 +69,11 @@
 
 .centinote-notify-fade-out {
   animation: fadeOut 0.2s ease-in;
+}
+
+/* ✅ PATCH: Animation fadeOut contrôlée par React via onAnimationEnd */
+.animate-fadeOut {
+  animation: fadeOut 400ms forwards;
 }
 
 /* Accessibility: High contrast mode support */
