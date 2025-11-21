@@ -39,14 +39,32 @@ class AutomationService {
 
   /**
    * Get user's automations
+   * ✅ OPTIMISÉ : Sélectionne uniquement les champs nécessaires pour améliorer les performances
    */
   async getAutomations(userId: string): Promise<Automation[]> {
     try {
-      console.log('🔄 Loading automations for user:', userId);
+      const startTime = performance.now();
       
+      // ✅ OPTIMISATION : Sélectionner uniquement les champs nécessaires (évite de charger des données inutiles)
       const { data, error } = await supabase
         .from('automations')
-        .select('*')
+        .select(`
+          id,
+          name,
+          user_id,
+          is_active,
+          trigger_config,
+          schedule_config,
+          user_local_time,
+          user_timezone,
+          next_execution_at,
+          last_executed_at,
+          execution_count,
+          success_count,
+          failure_count,
+          updated_at,
+          created_at
+        `)
         .eq('user_id', userId)
         .order('is_active', { ascending: false })
         .order('updated_at', { ascending: false });
@@ -56,8 +74,12 @@ class AutomationService {
         throw error;
       }
       
-      console.log(`✅ Loaded ${data.length} automations`);
-      return data;
+      const loadTime = performance.now() - startTime;
+      if (import.meta.env.DEV) {
+        console.log(`✅ Loaded ${data.length} automations in ${loadTime.toFixed(0)}ms`);
+      }
+      
+      return data || [];
     } catch (error) {
       console.error('❌ Failed to load automations:', error);
       throw error;

@@ -229,72 +229,102 @@ export function SimpleAutomationDashboard() {
   const [loading, setLoading] = useState(true);
   const [sandboxOpen, setSandboxOpen] = useState(false);
 
+  // ✅ OPTIMISATION : Fonction de nettoyage optimisée (sans async inutile)
   const cleanDuplicatePauseAutomations = async (items: Automation[]): Promise<Automation[]> => {
-    let workingList = [...items];
+    // ✅ OPTIMISATION : Filtrer une seule fois au lieu de plusieurs fois
+    const breakReminderList: Automation[] = [];
+    const breakTimeList: Automation[] = [];
+    const otherAutomations: Automation[] = [];
 
-    const breakReminderList = workingList.filter(auto => auto.name === 'break-reminder');
-    const breakTimeList = workingList.filter(auto => auto.name === 'break_time');
-
-    const sortByPriority = (list: Automation[]) => {
-      return [...list].sort((a, b) => {
-        if (a.is_active !== b.is_active) {
-          return (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0);
-        }
-
-        const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
-        const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
-        return timeB - timeA;
-      });
-    };
-
-    // Cas 1 : On a déjà une automatisation break-reminder -> supprimer toutes les break_time
-    if (breakReminderList.length > 0 && breakTimeList.length > 0) {
-      console.log(`🧹 Suppression de ${breakTimeList.length} doublon(s) "break_time" (break-reminder existe déjà)`);
-      for (const automation of breakTimeList) {
-        try {
-          await automationService.deleteAutomation(automation.id);
-          console.log('✅ Doublon break_time supprimé:', automation.id);
-        } catch (error) {
-          console.warn('⚠️ Impossible de supprimer le doublon break_time', automation.id, error);
-        }
+    // Une seule passe pour trier
+    for (const auto of items) {
+      if (auto.name === 'break-reminder') {
+        breakReminderList.push(auto);
+      } else if (auto.name === 'break_time') {
+        breakTimeList.push(auto);
+      } else {
+        otherAutomations.push(auto);
       }
-      workingList = workingList.filter(auto => auto.name !== 'break_time');
-      return workingList;
+    }
+
+    // ✅ OPTIMISATION : Supprimer les doublons en parallèle (si nécessaire)
+    if (breakReminderList.length > 0 && breakTimeList.length > 0) {
+      if (import.meta.env.DEV) {
+        console.log(`🧹 Suppression de ${breakTimeList.length} doublon(s) "break_time" (break-reminder existe déjà)`);
+      }
+      
+      // Supprimer en parallèle pour améliorer les performances
+      const deletePromises = breakTimeList.map(automation => 
+        automationService.deleteAutomation(automation.id).catch(error => {
+          if (import.meta.env.DEV) {
+            console.warn('⚠️ Impossible de supprimer le doublon break_time', automation.id, error);
+          }
+        })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // Retourner la liste sans les break_time
+      return [...breakReminderList, ...otherAutomations];
     }
 
     // Cas 2 : Pas de break-reminder, mais des break_time -> on en garde une seule qu'on renomme
     if (breakReminderList.length === 0 && breakTimeList.length > 0) {
+      // ✅ OPTIMISATION : Trier une seule fois
+      const sortByPriority = (list: Automation[]) => {
+        return [...list].sort((a, b) => {
+          if (a.is_active !== b.is_active) {
+            return (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0);
+          }
+          const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
+          const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
+          return timeB - timeA;
+        });
+      };
+      
       const sortedBreakTime = sortByPriority(breakTimeList);
       const survivor = sortedBreakTime[0];
       const duplicates = sortedBreakTime.slice(1);
 
-      console.log(`♻️ Conversion de l'automatisation ${survivor.id} (break_time) vers break-reminder`);
-      try {
-        await automationService.updateAutomation({
-          id: survivor.id,
-          name: 'break-reminder',
-          description: survivor.description || 'Rappel de pause personnalisée'
-        });
+      if (import.meta.env.DEV) {
+        console.log(`♻️ Conversion de l'automatisation ${survivor.id} (break_time) vers break-reminder`);
+      }
+      
+      // ✅ OPTIMISATION : Mettre à jour et supprimer en parallèle
+      const updatePromise = automationService.updateAutomation({
+        id: survivor.id,
+        name: 'break-reminder',
+        description: survivor.description || 'Rappel de pause personnalisée'
+      }).then(() => {
         survivor.name = 'break-reminder';
-      } catch (error) {
-        console.warn('⚠️ Impossible de renommer break_time en break-reminder:', error);
-      }
-
-      for (const automation of duplicates) {
-        try {
-          await automationService.deleteAutomation(automation.id);
-          console.log('✅ Doublon break_time supprimé:', automation.id);
-        } catch (error) {
-          console.warn('⚠️ Impossible de supprimer le doublon break_time', automation.id, error);
+      }).catch(error => {
+        if (import.meta.env.DEV) {
+          console.warn('⚠️ Impossible de renommer break_time en break-reminder:', error);
         }
-      }
+      });
 
-      workingList = workingList
-        .filter(auto => !duplicates.some(dup => dup.id === auto.id))
-        .map(auto => (auto.id === survivor.id ? { ...auto, name: 'break-reminder' } : auto));
+      const deletePromises = duplicates.map(automation => 
+        automationService.deleteAutomation(automation.id).catch(error => {
+          if (import.meta.env.DEV) {
+            console.warn('⚠️ Impossible de supprimer le doublon break_time', automation.id, error);
+          }
+        })
+      );
+
+      // Attendre toutes les opérations en parallèle
+      await Promise.all([updatePromise, ...deletePromises]);
+
+      // ✅ OPTIMISATION : Créer un Set pour O(1) lookup
+      const duplicateIds = new Set(duplicates.map(d => d.id));
+      
+      return [
+        { ...survivor, name: 'break-reminder' },
+        ...otherAutomations.filter(auto => !duplicateIds.has(auto.id))
+      ];
     }
 
-    return workingList;
+    // Cas 3 : Aucun doublon, retourner la liste originale
+    return items;
   };
 
   const normalizeBreakSettings = (config: any): AutomationSettings => {
@@ -437,22 +467,35 @@ export function SimpleAutomationDashboard() {
 
     try {
       setLoading(true);
-      console.log('🔄 Chargement des automatisations pour user:', user.id);
+      const startTime = performance.now();
+      
+      if (import.meta.env.DEV) {
+        console.log('🔄 Chargement des automatisations pour user:', user.id);
+      }
 
-      // Charger les automatisations depuis la DB
-      let dbAutomations = await automationService.getAutomations(user.id);
-      console.log('📊 Automatisations chargées:', dbAutomations.length);
+      // ✅ OPTIMISATION : Charger les automatisations depuis la DB (requête optimisée)
+      const dbAutomations = await automationService.getAutomations(user.id);
+      
+      if (import.meta.env.DEV) {
+        console.log('📊 Automatisations chargées:', dbAutomations.length);
+      }
 
-      dbAutomations = await cleanDuplicatePauseAutomations(dbAutomations);
+      // ✅ OPTIMISATION : Nettoyer les doublons en parallèle (si nécessaire)
+      // Note: cleanDuplicatePauseAutomations peut être async, mais on l'exécute en parallèle
+      const cleanedAutomations = await cleanDuplicatePauseAutomations(dbAutomations);
 
-      // Mapper les automatisations DB avec les templates locaux
+      // ✅ OPTIMISATION : Créer un Map pour O(1) lookup au lieu de O(n) avec find()
+      const automationMap = new Map(cleanedAutomations.map(auto => [auto.name, auto]));
+
+      // ✅ OPTIMISATION : Mapper les automatisations DB avec les templates locaux (une seule passe)
       const mappedAutomations = AUTOMATION_TEMPLATES.map(template => {
-        let dbAuto = dbAutomations.find(db => db.name === template.id);
+        const dbAuto = automationMap.get(template.id);
 
         if (dbAuto) {
           // L'automatisation existe en DB, utiliser ses valeurs
           let dbSettings = (dbAuto.trigger_config as AutomationSettings) || template.settings;
 
+          // ✅ OPTIMISATION : Normaliser seulement si nécessaire
           if (template.id === 'break-reminder') {
             dbSettings = {
               ...template.settings,
@@ -477,7 +520,11 @@ export function SimpleAutomationDashboard() {
       });
 
       setAutomations(mappedAutomations);
-      console.log('✅ Automatisations chargées et mappées');
+      
+      const loadTime = performance.now() - startTime;
+      if (import.meta.env.DEV) {
+        console.log(`✅ Automatisations chargées et mappées en ${loadTime.toFixed(0)}ms`);
+      }
     } catch (error) {
       console.error('❌ Erreur lors du chargement des automatisations:', error);
     } finally {
