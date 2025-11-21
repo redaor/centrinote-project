@@ -1,0 +1,512 @@
+import { serve } from "https://deno.land/std@0.200.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
+const BRAVE_KEY = Deno.env.get("BRAVE_API_KEY");
+const BRAVE_URL = "https://api.search.brave.com/res/v1/web/search";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 Mo
+
+// Supabase client pour accéder aux notes et vocabulaire
+const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+const allowedOrigins = new Set([
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://centrinote.fr",
+  "https://www.centrinote.fr"
+]);
+
+function buildCorsHeaders(origin: string | null, includeContentType = true): HeadersInit {
+  const allowedOrigin = origin && allowedOrigins.has(origin) ? origin : "*";
+  const headers: HeadersInit = {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Credentials": "true",
+    "Vary": "Origin"
+  };
+
+  // Ne pas inclure Content-Type pour OPTIONS (preflight)
+  if (includeContentType) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  return headers;
+}
+
+// Note: L'extraction de texte des fichiers est maintenant gérée côté frontend
+// Le backend reçoit directement le texte extrait via le champ "fileText"
+
+// Fonction pour parser le multipart/form-data
+async function parseMultipartForm(req: Request): Promise<{ question: string; fileText?: string; context?: string; messages?: any[] }> {
+  const contentType = req.headers.get("content-type") || "";
+
+  if (!contentType.includes("multipart/form-data")) {
+    throw new Error("Content-Type doit être multipart/form-data");
+  }
+
+  const formData = await req.formData();
+
+  const question = formData.get("question")?.toString() || "";
+  const fileText = formData.get("fileText")?.toString() || "";
+  const context = formData.get("context")?.toString() || "";
+  const messagesStr = formData.get("messages")?.toString();
+  const messages = messagesStr ? JSON.parse(messagesStr) : null;
+
+  return { question, fileText: fileText || undefined, context, messages };
+}
+
+serve(async (req) => {
+  const origin = req.headers.get("origin");
+
+  try {
+    // Gérer OPTIONS (preflight CORS) sans Content-Type
+    if (req.method === "OPTIONS") {
+      const corsHeaders = buildCorsHeaders(origin, false);
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    // Pour les requêtes POST, inclure Content-Type
+    const corsHeaders = buildCorsHeaders(origin, true);
+
+    if (!OPENAI_KEY) {
+      console.error("❌ OPENAI_API_KEY manquante");
+      throw new Error("OPENAI_API_KEY manquante");
+    }
+
+    // Détecter si c'est un upload de fichier ou une requête JSON classique
+    const contentType = req.headers.get("content-type") || "";
+    let question = "";
+    let context = "";
+    let messages = null;
+    let fileText = "";
+    let fileProcessed = false;
+
+    if (contentType.includes("multipart/form-data")) {
+      console.log("📤 Requête avec fichier détectée");
+      const formData = await parseMultipartForm(req);
+      question = formData.question;
+      context = formData.context || "";
+      messages = formData.messages;
+
+      if (formData.fileText && formData.fileText.length > 0) {
+        fileText = formData.fileText;
+        fileProcessed = true;
+        console.log(`✅ Fichier traité: ${fileText.length} caractères reçus`);
+      }
+    } else {
+      // Requête JSON classique (sans fichier)
+      const body = await req.json();
+      question = body.question;
+      context = body.context || "";
+      messages = body.messages;
+    }
+
+    // Construire l'historique de conversation (limité aux 20 derniers messages pour performance)
+    const history = Array.isArray(messages)
+      ? messages
+          .slice(-20) // Garder seulement les 20 derniers messages
+          .map((msg: { role?: string; content?: string }) => {
+            const role = (msg.role || "user").toUpperCase();
+            const content = (msg.content || "").slice(0, 400);
+            return `${role}: ${content}`;
+          })
+          .join("\n")
+      : String(context || "");
+
+    const effectiveQuestion =
+      typeof question === "string" && question.trim().length > 0
+        ? question
+        : Array.isArray(messages)
+        ? [...messages]
+            .reverse()
+            .find((msg) => (msg.role || "").toLowerCase() === "user")?.content ?? ""
+        : "";
+
+    if (!effectiveQuestion.trim()) {
+      console.error("❌ Question vide");
+      throw new Error("Question vide");
+    }
+
+    console.log("🤖 AI Question:", effectiveQuestion.slice(0, 100));
+    if (fileProcessed) {
+      console.log("📄 Avec fichier:", fileText.slice(0, 100) + "...");
+    }
+
+    const now = new Date().toLocaleString("fr-FR", { timeZone: "Europe/Paris" });
+
+    // 🔍 Récupérer le user_id depuis le token JWT
+    const authHeader = req.headers.get("authorization");
+    let userId: string | null = null;
+    let userNotes: string = "";
+    let userVocabulary: string = "";
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.replace("Bearer ", "");
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+        
+        if (!userError && user) {
+          userId = user.id;
+          console.log("✅ User ID récupéré:", userId.substring(0, 8) + "...");
+          
+          // Récupérer les notes et vocabulaire pertinents via recherche vectorielle
+          try {
+            // Générer l'embedding de la question
+            const embeddingRes = await fetch(OPENAI_URL, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${OPENAI_KEY}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                model: "text-embedding-3-small",
+                input: effectiveQuestion.trim()
+              })
+            });
+
+            if (embeddingRes.ok) {
+              const embeddingJson = await embeddingRes.json();
+              const queryEmbedding = embeddingJson.data[0].embedding;
+
+              // Rechercher les chunks similaires
+              const { data: chunks, error: searchError } = await supabase.rpc('search_similar_embeddings', {
+                query_embedding: queryEmbedding,
+                target_user_id: userId,
+                similarity_threshold: 0.5,
+                max_results: 10
+              });
+
+              if (!searchError && chunks && chunks.length > 0) {
+                const notes = chunks.filter((c: any) => c.content_type === 'note').slice(0, 5);
+                const vocabulary = chunks.filter((c: any) => c.content_type === 'vocabulary').slice(0, 5);
+
+                if (notes.length > 0) {
+                  userNotes = notes.map((n: any) => 
+                    `- ${n.content}${n.metadata?.title ? ` (${n.metadata.title})` : ''}`
+                  ).join('\n');
+                  console.log(`📝 ${notes.length} notes pertinentes trouvées`);
+                }
+
+                if (vocabulary.length > 0) {
+                  userVocabulary = vocabulary.map((v: any) => 
+                    `- ${v.content}${v.metadata?.category ? ` [${v.metadata.category}]` : ''}`
+                  ).join('\n');
+                  console.log(`📚 ${vocabulary.length} termes de vocabulaire pertinents trouvés`);
+                }
+              } else if (searchError) {
+                console.warn("⚠️ Erreur recherche vectorielle:", searchError.message);
+              }
+            }
+          } catch (enrichError: any) {
+            console.warn("⚠️ Erreur enrichissement notes/vocabulaire:", enrichError.message);
+            // Continuer sans enrichissement si erreur
+          }
+        }
+      } catch (authError: any) {
+        console.warn("⚠️ Erreur authentification:", authError.message);
+        // Continuer sans enrichissement si erreur d'auth
+      }
+    }
+
+    // 1️⃣ Vérifier si la question nécessite une recherche web (sauf si fichier fourni)
+    let finalReply = "";
+    let searched = false;
+
+    if (!fileProcessed) {
+      // Pas de fichier → comportement normal avec recherche web possible
+      const toolQuery = {
+        model: "gpt-4o-mini", // Plus rapide et moins cher que gpt-4
+        messages: [
+          {
+            role: "system",
+            content: `Il est ${now}. Analyse si la question nécessite des informations actualisées ou en temps réel (météo, prix, actualités, résultats sportifs, événements récents, etc.). Si OUI, réponds uniquement : <<SEARCH>>[question reformulée pour recherche]<<SEARCH>>. Si NON, réponds normalement à la question.`
+          },
+          { role: "user", content: effectiveQuestion }
+        ],
+        temperature: 0,
+        max_tokens: 150 // Réduit de 200 à 150
+      };
+
+      console.log("🔍 Vérification besoin de recherche...");
+      const checkRes = await fetch(OPENAI_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(toolQuery)
+      });
+
+      if (!checkRes.ok) {
+        const txt = await checkRes.text();
+        console.error(`❌ OpenAI check error ${checkRes.status}:`, txt);
+        throw new Error(`OpenAI ${checkRes.status}: ${txt}`);
+      }
+
+      const checkJson = await checkRes.json();
+      const checkReply = checkJson.choices?.[0]?.message?.content?.trim() ?? "";
+
+      finalReply = checkReply;
+      const needSearch = checkReply.includes("<<SEARCH>>") && checkReply.split("<<SEARCH>>").length >= 3;
+
+      // 2️⃣ Si besoin de recherche ET clé Brave disponible
+      if (needSearch && BRAVE_KEY) {
+        console.log("🌐 Recherche web détectée !");
+
+        const searchQuery = checkReply.split("<<SEARCH>>")[1]?.trim() || effectiveQuestion;
+        console.log("🔎 Requête Brave:", searchQuery.slice(0, 80));
+
+        try {
+          const braveRes = await fetch(
+            `${BRAVE_URL}?q=${encodeURIComponent(searchQuery)}&count=5&freshness=pw`,
+            {
+              headers: { "X-Subscription-Token": BRAVE_KEY }
+            }
+          );
+
+          if (!braveRes.ok) {
+            console.error(`⚠️ Brave API error ${braveRes.status}`);
+            throw new Error(`Brave ${braveRes.status}`);
+          }
+
+          const braveJson = await braveRes.json();
+          const results = braveJson.web?.results || [];
+
+          if (results.length === 0) {
+            console.log("⚠️ Aucun résultat Brave trouvé");
+            throw new Error("Aucun résultat de recherche");
+          }
+
+          const snippets = results
+            .map((r: any, i: number) => `[${i + 1}] ${r.title}\n${r.description}\nSource: ${r.url}`)
+            .join("\n\n");
+
+          console.log(`✅ ${results.length} résultats Brave trouvés`);
+
+          // Construire le prompt système avec recherche web + notes/vocabulaire
+          let systemContent = `Tu es Centrinote AI. Il est ${now} (heure française). Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ces informations pour répondre de manière précise et concise à la question de l'utilisateur. Cite tes sources si pertinent.`;
+
+          if (userNotes || userVocabulary) {
+            systemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;
+            if (userNotes) {
+              systemContent += `\n<NOTES>\n${userNotes}\n</NOTES>\n`;
+            }
+            if (userVocabulary) {
+              systemContent += `\n<VOCABULAIRE>\n${userVocabulary}\n</VOCABULAIRE>\n`;
+            }
+            systemContent += `\nUtilise ces informations personnelles de manière naturelle et contextuelle. Ne cite JAMAIS ces balises <NOTES> ou <VOCABULAIRE> dans ta réponse.`;
+          }
+
+          const finalPayload = {
+            model: "gpt-4o-mini", // Plus rapide que gpt-4
+            messages: [
+              {
+                role: "system",
+                content: systemContent
+              },
+              ...(history
+                ? [
+                    {
+                      role: "system",
+                      content: `Historique de la conversation:\n${history}`,
+                    },
+                  ]
+                : []),
+              { role: "user", content: effectiveQuestion }
+            ],
+            temperature: 0.25,
+            max_tokens: 500 // Réduit de 600 à 500
+          };
+
+          console.log("🤖 Génération réponse avec données web...");
+          const finalRes = await fetch(OPENAI_URL, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${OPENAI_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(finalPayload)
+          });
+
+          if (!finalRes.ok) {
+            const txt = await finalRes.text();
+            console.error(`❌ OpenAI final error ${finalRes.status}:`, txt);
+            throw new Error(`OpenAI final ${finalRes.status}: ${txt}`);
+          }
+
+          const finalJson = await finalRes.json();
+          finalReply = finalJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+          searched = true;
+
+          console.log("✅ Réponse avec recherche web générée:", finalReply.slice(0, 100));
+        } catch (braveError: any) {
+          console.error("❌ Erreur recherche web:", braveError.message);
+          searched = false;
+        }
+      } else {
+        console.log("💬 Réponse directe (sans recherche web)");
+      }
+
+      // Si pas de recherche web ET pas de réponse générée, générer une réponse avec notes/vocabulaire si disponibles
+      if (!searched && !finalReply && (userNotes || userVocabulary)) {
+        let directSystemContent = `Tu es Centrinote AI. Il est ${now} (heure française).`;
+        
+        if (userNotes || userVocabulary) {
+          directSystemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;
+          if (userNotes) {
+            directSystemContent += `\n<NOTES>\n${userNotes}\n</NOTES>\n`;
+          }
+          if (userVocabulary) {
+            directSystemContent += `\n<VOCABULAIRE>\n${userVocabulary}\n</VOCABULAIRE>\n`;
+          }
+          directSystemContent += `\nUtilise ces informations de manière naturelle et contextuelle. Ne cite JAMAIS ces balises <NOTES> ou <VOCABULAIRE> dans ta réponse.`;
+        }
+
+        const directPayload = {
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: directSystemContent
+            },
+            ...(history
+              ? [
+                  {
+                    role: "system",
+                    content: `Historique de la conversation:\n${history}`,
+                  },
+                ]
+              : []),
+            { role: "user", content: effectiveQuestion }
+          ],
+          temperature: 0.7,
+          max_tokens: 500
+        };
+
+        try {
+          const directRes = await fetch(OPENAI_URL, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${OPENAI_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(directPayload)
+          });
+
+          if (directRes.ok) {
+            const directJson = await directRes.json();
+            finalReply = directJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+            console.log("✅ Réponse avec notes/vocabulaire générée:", finalReply.slice(0, 100));
+          } else {
+            // Si erreur, utiliser la réponse du check initial
+            finalReply = checkReply;
+          }
+        } catch (directError: any) {
+          console.error("❌ Erreur génération réponse directe:", directError.message);
+          // Si erreur, utiliser la réponse du check initial
+          finalReply = checkReply;
+        }
+      } else if (!searched && !finalReply) {
+        // Si pas de notes/vocabulaire et pas de recherche, utiliser la réponse du check
+        finalReply = checkReply;
+      }
+    } else {
+      // 3️⃣ Fichier fourni → réponse basée sur le document
+      console.log("📄 Mode analyse de document");
+
+      const documentPrompt = fileText
+        ? `\n\n=== DOCUMENT FOURNI ===\n${fileText}\n=== FIN DU DOCUMENT ===\n\nRéponds à la question en te basant principalement sur ce document. Il est actuellement ${now}.`
+        : "";
+
+      // Construire le prompt système pour analyse de document + notes/vocabulaire
+      let fileSystemContent = `Tu es Centrinote AI, l'assistant intelligent de l'application d'apprentissage Centrinote. Il est ${now} (heure française). L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, amicale et professionnelle en te basant sur le contenu du document.`;
+
+      if (userNotes || userVocabulary) {
+        fileSystemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;
+        if (userNotes) {
+          fileSystemContent += `\n<NOTES>\n${userNotes}\n</NOTES>\n`;
+        }
+        if (userVocabulary) {
+          fileSystemContent += `\n<VOCABULAIRE>\n${userVocabulary}\n</VOCABULAIRE>\n`;
+        }
+        fileSystemContent += `\nUtilise ces informations personnelles de manière naturelle et contextuelle. Ne cite JAMAIS ces balises <NOTES> ou <VOCABULAIRE> dans ta réponse.`;
+      }
+
+      const filePayload = {
+        model: "gpt-4o-mini", // Plus rapide que gpt-4
+        messages: [
+          {
+            role: "system",
+            content: fileSystemContent
+          },
+          ...(history
+            ? [
+                {
+                  role: "system",
+                  content: `Historique de la conversation:\n${history}`,
+                },
+              ]
+            : []),
+          { role: "user", content: effectiveQuestion + documentPrompt }
+        ],
+        temperature: 0.25,
+        max_tokens: 600 // Réduit de 800 à 600
+      };
+
+      console.log("🤖 Génération réponse basée sur le document...");
+      const fileRes = await fetch(OPENAI_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(filePayload)
+      });
+
+      if (!fileRes.ok) {
+        const txt = await fileRes.text();
+        console.error(`❌ OpenAI file error ${fileRes.status}:`, txt);
+        throw new Error(`OpenAI ${fileRes.status}: ${txt}`);
+      }
+
+      const fileJson = await fileRes.json();
+      finalReply = fileJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+
+      console.log("✅ Réponse basée sur document générée:", finalReply.slice(0, 100));
+    }
+
+    return new Response(
+      JSON.stringify({
+        reply: finalReply,
+        timestamp: now,
+        searched,
+        fileProcessed,
+        cached: false,
+        enrichment_used: !!(userNotes || userVocabulary),
+        notes_count: userNotes ? userNotes.split('\n').length : 0,
+        vocabulary_count: userVocabulary ? userVocabulary.split('\n').length : 0
+      }),
+      {
+        headers: corsHeaders
+      }
+    );
+  } catch (err: any) {
+    console.error("❌ ai-chat error:", err.message);
+
+    return new Response(
+      JSON.stringify({
+        error: err.message,
+        fallback: true,
+        reply: "Désolé, le service IA est momentanément indisponible. Veuillez réessayer dans quelques instants."
+      }),
+      {
+        status: 200,
+        headers: corsHeaders
+      }
+    );
+  }
+});

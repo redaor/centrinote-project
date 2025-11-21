@@ -1,0 +1,45 @@
+# === IMPORTANT: Ordre des règles (du plus spécifique au plus général) ===
+
+# 🔧 API paths (NE PAS rediriger vers index.html)
+# Note: /.netlify/functions/* est géré automatiquement par Netlify
+/api/*                 /api/:splat                  200!
+/rest/*                /rest/:splat                 200!
+
+# 🔗 Proxy vers services externes
+/webhook/*  https://n8n.srv886297.hstgr.cloud/webhook/:splat  200
+
+# 🔐 Redirections d'authentification Supabase
+/auth/confirm-email    /index.html   200
+/auth/confirm-signup   /index.html   200
+/auth/callback         /index.html   200
+/auth/reset-password   /index.html   200
+/auth/verify          /index.html   200
+/verify-email         /index.html   200
+/email-sent          /index.html   200
+
+# 📹 Routes Meeting/Collaboration
+# IMPORTANT: Exclure les assets de la redirection SPA
+/meeting/assets/*     /meeting/assets/:splat  200
+/meetings/assets/*    /meetings/assets/:splat  200
+/meeting/*            /index.html   200
+/meetings/*           /index.html   200
+/room/*               /index.html   200
+/collaboration        /index.html   200
+
+# 🚀 Callbacks OAuth
+/zoom/callback         /index.html   200
+/google-meet/callback  /index.html   200
+
+# ⚡ Redirections pour anciennes URLs (301 = permanent)
+/old-meeting-page     /collaboration   301
+/zoom-meeting         /collaboration   301
+
+# 🚫 Sécurité - Bloquer fichiers sensibles
+/.env                 /404.html   404
+/.env.*               /404.html   404
+/netlify.toml         /404.html   404
+/.git/*               /404.html   404
+/src/*                /404.html   404
+
+# 📌 Catch-all SPA - DOIT ÊTRE EN DERNIER
+/*                    /index.html   200

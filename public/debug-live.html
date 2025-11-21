@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔍 Debug Live - Centrinote</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 24px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .panel h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+      padding-bottom: 10px;
+    }
+
+    .log-container {
+      max-height: 300px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      padding: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+
+    .log-entry {
+      padding: 5px;
+      margin-bottom: 5px;
+      border-radius: 4px;
+      word-break: break-word;
+    }
+
+    .log-blocking {
+      background: rgba(239, 68, 68, 0.3);
+      border-left: 3px solid #ef4444;
+    }
+
+    .log-ok {
+      background: rgba(34, 197, 94, 0.3);
+      border-left: 3px solid #22c55e;
+    }
+
+    .log-info {
+      background: rgba(59, 130, 246, 0.3);
+      border-left: 3px solid #3b82f6;
+    }
+
+    .log-mutation {
+      background: rgba(245, 158, 11, 0.3);
+      border-left: 3px solid #f59e0b;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .stat-card {
+      background: rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #fbbf24;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 5px;
+    }
+
+    .crosshair {
+      position: fixed;
+      pointer-events: none;
+      z-index: 999999;
+      display: none;
+    }
+
+    .crosshair.active {
+      display: block;
+    }
+
+    .crosshair-h {
+      position: fixed;
+      height: 1px;
+      background: rgba(239, 68, 68, 0.8);
+      left: 0;
+      right: 0;
+    }
+
+    .crosshair-v {
+      position: fixed;
+      width: 1px;
+      background: rgba(239, 68, 68, 0.8);
+      top: 0;
+      bottom: 0;
+    }
+
+    .element-info {
+      position: fixed;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      pointer-events: none;
+      z-index: 999999;
+      display: none;
+      max-width: 300px;
+    }
+
+    .element-info.active {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 Debug Live - Centrinote (Settings & AI Search)</h1>
+
+  <div class="container">
+    <!-- Panel 1: Éléments bloquants -->
+    <div class="panel">
+      <h2>🚫 Éléments Bloquants</h2>
+      <div class="controls">
+        <button onclick="scanBlockingElements()">🔍 Scanner</button>
+        <button onclick="highlightBlocking()">💡 Surligner</button>
+        <button onclick="clearHighlights()">🧹 Nettoyer</button>
+      </div>
+      <div id="blocking-log" class="log-container"></div>
+    </div>
+
+    <!-- Panel 2: Mutations DOM -->
+    <div class="panel">
+      <h2>🔄 Mutations DOM</h2>
+      <div class="controls">
+        <button onclick="startMutationObserver()">▶️ Démarrer</button>
+        <button onclick="stopMutationObserver()">⏸️ Arrêter</button>
+        <button onclick="clearMutationLog()">🧹 Vider</button>
+      </div>
+      <div id="mutation-log" class="log-container"></div>
+    </div>
+
+    <!-- Panel 3: Re-renders React -->
+    <div class="panel">
+      <h2>⚛️ Re-renders React</h2>
+      <div class="controls">
+        <button onclick="trackRenders()">🎯 Tracker</button>
+        <button onclick="clearRenderLog()">🧹 Vider</button>
+      </div>
+      <div id="render-log" class="log-container"></div>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value" id="render-count">0</div>
+          <div class="stat-label">Re-renders</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="mutation-count">0</div>
+          <div class="stat-label">Mutations</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 4: Pointeur en Temps Réel -->
+    <div class="panel">
+      <h2>🎯 Inspecteur Pointeur</h2>
+      <div class="controls">
+        <button onclick="togglePointerInspector()">🔦 Toggle Inspecteur</button>
+      </div>
+      <div id="pointer-log" class="log-container"></div>
+    </div>
+  </div>
+
+  <!-- Crosshair overlay -->
+  <div class="crosshair" id="crosshair">
+    <div class="crosshair-h" id="crosshair-h"></div>
+    <div class="crosshair-v" id="crosshair-v"></div>
+  </div>
+
+  <!-- Element info tooltip -->
+  <div class="element-info" id="element-info"></div>
+
+  <script>
+    let mutationObserver = null;
+    let mutationCount = 0;
+    let renderCount = 0;
+    let pointerInspectorActive = false;
+    let highlights = [];
+
+    // 🔍 Scanner les éléments bloquants
+    function scanBlockingElements() {
+      const log = document.getElementById('blocking-log');
+      log.innerHTML = '<div class="log-entry log-info">🔍 Scan en cours...</div>';
+
+      const selectors = [
+        '.absolute.inset-0',
+        '.fixed.inset-0',
+        '[class*="animate-"]',
+        '[style*="z-index"]',
+        '.fab-admin-wrapper',
+        '[class*="overlay"]'
+      ];
+
+      let foundBlocking = 0;
+
+      selectors.forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+          const styles = getComputedStyle(el);
+          const isBlocking = styles.pointerEvents !== 'none';
+          const zIndex = styles.zIndex;
+
+          if (isBlocking && selector.includes('inset-0')) {
+            foundBlocking++;
+            const entry = document.createElement('div');
+            entry.className = 'log-entry log-blocking';
+            entry.textContent = `🚫 BLOQUANT: ${selector} (z-index: ${zIndex})`;
+            log.appendChild(entry);
+          } else if (zIndex && zIndex !== 'auto' && parseInt(zIndex) > 1000) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry log-info';
+            entry.textContent = `⚠️ Z-INDEX ÉLEVÉ: ${selector} (${zIndex})`;
+            log.appendChild(entry);
+          }
+        });
+      });
+
+      const summary = document.createElement('div');
+      summary.className = foundBlocking > 0 ? 'log-entry log-blocking' : 'log-entry log-ok';
+      summary.textContent = `✅ Scan terminé: ${foundBlocking} éléments bloquants trouvés`;
+      log.appendChild(summary);
+    }
+
+    // 💡 Surligner les éléments bloquants
+    function highlightBlocking() {
+      clearHighlights();
+
+      const elements = document.querySelectorAll('.absolute.inset-0, .fixed.inset-0');
+      elements.forEach(el => {
+        const styles = getComputedStyle(el);
+        if (styles.pointerEvents !== 'none') {
+          el.style.outline = '3px solid red';
+          el.style.outlineOffset = '-3px';
+          highlights.push(el);
+        }
+      });
+
+      const log = document.getElementById('blocking-log');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry log-info';
+      entry.textContent = `💡 ${highlights.length} éléments surlignés en rouge`;
+      log.appendChild(entry);
+    }
+
+    // 🧹 Nettoyer les surlignages
+    function clearHighlights() {
+      highlights.forEach(el => {
+        el.style.outline = '';
+        el.style.outlineOffset = '';
+      });
+      highlights = [];
+    }
+
+    // 🔄 Observer les mutations DOM
+    function startMutationObserver() {
+      if (mutationObserver) {
+        stopMutationObserver();
+      }
+
+      const log = document.getElementById('mutation-log');
+      log.innerHTML = '<div class="log-entry log-info">▶️ Observateur démarré...</div>';
+
+      mutationObserver = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+          mutationCount++;
+          document.getElementById('mutation-count').textContent = mutationCount;
+
+          const entry = document.createElement('div');
+          entry.className = 'log-entry log-mutation';
+
+          if (mutation.type === 'childList') {
+            entry.textContent = `🔄 ${mutation.addedNodes.length} nœuds ajoutés, ${mutation.removedNodes.length} retirés`;
+          } else if (mutation.type === 'attributes') {
+            entry.textContent = `🔧 Attribut modifié: ${mutation.attributeName}`;
+          }
+
+          log.appendChild(entry);
+          log.scrollTop = log.scrollHeight;
+        });
+      });
+
+      mutationObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-page']
+      });
+    }
+
+    function stopMutationObserver() {
+      if (mutationObserver) {
+        mutationObserver.disconnect();
+        mutationObserver = null;
+
+        const log = document.getElementById('mutation-log');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry log-info';
+        entry.textContent = '⏸️ Observateur arrêté';
+        log.appendChild(entry);
+      }
+    }
+
+    function clearMutationLog() {
+      document.getElementById('mutation-log').innerHTML = '';
+      mutationCount = 0;
+      document.getElementById('mutation-count').textContent = '0';
+    }
+
+    // ⚛️ Tracker les re-renders React
+    function trackRenders() {
+      const log = document.getElementById('render-log');
+      log.innerHTML = '<div class="log-entry log-info">🎯 Tracking re-renders...</div>';
+
+      // Observer les changements de data-page
+      const bodyObserver = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+          if (mutation.attributeName === 'data-page') {
+            renderCount++;
+            document.getElementById('render-count').textContent = renderCount;
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry log-info';
+            entry.textContent = `⚛️ Page changée: ${document.body.getAttribute('data-page')}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+          }
+        });
+      });
+
+      bodyObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['data-page']
+      });
+
+      // Intercepter console.log pour React
+      const originalLog = console.log;
+      console.log = function(...args) {
+        if (args[0] && args[0].includes('ROUTER') || args[0].includes('SETTINGS')) {
+          renderCount++;
+          document.getElementById('render-count').textContent = renderCount;
+
+          const entry = document.createElement('div');
+          entry.className = 'log-entry log-info';
+          entry.textContent = `⚛️ ${args[0]}`;
+          log.appendChild(entry);
+          log.scrollTop = log.scrollHeight;
+        }
+        originalLog.apply(console, args);
+      };
+    }
+
+    function clearRenderLog() {
+      document.getElementById('render-log').innerHTML = '';
+      renderCount = 0;
+      document.getElementById('render-count').textContent = '0';
+    }
+
+    // 🎯 Inspecteur pointeur en temps réel
+    function togglePointerInspector() {
+      pointerInspectorActive = !pointerInspectorActive;
+
+      const crosshair = document.getElementById('crosshair');
+      const elementInfo = document.getElementById('element-info');
+      const log = document.getElementById('pointer-log');
+
+      if (pointerInspectorActive) {
+        crosshair.classList.add('active');
+        elementInfo.classList.add('active');
+
+        const entry = document.createElement('div');
+        entry.className = 'log-entry log-info';
+        entry.textContent = '🔦 Inspecteur activé - Déplacez la souris';
+        log.appendChild(entry);
+
+        document.addEventListener('mousemove', handlePointerMove);
+      } else {
+        crosshair.classList.remove('active');
+        elementInfo.classList.remove('active');
+
+        const entry = document.createElement('div');
+        entry.className = 'log-entry log-info';
+        entry.textContent = '🔦 Inspecteur désactivé';
+        log.appendChild(entry);
+
+        document.removeEventListener('mousemove', handlePointerMove);
+      }
+    }
+
+    function handlePointerMove(e) {
+      const crosshairH = document.getElementById('crosshair-h');
+      const crosshairV = document.getElementById('crosshair-v');
+      const elementInfo = document.getElementById('element-info');
+
+      crosshairH.style.top = e.clientY + 'px';
+      crosshairV.style.left = e.clientX + 'px';
+
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el) {
+        const styles = getComputedStyle(el);
+        const info = `
+Tag: ${el.tagName.toLowerCase()}
+Class: ${el.className || 'none'}
+pointer-events: ${styles.pointerEvents}
+z-index: ${styles.zIndex}
+position: ${styles.position}
+        `.trim();
+
+        elementInfo.textContent = info;
+        elementInfo.style.left = (e.clientX + 20) + 'px';
+        elementInfo.style.top = (e.clientY + 20) + 'px';
+      }
+    }
+
+    // Auto-démarrer le scan initial
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        scanBlockingElements();
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+/* Neurodesign CSS - Styles cognitifs optimisés */
+
+/* Animations de focus neurologique */
+@keyframes neuro-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+
+@keyframes neuro-ripple {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes neuro-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.4); }
+}
+
+@keyframes cognitive-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Classes de focus neurologique */
+.neuro-focus {
+  animation: neuro-pulse 1.5s infinite ease-in-out;
+  transform-origin: center;
+  z-index: 50;
+}
+
+.neuro-focus::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: linear-gradient(45deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6);
+  background-size: 400% 400%;
+  animation: cognitive-flow 3s ease infinite;
+  z-index: -1;
+  opacity: 0.3;
+}
+
+/* Effets de récompense dopaminergique */
+.dopamine-reward {
+  animation: neuro-ripple 0.6s ease-out;
+}
+
+.dopamine-reward::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.2) 0%, transparent 70%);
+  animation: neuro-ripple 0.6s ease-out;
+  pointer-events: none;
+}
+
+/* Indicateurs de charge cognitive */
+.cognitive-load-low {
+  border-left: 4px solid #10b981;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%);
+}
+
+.cognitive-load-medium {
+  border-left: 4px solid #f59e0b;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.05) 0%, transparent 100%);
+}
+
+.cognitive-load-high {
+  border-left: 4px solid #ef4444;
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.05) 0%, transparent 100%);
+  animation: neuro-glow 2s infinite ease-in-out;
+}
+
+/* Transitions neuromorphiques */
+.neuro-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neuro-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Dark mode neuro-adaptations */
+.dark .neuro-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .neuro-card:hover {
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+/* Gamification elements */
+.achievement-unlock {
+  animation: neuro-pulse 0.8s ease-out;
+  background: linear-gradient(45deg, #fbbf24, #f59e0b);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.4);
+}
+
+.achievement-unlock::before {
+  content: '✨';
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  font-size: 1.5rem;
+  animation: neuro-ripple 1s ease-out infinite;
+}
+
+/* Progress indicators */
+.neuro-progress {
+  position: relative;
+  overflow: hidden;
+}
+
+.neuro-progress::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: progress-shine 2s infinite;
+}
+
+@keyframes progress-shine {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Attention-grabbing elements */
+.attention-grabber {
+  position: relative;
+}
+
+.attention-grabber::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6);
+  animation: cognitive-flow 3s linear infinite;
+  z-index: -1;
+  opacity: 0.3;
+}
+
+/* Micro-interactions */
+.neuro-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neuro-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.3s, height 0.3s;
+}
+
+.neuro-button:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.neuro-button:active {
+  transform: scale(0.98);
+}
+
+/* Memory enhancement visuals */
+.memory-mastered {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.1);
+}
+
+.memory-forgotten {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  filter: blur(0.5px);
+  opacity: 0.8;
+  animation: neuro-glow 3s infinite ease-in-out;
+}
+
+.memory-learning {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Drag and drop visual feedback */
+.drag-preview {
+  transform: rotate(5deg);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  opacity: 0.9;
+}
+
+.drop-zone-active {
+  background: rgba(59, 130, 246, 0.1);
+  border: 2px dashed #3b82f6;
+  animation: neuro-pulse 1s infinite ease-in-out;
+}
+
+/* Timeline specific styles */
+.timeline-optimal {
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+  border-left: 4px solid #10b981;
+}
+
+.timeline-optimal::before {
+  content: '⚡';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #10b981;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+/* Responsive neuro adaptations */
+@media (max-width: 768px) {
+  .neuro-focus {
+    animation-duration: 1s;
+  }
+  
+  .neuro-card:hover {
+    transform: none;
+  }
+  
+  .attention-grabber::after {
+    animation-duration: 2s;
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .neuro-focus,
+  .dopamine-reward,
+  .cognitive-load-high,
+  .attention-grabber::after,
+  .neuro-progress::before {
+    animation: none;
+  }
+  
+  .neuro-button:hover::before {
+    transition: none;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .neuro-card {
+    border-width: 2px;
+  }
+  
+  .cognitive-load-low,
+  .cognitive-load-medium,
+  .cognitive-load-high {
+    border-left-width: 6px;
+  }
+}
+
+/* Focus visible for keyboard navigation */
+.neuro-button:focus-visible,
+.neuro-card:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}

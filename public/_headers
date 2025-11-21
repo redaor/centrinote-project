@@ -1,0 +1,7 @@
+/*
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.daily.co; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.daily.co; style-src 'self' 'unsafe-inline' https://*.daily.co; connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.supabase.co https://www.googleapis.com https://accounts.google.com https://oauth2.googleapis.com https://n8n.srv886297.hstgr.cloud https://*.daily.co wss://*.supabase.co wss://*.supabase.in wss://*.daily.co; font-src 'self' data: https://*.daily.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' https://*.daily.co https://centrinote.daily.co; child-src 'self' https://*.daily.co https://centrinote.daily.co; media-src 'self' blob: https://*.daily.co;
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self "https://*.daily.co"), microphone=(self "https://*.daily.co"), geolocation=()

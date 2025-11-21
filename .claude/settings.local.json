@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netlify:*)",
+      "Bash(npm run build:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git pull:*)",
+      "Bash(git branch:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git remote add:*)",
+      "Bash(if [ -d \"dist\" ])",
+      "Bash(then grep -r \"sk-proj\" dist/)",
+      "Bash(else echo \"Pas de dossier dist/\")",
+      "Bash(fi)",
+      "Bash(cat:*)",
+      "Bash(else echo \"No dist/ folder found\")",
+      "Bash(then grep -r \"DAILY_API_KEY\\|OPENAI_API_KEY\\|SUPABASE_SERVICE\" dist/)",
+      "Bash(supabase db:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(npx tsc:*)",
+      "Bash(chmod:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(psql:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(open:*)",
+      "Bash(supabase functions delete:*)",
+      "Bash(supabase functions logs:*)",
+      "Bash(git checkout:*)",
+      "Bash(supabase functions list:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
