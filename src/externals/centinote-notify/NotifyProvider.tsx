@@ -133,16 +133,14 @@ export function NotifyProvider({
       // If this is the first notification, show it immediately
       if (pendingNotificationsRef.current.length === 1) {
         console.log('🔔 [NOTIFY] Ajout de la première notification immédiatement');
+        const notificationId = newNotification.id;
         dispatch({ type: 'ADD', payload: params });
         
         // Auto-remove after 5 seconds (unless it's an automation notification which has its own retract logic)
         if (params.level !== 'automation') {
           setTimeout(() => {
-            const notificationId = pendingNotificationsRef.current[0]?.id;
-            if (notificationId) {
-              console.log('🔔 [NOTIFY] Auto-suppression de la notification après 5s');
-              dispatch({ type: 'REMOVE', payload: notificationId });
-            }
+            console.log('🔔 [NOTIFY] Auto-suppression de la notification après 5s:', notificationId);
+            dispatch({ type: 'REMOVE', payload: notificationId });
           }, 5000);
         }
       }
