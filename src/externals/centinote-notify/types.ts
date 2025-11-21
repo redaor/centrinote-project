@@ -25,7 +25,7 @@ export interface NotificationState {
 }
 
 export type NotificationActionType =
-  | { type: 'ADD'; payload: Omit<Notification, 'id' | 'timestamp'> }
+  | { type: 'ADD'; payload: Omit<Notification, 'id' | 'timestamp'>; notificationId?: string }
   | { type: 'REMOVE'; payload: string }
   | { type: 'AGGREGATE'; payload: Notification[] }
   | { type: 'CLEAR_AGGREGATED' }

@@ -32,9 +32,10 @@ function notificationReducer(
     case 'ADD': {
       const newNotification: Notification = {
         ...action.payload,
-        id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: action.notificationId || `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         timestamp: Date.now(),
       };
+      console.log('🔔 [REDUCER] Notification ajoutée avec ID:', newNotification.id);
       return {
         ...state,
         notifications: [...state.notifications, newNotification],
@@ -133,14 +134,19 @@ export function NotifyProvider({
       // If this is the first notification, show it immediately
       if (pendingNotificationsRef.current.length === 1) {
         console.log('🔔 [NOTIFY] Ajout de la première notification immédiatement');
-        const notificationId = newNotification.id;
         dispatch({ type: 'ADD', payload: params });
         
         // Auto-remove after 5 seconds (unless it's an automation notification which has its own retract logic)
+        // Note: L'ID sera généré dans le reducer, on utilisera l'ID de la notification dans le state
         if (params.level !== 'automation') {
           setTimeout(() => {
-            console.log('🔔 [NOTIFY] Auto-suppression de la notification après 5s:', notificationId);
-            dispatch({ type: 'REMOVE', payload: notificationId });
+            // Récupérer l'ID depuis le state actuel (la dernière notification ajoutée)
+            const currentState = state;
+            const lastNotification = currentState.notifications[currentState.notifications.length - 1];
+            if (lastNotification && lastNotification.id === newNotification.id) {
+              console.log('🔔 [NOTIFY] Auto-suppression de la notification après 5s:', lastNotification.id);
+              dispatch({ type: 'REMOVE', payload: lastNotification.id });
+            }
           }, 5000);
         }
       }
