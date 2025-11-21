@@ -314,7 +314,12 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      showError('Configuration requise', errorMessage, 7000);
+      notify({
+        level: 'error',
+        title: 'Configuration requise',
+        body: errorMessage,
+        icon: '⚠️',
+      });
     }
   };
 
@@ -382,7 +387,12 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      showError('Erreur', err.message, 5000);
+      notify({
+        level: 'error',
+        title: 'Erreur',
+        body: err.message,
+        icon: '❌',
+      });
     }
   };
 
@@ -450,7 +460,12 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      showError('Configuration requise', errorMessage, 7000);
+      notify({
+        level: 'error',
+        title: 'Configuration requise',
+        body: errorMessage,
+        icon: '⚠️',
+      });
     }
   };
 
