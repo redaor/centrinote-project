@@ -43,8 +43,25 @@ serve(async (req) => {
     console.log(`👤 User ID: ${userId}`);
 
     // Initialize Supabase client
+    // ✅ Récupérer la clé depuis l'environnement OU depuis le header Authorization
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    let supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    // Si la clé n'est pas dans l'environnement, essayer de la récupérer depuis le header
+    if (!supabaseServiceKey) {
+      const authHeader = req.headers.get('Authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        supabaseServiceKey = authHeader.substring(7); // Enlever "Bearer "
+        console.log('🔑 Service key récupérée depuis le header Authorization');
+      } else {
+        throw new Error('SUPABASE_SERVICE_ROLE_KEY not found in environment and no Authorization header provided');
+      }
+    }
+    
+    if (!supabaseServiceKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required. Configure it in Edge Functions secrets or pass it in Authorization header');
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Execute based on template ID
@@ -218,7 +235,8 @@ async function executeBreakTime(
 }
 
 /**
- * DAILY_QUOTE - Citation aléatoire envoyée par email à 08:00
+ * DAILY_QUOTE - Citation du jour envoyée par email
+ * ✅ NOUVEAU SYSTÈME : Utilise get_today_quote() pour éviter les répétitions
  */
 async function executeDailyQuote(
   userId: string,
@@ -227,18 +245,18 @@ async function executeDailyQuote(
   supabaseUrl: string,
   serviceKey: string
 ): Promise<any> {
-  // Get random quote from database
-  const { data: quotes, error: quotesError } = await supabase
-    .from('quotes')
-    .select('*')
-    .limit(50);
+  // ✅ NOUVEAU : Récupérer une citation non utilisée aujourd'hui via la fonction SQL
+  const { data: quote, error: quoteError } = await supabase.rpc('get_today_quote', {
+    lang: 'fr',
+    cat: 'motivation',
+  });
 
-  if (quotesError || !quotes || quotes.length === 0) {
-    throw new Error('No quotes available');
+  if (quoteError || !quote) {
+    console.error('❌ Error fetching daily quote:', quoteError);
+    throw new Error('No quote available');
   }
 
-  // Pick random quote
-  const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+  console.log(`📖 Citation récupérée : « ${quote.quote} » — ${quote.author || 'Anonyme'}`);
 
   // Get user email
   const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId);
@@ -246,6 +264,82 @@ async function executeDailyQuote(
   if (userError || !user?.email) {
     throw new Error('Could not fetch user email');
   }
+
+  // ✅ NOUVEAU : Template HTML amélioré (responsive et propre)
+  const quoteHtml = `
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        color: #222;
+        background: #f7f7f7;
+        margin: 0;
+        padding: 40px 20px;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 40px 30px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+      .quote {
+        font-size: 1.5em;
+        line-height: 1.6;
+        color: #333;
+        font-style: italic;
+        margin-bottom: 20px;
+        text-align: center;
+        padding: 20px 0;
+        border-left: 4px solid #6366f1;
+        padding-left: 20px;
+      }
+      .author {
+        text-align: right;
+        margin-top: 20px;
+        color: #666;
+        font-size: 1.1em;
+        font-weight: 500;
+      }
+      .author::before {
+        content: '— ';
+        color: #999;
+      }
+      footer {
+        margin-top: 40px;
+        font-size: 0.85em;
+        color: #999;
+        text-align: center;
+        padding-top: 20px;
+        border-top: 1px solid #e5e7eb;
+      }
+      @media only screen and (max-width: 600px) {
+        body { padding: 20px 10px; }
+        .card { padding: 30px 20px; }
+        .quote { font-size: 1.3em; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <p class="quote">« ${(quote.quote || '').replace(/"/g, '&quot;')} »</p>
+        <p class="author">${(quote.author || 'Anonyme').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+      </div>
+      <footer>Centrinote – Citation du jour</footer>
+    </div>
+  </body>
+</html>`;
 
   // Send email with quote
   const emailUrl = `${supabaseUrl}/functions/v1/automation-email`;
@@ -258,18 +352,8 @@ async function executeDailyQuote(
     body: JSON.stringify({
       to: user.email,
       subject: '💭 Citation du jour - Centrinote',
-      body: `${randomQuote.body}\n\n— ${randomQuote.author || 'Anonyme'}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #6366f1;">💭 Citation du jour</h2>
-          <blockquote style="font-size: 18px; font-style: italic; color: #374151; border-left: 4px solid #6366f1; padding-left: 20px; margin: 30px 0;">
-            ${randomQuote.body}
-          </blockquote>
-          <p style="text-align: right; color: #6b7280;">— ${randomQuote.author || 'Anonyme'}</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-          <p style="color: #6b7280; font-size: 12px;">Centrinote - Votre dose quotidienne de motivation</p>
-        </div>
-      `,
+      body: `${quote.quote || ''}\n\n— ${quote.author || 'Anonyme'}\n\nCentrinote – Citation du jour`,
+      html: quoteHtml,
     }),
   });
 
@@ -279,9 +363,9 @@ async function executeDailyQuote(
 
   return {
     quote_sent: true,
-    quote_id: randomQuote.id,
-    quote_body: randomQuote.body,
-    quote_author: randomQuote.author,
+    quote_id: quote.id,
+    quote_body: quote.quote,
+    quote_author: quote.author,
   };
 }
 

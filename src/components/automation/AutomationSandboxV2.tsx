@@ -201,25 +201,50 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
 
     try {
       // Préparer les données email
-      const emailSubject = automation.emailData.subject || 'Notification Centrinote';
-      const emailBody = automation.emailData.body || '';
+      let emailSubject = automation.emailData.subject || 'Notification Centrinote';
+      let emailBody = automation.emailData.body || '';
+      let fullHtml = '';
 
-      console.log('📧 Envoi email:', {
-        automationId,
-        subject: emailSubject,
-        bodyLength: emailBody.length,
-        bodyPreview: emailBody.substring(0, 100)
-      });
+      // ✅ INJECTION CITATION : Si l'automation est « Citation Motivation » → remplacer par la citation
+      if (automationId === 'daily_quote') {
+        try {
+          const { fetchDailyQuote } = await import('../../lib/quoteService');
+          const { quoteEmail, quoteEmailText } = await import('../../emailTemplates/quoteEmail');
+          
+          console.log('📖 Récupération de la citation du jour...');
+          const quote = await fetchDailyQuote('fr', 'motivation');
+          
+          console.log(`📖 Citation récupérée : « ${quote.quote} » — ${quote.author || 'Anonyme'}`);
+          
+          // Remplacer le corps par la citation
+          emailSubject = '💭 Citation du jour - Centrinote';
+          emailBody = quoteEmailText(quote);
+          fullHtml = quoteEmail(quote);
+        } catch (quoteError) {
+          console.error('❌ Erreur lors de la récupération de la citation:', quoteError);
+          // Fallback : utiliser le corps par défaut si la citation échoue
+          emailBody = automation.emailData.body || 'Citation non disponible pour le moment.';
+        }
+      }
 
-      // Échapper le HTML pour éviter les problèmes d'injection
-      const safeSubject = escapeHtml(emailSubject);
-      const safeBody = escapeHtml(emailBody);
+      // Si fullHtml n'a pas été généré (pas daily_quote), générer le HTML standard
+      if (!fullHtml) {
+        console.log('📧 Envoi email:', {
+          automationId,
+          subject: emailSubject,
+          bodyLength: emailBody.length,
+          bodyPreview: emailBody.substring(0, 100)
+        });
 
-      // Convertir les \n en <br> pour assurer l'affichage
-      const htmlBody = safeBody.replace(/\n/g, '<br>');
+        // Échapper le HTML pour éviter les problèmes d'injection
+        const safeSubject = escapeHtml(emailSubject);
+        const safeBody = escapeHtml(emailBody);
 
-      // Générer le HTML complet
-      const fullHtml = `
+        // Convertir les \n en <br> pour assurer l'affichage
+        const htmlBody = safeBody.replace(/\n/g, '<br>');
+
+        // Générer le HTML complet
+        fullHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
               <h2 style="color: #6366f1;">${safeSubject}</h2>
               <div style="margin: 20px 0;">${htmlBody}</div>
@@ -227,6 +252,14 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
               <p style="color: #6b7280; font-size: 12px;">Centrinote - Test depuis le Bac à Sable</p>
             </div>
           `;
+      } else {
+        console.log('📧 Email avec citation généré:', {
+          automationId,
+          subject: emailSubject,
+          bodyLength: emailBody.length,
+          htmlLength: fullHtml.length
+        });
+      }
 
       console.log('📧 HTML généré:', {
         htmlLength: fullHtml.length,

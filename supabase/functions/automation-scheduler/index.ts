@@ -35,6 +35,11 @@ interface ScheduledAutomation {
 }
 
 serve(async (req) => {
+  // Debug: Vérifier le header Authorization reçu
+  const authHeader = req.headers.get('Authorization');
+  console.log('🔑 Authorization header reçu :', authHeader ? `${authHeader.substring(0, 20)}...` : 'AUCUN HEADER');
+  console.log('📋 Tous les headers reçus :', Object.fromEntries(req.headers.entries()));
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders });
@@ -276,20 +281,32 @@ async function checkExecutionTime(automation: ScheduledAutomation, now: Date): P
     const normalizedCurrent = currentLocalTime.padStart(5, '0'); // S'assurer du format "HH:mm"
     const normalizedTarget = user_local_time.padStart(5, '0');
     
+    // 🔍 DEBUG : Log détaillé pour daily_quote
+    if (automation.name === 'daily_quote') {
+      console.log(`🔍 DEBUG daily_quote:`);
+      console.log(`   - user_local_time (raw): ${user_local_time}`);
+      console.log(`   - user_timezone (raw): ${user_timezone}`);
+      console.log(`   - timezone utilisé: ${timezone}`);
+      console.log(`   - currentLocalTime (format): ${currentLocalTime}`);
+      console.log(`   - normalizedCurrent: ${normalizedCurrent}`);
+      console.log(`   - normalizedTarget: ${normalizedTarget}`);
+      console.log(`   - Comparaison: "${normalizedCurrent}" === "${normalizedTarget}" ?`);
+    }
+    
     const isTime = normalizedCurrent === normalizedTarget;
     
     if (isTime) {
       console.log(`✅ Heure locale atteinte pour ${automation.name}: ${normalizedCurrent} === ${normalizedTarget} (timezone: ${timezone})`);
       return true;
     } else {
-      // Log pour debug (seulement si proche de l'heure cible)
+      // Log pour debug (seulement si proche de l'heure cible OU pour daily_quote)
       const [targetHour, targetMinute] = normalizedTarget.split(':').map(Number);
       const [currentHour, currentMinute] = normalizedCurrent.split(':').map(Number);
       const diffMinutes = (currentHour * 60 + currentMinute) - (targetHour * 60 + targetMinute);
       
-      // Log seulement si on est dans les 5 minutes avant/après l'heure cible
-      if (Math.abs(diffMinutes) <= 5) {
-        console.log(`⏰ Heure locale proche pour ${automation.name}: ${normalizedCurrent} (cible: ${normalizedTarget}, diff: ${diffMinutes} min)`);
+      // Log toujours pour daily_quote, ou si proche de l'heure cible
+      if (automation.name === 'daily_quote' || Math.abs(diffMinutes) <= 5) {
+        console.log(`⏰ Heure locale pour ${automation.name}: ${normalizedCurrent} (cible: ${normalizedTarget}, diff: ${diffMinutes} min, timezone: ${timezone})`);
       }
     }
     
