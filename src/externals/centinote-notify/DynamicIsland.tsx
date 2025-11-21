@@ -144,19 +144,26 @@ export function DynamicIsland({
     automation: isDark ? 'border-purple-500/30' : 'border-purple-500/30',
   };
 
+  // Force visible pour debug si nécessaire
+  const shouldShow = isVisible && !isRetracted;
+  console.log('🔔 [DynamicIsland] shouldShow:', shouldShow, 'isVisible:', isVisible, 'isRetracted:', isRetracted);
+
   return (
     <div
-      className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] transition-all duration-300 ease-out ${
-        isVisible && !isRetracted
+      className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] transition-all duration-300 ease-out ${
+        shouldShow
           ? 'translate-y-0 opacity-100'
           : isRetracted
           ? 'translate-y-0 opacity-60'
-          : 'translate-y-[-100%] opacity-0'
+          : '-translate-y-full opacity-0'
       }`}
       role="alert"
       aria-live="polite"
       aria-atomic="true"
-      style={{ pointerEvents: 'auto' }}
+      style={{ 
+        pointerEvents: shouldShow ? 'auto' : 'none',
+        display: shouldShow || isRetracted ? 'block' : 'none' // Force display pour debug
+      }}
     >
       <div
         className={`${bgColor} backdrop-blur-xl border ${levelColors[notification.level]} ${textColor} rounded-3xl px-6 py-4 shadow-2xl max-w-md min-w-[320px]`}
