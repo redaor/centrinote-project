@@ -145,15 +145,7 @@ export function ModernAppHeader() {
             </Button>
 
             {/* Notifications */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-2 relative"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </Button>
+            <NotificationBell />
 
             {/* Menu Utilisateur */}
             <div className="relative" ref={userMenuRef}>
