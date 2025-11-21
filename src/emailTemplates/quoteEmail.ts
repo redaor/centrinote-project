@@ -29,7 +29,7 @@ export const quoteEmail = (quote: Quote): string => {
       }
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(to bottom, #e3f2fd 0%, #f5f5f5 100%);
         margin: 0;
         padding: 40px 20px;
         line-height: 1.6;
@@ -47,14 +47,14 @@ export const quoteEmail = (quote: Quote): string => {
         margin-bottom: 10px;
       }
       .header-title {
-        color: #ffffff;
+        color: #1e40af;
         font-size: 24px;
         font-weight: 600;
         margin-bottom: 5px;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
       }
       .header-subtitle {
-        color: rgba(255, 255, 255, 0.9);
+        color: #64748b;
         font-size: 14px;
         font-weight: 400;
       }
@@ -138,21 +138,20 @@ export const quoteEmail = (quote: Quote): string => {
         margin-top: 30px;
       }
       .footer-brand {
-        color: rgba(255, 255, 255, 0.95);
+        color: #475569;
         font-size: 16px;
         font-weight: 600;
         margin-bottom: 8px;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       }
       .footer-tagline {
-        color: rgba(255, 255, 255, 0.8);
+        color: #64748b;
         font-size: 13px;
         font-weight: 400;
       }
       .footer-divider {
         width: 60px;
         height: 3px;
-        background: rgba(255, 255, 255, 0.3);
+        background: #cbd5e1;
         border-radius: 2px;
         margin: 20px auto;
       }
