@@ -1,0 +1,61 @@
+name: 🚀 Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/deploy-production.yml'
+  workflow_dispatch:  # Permet de déclencher manuellement
+
+jobs:
+  deploy:
+    name: Deploy Edge Functions to Production
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: 🔧 Install Supabase CLI
+        run: npm i -g supabase
+
+      - name: 🔐 Login to Supabase
+        run: supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: 🔗 Link project
+        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        continue-on-error: true  # Continue si déjà lié
+
+      - name: 📡 Deploy Edge Functions
+        run: |
+          echo "🚀 Déploiement des Edge Functions..."
+          for fn_dir in supabase/functions/*; do
+            if [ -d "$fn_dir" ] && [ -f "$fn_dir/index.ts" ]; then
+              name=$(basename "$fn_dir")
+              echo "  ➜ Déploiement de $name..."
+              supabase functions deploy "$name" \
+                --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+                --no-verify-jwt || echo "  ⚠️  Erreur pour $name"
+            fi
+          done
+
+      - name: 📋 Summary
+        run: |
+          echo "✅ Déploiement automatique terminé"
+          echo ""
+          echo "📋 Actions manuelles restantes :"
+          echo "  1. Migrations SQL → Dashboard → SQL Editor"
+          echo "  2. Secrets SMTP → Dashboard → Settings → Edge Functions → Secrets"
+          echo "  3. Cron → Dashboard → SQL Editor → fix_cron_every_minute.sql"
+          echo ""
+          echo "🔗 Dashboard : https://supabase.com/dashboard/project/${{ secrets.SUPABASE_PROJECT_REF }}"
+
