@@ -203,6 +203,11 @@ export function NotifyProvider({
     dispatch({ type: 'CLEAR_AGGREGATED' });
   }, []);
 
+  // Exposer notify globalement pour les tests (dev uniquement)
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    (window as any).__CENTINOTE_NOTIFY__ = { notify };
+  }
+
   return (
     <NotifyContext.Provider value={{ notify, removeNotification, clearAggregated, state, dispatch }}>
       {children}
