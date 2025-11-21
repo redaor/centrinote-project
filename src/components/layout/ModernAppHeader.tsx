@@ -17,29 +17,14 @@ import { supabase } from '../../lib/supabase';
 import { useNotify } from '../../externals/centinote-notify';
 
 function NotificationBell() {
-  let notifyFn: ((params: any) => void) | null = null;
-  
-  try {
-    const notifyHook = useNotify();
-    notifyFn = notifyHook.notify;
-  } catch (error) {
-    console.warn('⚠️ useNotify non disponible:', error);
-  }
-
+  const { notify } = useNotify();
   const [notificationCount] = useState(0); // TODO: Connecter avec un vrai système de notifications
 
   const handleClick = () => {
     console.log('🔔 Bouton cloche cliqué');
     
-    if (!notifyFn) {
-      console.error('❌ Fonction notify non disponible');
-      alert('Système de notifications non initialisé. Vérifiez que NotifyProvider est bien configuré.');
-      return;
-    }
-
-    // Test notification
     try {
-      notifyFn({
+      notify({
         level: 'info',
         title: 'Notifications',
         body: notificationCount > 0 
@@ -52,7 +37,6 @@ function NotificationBell() {
             onClick: () => {
               console.log('Voir les notifications');
             },
-            primary: true,
           },
         ] : undefined,
       });
