@@ -15,6 +15,7 @@ export interface Notification {
   actions?: NotificationAction[];
   icon?: string;
   timestamp: number;
+  exiting?: boolean; // Flag pour l'animation de sortie
 }
 
 export interface NotificationState {
@@ -25,8 +26,9 @@ export interface NotificationState {
 }
 
 export type NotificationActionType =
-  | { type: 'ADD'; payload: Omit<Notification, 'id' | 'timestamp'>; notificationId?: string }
+  | { type: 'ADD'; payload: Omit<Notification, 'id' | 'timestamp' | 'exiting'>; notificationId?: string }
   | { type: 'REMOVE'; payload: string }
+  | { type: 'SET_EXITING'; payload: string } // Nouvelle action pour l'animation de sortie
   | { type: 'AGGREGATE'; payload: Notification[] }
   | { type: 'CLEAR_AGGREGATED' }
   | { type: 'RETRACT' }
