@@ -24,17 +24,8 @@ export function DynamicIsland({
   onClearAggregated,
   theme = 'light',
 }: DynamicIslandProps) {
-  const [isAnimating, setIsAnimating] = useState(false);
-
-  useEffect(() => {
-    if (isVisible) {
-      setIsAnimating(true);
-      const timer = setTimeout(() => setIsAnimating(false), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isVisible]);
-
-  if (!isVisible && !isRetracted) {
+  // Si rien à afficher, ne rien rendre
+  if (!isVisible && !isRetracted && !notification && aggregated.length === 0) {
     return null;
   }
 
@@ -76,7 +67,7 @@ export function DynamicIsland({
     return (
       <div
         className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ease-out ${
-          isVisible && !isAnimating
+          isVisible
             ? 'translate-y-0 opacity-100'
             : 'translate-y-[-100%] opacity-0'
         }`}
@@ -129,7 +120,7 @@ export function DynamicIsland({
   return (
     <div
       className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ease-out ${
-        isVisible && !isRetracted && !isAnimating
+        isVisible && !isRetracted
           ? 'translate-y-0 opacity-100'
           : isRetracted
           ? 'translate-y-0 opacity-60'
