@@ -134,6 +134,17 @@ export function NotifyProvider({
       if (pendingNotificationsRef.current.length === 1) {
         console.log('🔔 [NOTIFY] Ajout de la première notification immédiatement');
         dispatch({ type: 'ADD', payload: params });
+        
+        // Auto-remove after 5 seconds (unless it's an automation notification which has its own retract logic)
+        if (params.level !== 'automation') {
+          setTimeout(() => {
+            const notificationId = pendingNotificationsRef.current[0]?.id;
+            if (notificationId) {
+              console.log('🔔 [NOTIFY] Auto-suppression de la notification après 5s');
+              dispatch({ type: 'REMOVE', payload: notificationId });
+            }
+          }, 5000);
+        }
       }
 
       // Set timer to aggregate if more notifications arrive
@@ -145,7 +156,7 @@ export function NotifyProvider({
         pendingNotificationsRef.current = [];
       }, aggregationWindow);
     },
-    [aggregationWindow]
+    [aggregationWindow, dispatch]
   );
 
   const removeNotification = useCallback((id: string) => {
