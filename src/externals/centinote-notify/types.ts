@@ -27,9 +27,8 @@ export interface NotificationState {
 
 export type NotificationActionType =
   | { type: 'ADD'; payload: Omit<Notification, 'id' | 'timestamp' | 'exiting'>; notificationId?: string }
-  | { type: 'REMOVE'; payload: string } // Suppression normale (peut être différée si exiting)
-  | { type: 'FORCE_REMOVE'; payload: string } // Suppression forcée (après animation)
-  | { type: 'SET_EXITING'; payload: string } // Nouvelle action pour l'animation de sortie
+  | { type: 'REMOVE'; payload: string } // Suppression simple - React contrôle le moment via onAnimationEnd
+  | { type: 'SET_EXITING'; payload: string } // Optionnel - pour compatibilité
   | { type: 'AGGREGATE'; payload: Notification[] }
   | { type: 'CLEAR_AGGREGATED' }
   | { type: 'RETRACT' }

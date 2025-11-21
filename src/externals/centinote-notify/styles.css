@@ -1,4 +1,16 @@
 /* Centinote-Notify Styles */
+
+/* ✅ PATCH: Keyframes pour l'animation de sortie contrôlée par React */
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+.animate-fadeOut {
+  animation: fadeOut 400ms forwards;
+}
 /* Animations and transitions for Dynamic Island */
 
 @keyframes slideInDown {

@@ -24,6 +24,9 @@ export function DynamicIsland({
   onClearAggregated,
   theme = 'light',
 }: DynamicIslandProps) {
+  // ✅ PATCH: État local pour l'animation de sortie (contrôlé par React)
+  const [localExiting, setLocalExiting] = useState(false);
+
   // Debug logs - TOUJOURS afficher en dev
   console.log('🔔 [DynamicIsland] Render:', {
     hasNotification: !!notification,
@@ -32,7 +35,32 @@ export function DynamicIsland({
     isRetracted,
     notificationTitle: notification?.title,
     notificationId: notification?.id,
+    localExiting,
   });
+
+  // ✅ PATCH: Gérer l'animation de sortie localement
+  useEffect(() => {
+    if (!notification || notification.level === 'automation') return;
+
+    // Début de l'animation de sortie à 4.5s
+    const t1 = setTimeout(() => {
+      console.log('🔔 [DynamicIsland] Début animation de sortie locale, ID:', notification.id);
+      setLocalExiting(true);
+    }, 4500);
+
+    // Tentative de suppression à 5.3s (mais onAnimationEnd sera le vrai déclencheur)
+    const t2 = setTimeout(() => {
+      console.log('🔔 [DynamicIsland] Timeout de sécurité pour suppression, ID:', notification.id);
+      if (localExiting) {
+        onRemove(notification.id);
+      }
+    }, 5300);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [notification?.id, notification?.level, localExiting, onRemove]);
 
   // Si rien à afficher, ne rien rendre
   if (!isVisible && !isRetracted && !notification && aggregated.length === 0) {
@@ -148,14 +176,23 @@ export function DynamicIsland({
 
   // Force visible pour debug si nécessaire
   const shouldShow = isVisible && !isRetracted;
-  const isExiting = notification?.exiting || false;
+  const isExiting = localExiting || notification?.exiting || false;
   console.log('🔔 [DynamicIsland] shouldShow:', shouldShow, 'isVisible:', isVisible, 'isRetracted:', isRetracted, 'isExiting:', isExiting);
+
+  // ✅ PATCH: Gérer onAnimationEnd pour que React contrôle la suppression
+  const handleAnimationEnd = (e: React.AnimationEvent<HTMLDivElement>) => {
+    // L'événement se déclenche quand l'animation CSS se termine
+    if (e.animationName === 'fadeOut' && notification) {
+      console.log('🔔 [DynamicIsland] Animation fadeOut terminée, suppression de la notification, ID:', notification.id);
+      onRemove(notification.id);
+    }
+  };
 
   return (
     <div
       className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] transition-all duration-300 ease-out ${
         isExiting
-          ? 'opacity-0 -translate-y-4 pointer-events-none' // Animation de sortie
+          ? 'animate-fadeOut' // ✅ Utilise keyframes CSS au lieu de classes Tailwind
           : shouldShow
           ? 'translate-y-0 opacity-100'
           : isRetracted
@@ -165,9 +202,9 @@ export function DynamicIsland({
       role="alert"
       aria-live="polite"
       aria-atomic="true"
+      onAnimationEnd={handleAnimationEnd}
       style={{ 
         pointerEvents: shouldShow && !isExiting ? 'auto' : 'none',
-        display: shouldShow || isRetracted || isExiting ? 'block' : 'none' // Garder le noeud pendant l'animation
       }}
     >
       <div
