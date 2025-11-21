@@ -24,16 +24,15 @@ export function DynamicIsland({
   onClearAggregated,
   theme = 'light',
 }: DynamicIslandProps) {
-  // Debug logs
-  if (import.meta.env.DEV) {
-    console.log('🔔 [DynamicIsland] Render:', {
-      hasNotification: !!notification,
-      aggregatedCount: aggregated.length,
-      isVisible,
-      isRetracted,
-      notificationTitle: notification?.title,
-    });
-  }
+  // Debug logs - TOUJOURS afficher en dev
+  console.log('🔔 [DynamicIsland] Render:', {
+    hasNotification: !!notification,
+    aggregatedCount: aggregated.length,
+    isVisible,
+    isRetracted,
+    notificationTitle: notification?.title,
+    notificationId: notification?.id,
+  });
 
   // Si rien à afficher, ne rien rendre
   if (!isVisible && !isRetracted && !notification && aggregated.length === 0) {
