@@ -14,6 +14,48 @@ import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Button } from '../ui/Button';
 import { supabase } from '../../lib/supabase';
+import { useNotify } from '../../externals/centinote-notify';
+
+function NotificationBell() {
+  const { notify } = useNotify();
+  const [notificationCount] = useState(0); // TODO: Connecter avec un vrai système de notifications
+
+  const handleClick = () => {
+    // Test notification
+    notify({
+      level: 'info',
+      title: 'Notifications',
+      body: notificationCount > 0 
+        ? `Vous avez ${notificationCount} nouvelle${notificationCount > 1 ? 's' : ''} notification${notificationCount > 1 ? 's' : ''}`
+        : 'Aucune nouvelle notification pour le moment',
+      icon: '🔔',
+      actions: notificationCount > 0 ? [
+        {
+          label: 'Voir',
+          onClick: () => {
+            console.log('Voir les notifications');
+          },
+          primary: true,
+        },
+      ] : undefined,
+    });
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="p-2 relative"
+      aria-label="Notifications"
+      onClick={handleClick}
+    >
+      <Bell className="w-5 h-5" />
+      {notificationCount > 0 && (
+        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+      )}
+    </Button>
+  );
+}
 
 export function ModernAppHeader() {
   const { state, dispatch } = useApp();
