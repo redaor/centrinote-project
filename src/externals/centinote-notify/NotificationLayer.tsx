@@ -7,7 +7,7 @@ interface NotificationLayerProps {
 }
 
 export function NotificationLayer({ theme = 'light' }: NotificationLayerProps) {
-  const { state, removeNotification } = useNotifyContext();
+  const { state, removeNotification, clearAggregated } = useNotifyContext();
 
   const handleRetract = () => {
     // Retract logic is handled by the provider
