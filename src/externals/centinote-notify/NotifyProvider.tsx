@@ -51,6 +51,14 @@ function notificationReducer(
         isVisible: filtered.length > 0 || state.aggregated.length > 0,
       };
     }
+    case 'SET_EXITING': {
+      return {
+        ...state,
+        notifications: state.notifications.map((n) =>
+          n.id === action.payload ? { ...n, exiting: true } : n
+        ),
+      };
+    }
     case 'AGGREGATE': {
       return {
         ...state,
@@ -139,7 +147,15 @@ export function NotifyProvider({
         dispatch({ type: 'ADD', payload: params, notificationId });
         
         // Auto-remove after 5 seconds (unless it's an automation notification which has its own retract logic)
+        // ✅ PATCH: On démarre l'animation de sortie à 4.5s, puis on supprime à 5s
         if (params.level !== 'automation') {
+          // Début de l'animation de sortie (fade-out)
+          setTimeout(() => {
+            console.log('🔔 [NOTIFY] Début animation de sortie, ID:', notificationId);
+            dispatch({ type: 'SET_EXITING', payload: notificationId });
+          }, 4500);
+          
+          // Suppression réelle après l'animation
           setTimeout(() => {
             console.log('🔔 [NOTIFY] Auto-suppression de la notification après 5s, ID:', notificationId);
             dispatch({ type: 'REMOVE', payload: notificationId });

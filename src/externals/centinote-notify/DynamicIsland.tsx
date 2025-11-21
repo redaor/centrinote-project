@@ -146,12 +146,15 @@ export function DynamicIsland({
 
   // Force visible pour debug si nécessaire
   const shouldShow = isVisible && !isRetracted;
-  console.log('🔔 [DynamicIsland] shouldShow:', shouldShow, 'isVisible:', isVisible, 'isRetracted:', isRetracted);
+  const isExiting = notification?.exiting || false;
+  console.log('🔔 [DynamicIsland] shouldShow:', shouldShow, 'isVisible:', isVisible, 'isRetracted:', isRetracted, 'isExiting:', isExiting);
 
   return (
     <div
       className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] transition-all duration-300 ease-out ${
-        shouldShow
+        isExiting
+          ? 'opacity-0 -translate-y-4 pointer-events-none' // Animation de sortie
+          : shouldShow
           ? 'translate-y-0 opacity-100'
           : isRetracted
           ? 'translate-y-0 opacity-60'
@@ -161,8 +164,8 @@ export function DynamicIsland({
       aria-live="polite"
       aria-atomic="true"
       style={{ 
-        pointerEvents: shouldShow ? 'auto' : 'none',
-        display: shouldShow || isRetracted ? 'block' : 'none' // Force display pour debug
+        pointerEvents: shouldShow && !isExiting ? 'auto' : 'none',
+        display: shouldShow || isRetracted || isExiting ? 'block' : 'none' // Garder le noeud pendant l'animation
       }}
     >
       <div
