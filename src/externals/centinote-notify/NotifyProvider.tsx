@@ -10,7 +10,9 @@ interface NotifyContextType {
     icon?: string;
   }) => void;
   removeNotification: (id: string) => void;
+  clearAggregated: () => void;
   state: NotificationState;
+  dispatch: React.Dispatch<NotificationActionType>;
 }
 
 const NotifyContext = createContext<NotifyContextType | null>(null);
