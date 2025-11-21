@@ -20,7 +20,7 @@ export const quoteEmail = (quote: Quote): string => {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Citation du jour - Centrinote</title>
+    <title>💭 Citation du jour - Centrinote</title>
     <style>
       * {
         margin: 0;
@@ -29,75 +29,176 @@ export const quoteEmail = (quote: Quote): string => {
       }
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        color: #222;
-        background: #f7f7f7;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         margin: 0;
         padding: 40px 20px;
         line-height: 1.6;
       }
-      .container {
+      .email-wrapper {
         max-width: 600px;
         margin: 0 auto;
       }
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .header-icon {
+        font-size: 48px;
+        margin-bottom: 10px;
+      }
+      .header-title {
+        color: #ffffff;
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 5px;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .header-subtitle {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 14px;
+        font-weight: 400;
+      }
       .card {
         background: #ffffff;
-        border-radius: 12px;
-        padding: 40px 30px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        margin-bottom: 20px;
+        border-radius: 20px;
+        padding: 50px 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        margin-bottom: 30px;
+        position: relative;
+        overflow: hidden;
+      }
+      .card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      }
+      .quote-icon {
+        text-align: center;
+        font-size: 32px;
+        margin-bottom: 25px;
+        opacity: 0.3;
       }
       .quote {
-        font-size: 1.5em;
-        line-height: 1.6;
-        color: #333;
+        font-size: 1.75em;
+        line-height: 1.8;
+        color: #1f2937;
         font-style: italic;
-        margin-bottom: 20px;
+        margin-bottom: 30px;
         text-align: center;
-        padding: 20px 0;
-        border-left: 4px solid #6366f1;
-        padding-left: 20px;
+        padding: 30px 20px;
+        position: relative;
+        font-weight: 400;
+      }
+      .quote::before {
+        content: '"';
+        position: absolute;
+        top: -10px;
+        left: 10px;
+        font-size: 4em;
+        color: #e5e7eb;
+        font-family: Georgia, serif;
+        line-height: 1;
+      }
+      .quote::after {
+        content: '"';
+        position: absolute;
+        bottom: -30px;
+        right: 10px;
+        font-size: 4em;
+        color: #e5e7eb;
+        font-family: Georgia, serif;
+        line-height: 1;
+      }
+      .author-container {
+        text-align: center;
+        margin-top: 30px;
+        padding-top: 25px;
+        border-top: 2px solid #f3f4f6;
+      }
+      .author-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #9ca3af;
+        margin-bottom: 8px;
+        font-weight: 600;
       }
       .author {
-        text-align: right;
-        margin-top: 20px;
-        color: #666;
-        font-size: 1.1em;
+        color: #4b5563;
+        font-size: 1.15em;
         font-weight: 500;
+        font-style: normal;
       }
-      .author::before {
-        content: '— ';
-        color: #999;
-      }
-      footer {
-        margin-top: 40px;
-        font-size: 0.85em;
-        color: #999;
+      .footer {
         text-align: center;
-        padding-top: 20px;
-        border-top: 1px solid #e5e7eb;
+        margin-top: 30px;
+      }
+      .footer-brand {
+        color: rgba(255, 255, 255, 0.95);
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+      .footer-tagline {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 13px;
+        font-weight: 400;
+      }
+      .footer-divider {
+        width: 60px;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        margin: 20px auto;
       }
       @media only screen and (max-width: 600px) {
         body {
           padding: 20px 10px;
         }
         .card {
-          padding: 30px 20px;
+          padding: 35px 25px;
+          border-radius: 16px;
         }
         .quote {
-          font-size: 1.3em;
+          font-size: 1.4em;
+          padding: 25px 15px;
+        }
+        .header-title {
+          font-size: 20px;
+        }
+        .quote-icon {
+          font-size: 28px;
         }
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <div class="card">
-        <p class="quote">« ${quoteText.replace(/"/g, '&quot;')} »</p>
-        <p class="author">${author.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+    <div class="email-wrapper">
+      <div class="header">
+        <div class="header-icon">💭</div>
+        <div class="header-title">Citation du jour</div>
+        <div class="header-subtitle">Votre dose quotidienne de motivation</div>
       </div>
-      <footer>
-        Centrinote – Citation du jour
-      </footer>
+      
+      <div class="card">
+        <div class="quote-icon">✨</div>
+        <p class="quote">${quoteText.replace(/"/g, '&quot;')}</p>
+        <div class="author-container">
+          <div class="author-label">Auteur</div>
+          <p class="author">${author.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+        </div>
+      </div>
+      
+      <div class="footer">
+        <div class="footer-divider"></div>
+        <div class="footer-brand">Centrinote</div>
+        <div class="footer-tagline">Votre assistant d'étude intelligent</div>
+      </div>
     </div>
   </body>
 </html>`;
