@@ -1,0 +1,77 @@
+/* Centinote-Notify Styles */
+/* Animations and transitions for Dynamic Island */
+
+@keyframes slideInDown {
+  from {
+    transform: translate(-50%, -100%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutUp {
+  from {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.centinote-notify-enter {
+  animation: slideInDown 0.3s ease-out;
+}
+
+.centinote-notify-exit {
+  animation: slideOutUp 0.2s ease-in;
+}
+
+.centinote-notify-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.centinote-notify-fade-out {
+  animation: fadeOut 0.2s ease-in;
+}
+
+/* Accessibility: High contrast mode support */
+@media (prefers-contrast: high) {
+  .centinote-notify-container {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .centinote-notify-enter,
+  .centinote-notify-exit,
+  .centinote-notify-fade-in,
+  .centinote-notify-fade-out {
+    animation: none;
+    transition: opacity 0.2s;
+  }
+}
+

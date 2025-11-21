@@ -1,0 +1,14 @@
+{
+  "name": "@centinote/notify",
+  "version": "1.0.0",
+  "description": "Modern notification system with Dynamic Island-like UI for Centinote",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true,
+  "dependencies": {},
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}
+
