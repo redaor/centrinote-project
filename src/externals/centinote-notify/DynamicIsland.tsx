@@ -121,6 +121,8 @@ export function DynamicIsland({
   }
 
   // Single notification
+  // ✅ PATCH: Ne pas retourner null si une notification est en train de sortir
+  // On garde le composant monté pendant l'animation pour éviter removeChild error
   if (!notification) {
     if (import.meta.env.DEV) {
       console.log('🔔 [DynamicIsland] Pas de notification à afficher');

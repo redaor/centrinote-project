@@ -44,7 +44,26 @@ function notificationReducer(
       };
     }
     case 'REMOVE': {
+      // ✅ PATCH: Ne pas supprimer immédiatement si la notification est en train de sortir
+      // On la garde dans le state pendant l'animation CSS (300ms) pour éviter removeChild error
+      const notificationToRemove = state.notifications.find((n) => n.id === action.payload);
+      if (notificationToRemove?.exiting) {
+        // La notification est en train de sortir, on la garde encore un peu
+        // Elle sera supprimée par FORCE_REMOVE après l'animation
+        console.log('🔔 [REDUCER] REMOVE différé - notification en cours de sortie, ID:', action.payload);
+        return state; // Ne rien changer pour l'instant
+      }
       const filtered = state.notifications.filter((n) => n.id !== action.payload);
+      return {
+        ...state,
+        notifications: filtered,
+        isVisible: filtered.length > 0 || state.aggregated.length > 0,
+      };
+    }
+    case 'FORCE_REMOVE': {
+      // Suppression forcée après l'animation CSS
+      const filtered = state.notifications.filter((n) => n.id !== action.payload);
+      console.log('🔔 [REDUCER] FORCE_REMOVE - suppression définitive, ID:', action.payload);
       return {
         ...state,
         notifications: filtered,
@@ -147,7 +166,7 @@ export function NotifyProvider({
         dispatch({ type: 'ADD', payload: params, notificationId });
         
         // Auto-remove after 5 seconds (unless it's an automation notification which has its own retract logic)
-        // ✅ PATCH: On démarre l'animation de sortie à 4.5s, puis on supprime à 5s
+        // ✅ PATCH: On démarre l'animation de sortie à 4.5s, puis on supprime à 5.3s (après la fin de l'animation CSS de 300ms)
         if (params.level !== 'automation') {
           // Début de l'animation de sortie (fade-out)
           setTimeout(() => {
@@ -155,11 +174,18 @@ export function NotifyProvider({
             dispatch({ type: 'SET_EXITING', payload: notificationId });
           }, 4500);
           
-          // Suppression réelle après l'animation
+          // Suppression réelle après l'animation CSS (300ms) + marge de sécurité
           setTimeout(() => {
-            console.log('🔔 [NOTIFY] Auto-suppression de la notification après 5s, ID:', notificationId);
+            console.log('🔔 [NOTIFY] Tentative de suppression de la notification, ID:', notificationId);
             dispatch({ type: 'REMOVE', payload: notificationId });
-          }, 5000);
+            
+            // ✅ PATCH: Nettoyage final après l'animation CSS (300ms)
+            // On supprime vraiment la notification du state après que l'animation soit terminée
+            setTimeout(() => {
+              console.log('🔔 [NOTIFY] Nettoyage final de la notification après animation, ID:', notificationId);
+              dispatch({ type: 'FORCE_REMOVE', payload: notificationId });
+            }, 400); // 300ms animation + 100ms marge
+          }, 5300); // 4.5s + 0.8s (300ms animation + 500ms marge)
         }
       }
 
