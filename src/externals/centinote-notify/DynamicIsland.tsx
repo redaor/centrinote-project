@@ -24,11 +24,6 @@ export function DynamicIsland({
   onClearAggregated,
   theme = 'light',
 }: DynamicIslandProps) {
-  // Si rien à afficher, ne rien rendre
-  if (!isVisible && !isRetracted && !notification && aggregated.length === 0) {
-    return null;
-  }
-
   // Debug logs
   if (import.meta.env.DEV) {
     console.log('🔔 [DynamicIsland] Render:', {
@@ -36,7 +31,16 @@ export function DynamicIsland({
       aggregatedCount: aggregated.length,
       isVisible,
       isRetracted,
+      notificationTitle: notification?.title,
     });
+  }
+
+  // Si rien à afficher, ne rien rendre
+  if (!isVisible && !isRetracted && !notification && aggregated.length === 0) {
+    if (import.meta.env.DEV) {
+      console.log('🔔 [DynamicIsland] Rien à afficher, retour null');
+    }
+    return null;
   }
 
   const isDark = theme === 'dark';
@@ -74,9 +78,12 @@ export function DynamicIsland({
 
   // Aggregated notifications
   if (aggregated.length > 0) {
+    if (import.meta.env.DEV) {
+      console.log('🔔 [DynamicIsland] Rendu notifications agrégées:', aggregated.length);
+    }
     return (
       <div
-        className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ease-out ${
+        className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] transition-all duration-300 ease-out ${
           isVisible
             ? 'translate-y-0 opacity-100'
             : 'translate-y-[-100%] opacity-0'
@@ -116,7 +123,18 @@ export function DynamicIsland({
 
   // Single notification
   if (!notification) {
+    if (import.meta.env.DEV) {
+      console.log('🔔 [DynamicIsland] Pas de notification à afficher');
+    }
     return null;
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('🔔 [DynamicIsland] Rendu notification unique:', {
+      title: notification.title,
+      isVisible,
+      isRetracted,
+    });
   }
 
   const levelColors = {
@@ -129,7 +147,7 @@ export function DynamicIsland({
 
   return (
     <div
-      className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ease-out ${
+      className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] transition-all duration-300 ease-out ${
         isVisible && !isRetracted
           ? 'translate-y-0 opacity-100'
           : isRetracted
@@ -139,6 +157,7 @@ export function DynamicIsland({
       role="alert"
       aria-live="polite"
       aria-atomic="true"
+      style={{ pointerEvents: 'auto' }}
     >
       <div
         className={`${bgColor} backdrop-blur-xl border ${levelColors[notification.level]} ${textColor} rounded-3xl px-6 py-4 shadow-2xl max-w-md min-w-[320px]`}
