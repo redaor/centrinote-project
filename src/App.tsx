@@ -1,10 +1,10 @@
 import { AppRouter } from './components/routing/AppRouter';
-import { NotifyProvider, NotificationLayer } from './externals/centinote-notify';
+import { NotificationLayer } from './externals/centinote-notify';
 import { useApp } from './contexts/AppContext';
 import './styles/neurodesign.css';
 import './externals/centinote-notify/styles.css';
 
-function AppContent() {
+function App() {
   const { state } = useApp();
   const theme = state.darkMode ? 'dark' : 'light';
 
@@ -13,14 +13,6 @@ function AppContent() {
       <AppRouter />
       <NotificationLayer theme={theme} />
     </div>
-  );
-}
-
-function App() {
-  return (
-    <NotifyProvider>
-      <AppContent />
-    </NotifyProvider>
   );
 }
 

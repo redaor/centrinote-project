@@ -5,6 +5,7 @@ import './index.css';
 import './styles/global.css';
 import { AuthProvider } from './components/AuthProvider.tsx';
 import { AppProvider } from './contexts/AppContext.tsx';
+import { NotifyProvider } from './externals/centinote-notify';
 
 // DEBUG: Activer le traçage removeChild en développement
 if (import.meta.env.DEV) {
@@ -43,7 +44,9 @@ createRoot(rootElement).render(
   <StrictMode>
     <AppProvider>
       <AuthProvider>
-        <App />
+        <NotifyProvider>
+          <App />
+        </NotifyProvider>
       </AuthProvider>
     </AppProvider>
   </StrictMode>
