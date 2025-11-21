@@ -17,28 +17,49 @@ import { supabase } from '../../lib/supabase';
 import { useNotify } from '../../externals/centinote-notify';
 
 function NotificationBell() {
-  const { notify } = useNotify();
+  let notifyFn: ((params: any) => void) | null = null;
+  
+  try {
+    const notifyHook = useNotify();
+    notifyFn = notifyHook.notify;
+  } catch (error) {
+    console.warn('⚠️ useNotify non disponible:', error);
+  }
+
   const [notificationCount] = useState(0); // TODO: Connecter avec un vrai système de notifications
 
   const handleClick = () => {
+    console.log('🔔 Bouton cloche cliqué');
+    
+    if (!notifyFn) {
+      console.error('❌ Fonction notify non disponible');
+      alert('Système de notifications non initialisé. Vérifiez que NotifyProvider est bien configuré.');
+      return;
+    }
+
     // Test notification
-    notify({
-      level: 'info',
-      title: 'Notifications',
-      body: notificationCount > 0 
-        ? `Vous avez ${notificationCount} nouvelle${notificationCount > 1 ? 's' : ''} notification${notificationCount > 1 ? 's' : ''}`
-        : 'Aucune nouvelle notification pour le moment',
-      icon: '🔔',
-      actions: notificationCount > 0 ? [
-        {
-          label: 'Voir',
-          onClick: () => {
-            console.log('Voir les notifications');
+    try {
+      notifyFn({
+        level: 'info',
+        title: 'Notifications',
+        body: notificationCount > 0 
+          ? `Vous avez ${notificationCount} nouvelle${notificationCount > 1 ? 's' : ''} notification${notificationCount > 1 ? 's' : ''}`
+          : 'Aucune nouvelle notification pour le moment',
+        icon: '🔔',
+        actions: notificationCount > 0 ? [
+          {
+            label: 'Voir',
+            onClick: () => {
+              console.log('Voir les notifications');
+            },
+            primary: true,
           },
-          primary: true,
-        },
-      ] : undefined,
-    });
+        ] : undefined,
+      });
+      console.log('✅ Notification déclenchée');
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'envoi de la notification:', error);
+    }
   };
 
   return (
