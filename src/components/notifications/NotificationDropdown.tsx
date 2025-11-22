@@ -59,18 +59,24 @@ export function NotificationDropdown({ isOpen, onClose }: NotificationDropdownPr
   };
 
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
+    if (!dateString) return 'Date inconnue';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return 'À l\'instant';
-    if (minutes < 60) return `Il y a ${minutes} min`;
-    if (hours < 24) return `Il y a ${hours}h`;
-    if (days < 7) return `Il y a ${days}j`;
-    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      if (minutes < 1) return 'À l\'instant';
+      if (minutes < 60) return `Il y a ${minutes} min`;
+      if (hours < 24) return `Il y a ${hours}h`;
+      if (days < 7) return `Il y a ${days}j`;
+      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    } catch (error) {
+      console.error('Erreur formatTime:', error);
+      return 'Date inconnue';
+    }
   };
 
   return (
@@ -204,7 +210,7 @@ export function NotificationDropdown({ isOpen, onClose }: NotificationDropdownPr
                           text-xs mt-2
                           ${darkMode ? 'text-gray-500' : 'text-gray-400'}
                         `}>
-                          {formatTime(notification.created_at)}
+                          {formatTime(notification.sent_at || notification.created_at)}
                         </p>
                       </div>
                     </div>
