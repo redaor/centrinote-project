@@ -734,6 +734,7 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
           </div>
         </div>
       </motion.div>
+      <ToastContainer toasts={toasts} />
     </div>
   );
 }
