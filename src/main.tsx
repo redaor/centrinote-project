@@ -5,7 +5,6 @@ import './index.css';
 import './styles/global.css';
 import { AuthProvider } from './components/AuthProvider.tsx';
 import { AppProvider } from './contexts/AppContext.tsx';
-import { NotifyProvider } from './externals/centinote-notify';
 
 // DEBUG: Activer le traçage removeChild en développement
 if (import.meta.env.DEV) {
@@ -40,35 +39,12 @@ if (!rootElement) {
   throw new Error('Root element not found. Make sure there is a div with id "root" in your HTML.');
 }
 
-// ✅ PATCH: Wrapper d'erreur global pour éviter que la page devienne blanche
-const ErrorBoundary = ({ children }: { children: React.ReactNode }) => {
-  React.useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      // Intercepter les erreurs removeChild pour éviter le crash
-      if (event.message?.includes('removeChild')) {
-        console.error('🚨 Erreur removeChild interceptée:', event.error);
-        event.preventDefault(); // Empêcher le crash
-        return true;
-      }
-    };
-
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
-
-  return <>{children}</>;
-};
-
 createRoot(rootElement).render(
   <StrictMode>
-    <ErrorBoundary>
-      <AppProvider>
-        <AuthProvider>
-          <NotifyProvider>
-            <App />
-          </NotifyProvider>
-        </AuthProvider>
-      </AppProvider>
-    </ErrorBoundary>
+    <AppProvider>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </AppProvider>
   </StrictMode>
 );

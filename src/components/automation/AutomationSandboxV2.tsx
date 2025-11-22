@@ -14,7 +14,8 @@ import {
   Send
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { useNotify } from '../../externals/centinote-notify';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../ui/Toast';
 import { supabase } from '../../lib/supabase';
 
 interface RealActionStatus {
@@ -33,7 +34,7 @@ interface AutomationSandboxV2Props {
 export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
   const { state } = useApp();
   const { darkMode, user } = state;
-  const { notify } = useNotify();
+  const { toasts, success, error: showError, info } = useToast();
 
   const [actionStatuses, setActionStatuses] = useState<Record<string, RealActionStatus>>({});
 
