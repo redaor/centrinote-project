@@ -76,7 +76,10 @@ export const DynamicIsland: React.FC<Props> = ({ notification }) => {
                   key={idx}
                   onClick={() => {
                     a.onClick();
-                    remove(notification.id);
+                    // ✅ PATCH: Délai pour laisser l'animation se terminer
+                    requestAnimationFrame(() => {
+                      remove(notification.id);
+                    });
                   }}
                   className="px-4 py-2 rounded-xl text-sm font-medium transition-all bg-blue-600 text-white hover:bg-blue-700"
                   aria-label={a.label}
