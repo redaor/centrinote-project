@@ -7,7 +7,10 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- 2. Supprimer les anciennes politiques si elles existent
 DROP POLICY IF EXISTS "Users can view own notifications" ON notifications;
+DROP POLICY IF EXISTS "Users can view their own notifications" ON notifications;
 DROP POLICY IF EXISTS "Users can update own notifications" ON notifications;
+DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
+DROP POLICY IF EXISTS "Users can delete their own notifications" ON notifications;
 DROP POLICY IF EXISTS "System can insert notifications" ON notifications;
 
 -- 3. Politique pour que les utilisateurs voient uniquement leurs notifications
