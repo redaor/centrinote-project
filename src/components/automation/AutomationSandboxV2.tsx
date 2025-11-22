@@ -293,12 +293,7 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      notify({
-        level: 'success',
-        title: 'Email envoyé !',
-        body: `Vérifiez ${userEmail}`,
-        icon: '📧',
-      });
+      success('Email envoyé !', `Vérifiez ${userEmail}`);
     } catch (err: any) {
       console.error('Erreur envoi email:', err);
 
@@ -319,12 +314,7 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      notify({
-        level: 'error',
-        title: 'Configuration requise',
-        body: errorMessage,
-        icon: '⚠️',
-      });
+      showError('Configuration requise', errorMessage);
     }
   };
 
@@ -375,12 +365,7 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      notify({
-        level: 'success',
-        title: 'Notification envoyée !',
-        body: 'Vérifiez vos notifications système',
-        icon: '🔔',
-      });
+      success('Notification envoyée !', 'Vérifiez vos notifications système');
     } catch (err: any) {
       console.error('Erreur notification:', err);
       setActionStatuses(prev => ({
@@ -392,12 +377,7 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      notify({
-        level: 'error',
-        title: 'Erreur',
-        body: err.message,
-        icon: '❌',
-      });
+      showError('Erreur', err.message);
     }
   };
 
@@ -441,12 +421,7 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      notify({
-        level: 'success',
-        title: 'Session créée !',
-        body: 'Visible dans votre calendrier',
-        icon: '📅',
-      });
+      success('Session créée !', 'Visible dans votre calendrier');
     } catch (err: any) {
       console.error('Erreur création session:', err);
 
@@ -465,12 +440,7 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         }
       }));
 
-      notify({
-        level: 'error',
-        title: 'Configuration requise',
-        body: errorMessage,
-        icon: '⚠️',
-      });
+      showError('Configuration requise', errorMessage);
     }
   };
 
