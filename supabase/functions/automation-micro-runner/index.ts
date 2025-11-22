@@ -84,6 +84,11 @@ serve(async (req) => {
         result = await executeDailyQuote(userId, config, supabase, supabaseUrl, supabaseServiceKey);
         break;
 
+      case 'study-reminder':
+        actionType = 'send_notification';
+        result = await executeStudyReminder(userId, config, supabaseUrl, supabaseServiceKey);
+        break;
+
       default:
         throw new Error(`Unknown template: ${templateId}`);
     }
@@ -471,6 +476,42 @@ async function executeDailyQuote(
     quote_body: quote.quote,
     quote_author: quote.author,
   };
+}
+
+/**
+ * STUDY_REMINDER - Notification de rappel pour session d'étude
+ */
+async function executeStudyReminder(
+  userId: string,
+  config: Record<string, any>,
+  supabaseUrl: string,
+  serviceKey: string
+): Promise<any> {
+  const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
+  const message = config.message || 'C\'est l\'heure d\'étudier ! 💪';
+
+  const response = await fetch(notifUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      title: '📚 Session d\'étude',
+      message,
+      type: 'info',
+      priority: 'normal',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`❌ Notification service error: ${response.status} - ${errorText}`);
+    throw new Error(`Notification service returned ${response.status}`);
+  }
+
+  return await response.json();
 }
 
 /**

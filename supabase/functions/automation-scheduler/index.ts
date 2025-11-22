@@ -124,8 +124,8 @@ serve(async (req) => {
 
         console.log(`✅ Automation ${automation.name} should execute NOW`);
 
-        // ✅ Détecter si c'est un micro template (focus_mode, break_time, daily_quote)
-        const microTemplates = ['focus_mode', 'break_time', 'daily_quote'];
+        // ✅ Détecter si c'est un micro template (focus_mode, break_time, daily_quote, study-reminder)
+        const microTemplates = ['focus_mode', 'break_time', 'daily_quote', 'study-reminder'];
         const isMicroTemplate = microTemplates.includes(automation.name);
 
         let runnerResult: any;
