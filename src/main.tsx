@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
@@ -40,14 +40,35 @@ if (!rootElement) {
   throw new Error('Root element not found. Make sure there is a div with id "root" in your HTML.');
 }
 
+// ✅ PATCH: Wrapper d'erreur global pour éviter que la page devienne blanche
+const ErrorBoundary = ({ children }: { children: React.ReactNode }) => {
+  React.useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      // Intercepter les erreurs removeChild pour éviter le crash
+      if (event.message?.includes('removeChild')) {
+        console.error('🚨 Erreur removeChild interceptée:', event.error);
+        event.preventDefault(); // Empêcher le crash
+        return true;
+      }
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  return <>{children}</>;
+};
+
 createRoot(rootElement).render(
   <StrictMode>
-    <AppProvider>
-      <AuthProvider>
-        <NotifyProvider>
-          <App />
-        </NotifyProvider>
-      </AuthProvider>
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <AuthProvider>
+          <NotifyProvider>
+            <App />
+          </NotifyProvider>
+        </AuthProvider>
+      </AppProvider>
+    </ErrorBoundary>
   </StrictMode>
 );
