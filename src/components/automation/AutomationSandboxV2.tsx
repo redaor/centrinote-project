@@ -261,11 +261,15 @@ export function AutomationSandboxV2({ onClose }: AutomationSandboxV2Props) {
         });
       }
 
+      // Variables pour les logs (définies dans le scope)
+      const safeBodyForLog = emailBody ? escapeHtml(emailBody) : '';
+      const htmlBodyForLog = safeBodyForLog.replace(/\n/g, '<br>');
+      
       console.log('📧 HTML généré:', {
         htmlLength: fullHtml.length,
         htmlPreview: fullHtml.substring(0, 300),
-        safeBodyLength: safeBody.length,
-        htmlBodyLength: htmlBody.length
+        safeBodyLength: safeBodyForLog.length,
+        htmlBodyLength: htmlBodyForLog.length
       });
 
       // Appeler l'Edge Function automation-email
