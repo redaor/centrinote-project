@@ -14,41 +14,34 @@ import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Button } from '../ui/Button';
 import { supabase } from '../../lib/supabase';
-import { useToast } from '../../hooks/useToast';
+import { useNotifications } from '../../hooks/useNotifications';
+import { NotificationDropdown } from '../notifications/NotificationDropdown';
 
 function NotificationBell() {
-  const { info } = useToast();
-  const [notificationCount] = useState(0); // TODO: Connecter avec un vrai système de notifications
+  const { unreadCount } = useNotifications();
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleClick = () => {
-    console.log('🔔 Bouton cloche cliqué');
-    
-    try {
-      info(
-        'Notifications',
-        notificationCount > 0 
-          ? `Vous avez ${notificationCount} nouvelle${notificationCount > 1 ? 's' : ''} notification${notificationCount > 1 ? 's' : ''}`
-          : 'Aucune nouvelle notification pour le moment'
-      );
-      console.log('✅ Notification déclenchée');
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'envoi de la notification:', error);
-    }
+    console.log('🔔 Bouton cloche cliqué, notifications non lues:', unreadCount);
+    setIsOpen(!isOpen);
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="p-2 relative"
-      aria-label="Notifications"
-      onClick={handleClick}
-    >
-      <Bell className="w-5 h-5" />
-      {notificationCount > 0 && (
-        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-      )}
-    </Button>
+    <div className="relative">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="p-2 relative"
+        aria-label="Notifications"
+        onClick={handleClick}
+      >
+        <Bell className="w-5 h-5" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+        )}
+      </Button>
+      <NotificationDropdown isOpen={isOpen} onClose={() => setIsOpen(false)} />
+    </div>
   );
 }
 
