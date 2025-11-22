@@ -24,15 +24,49 @@ interface NotificationRequest {
 }
 
 serve(async (req) => {
+  // Debug: Vérifier le header Authorization reçu (comme automation-scheduler)
+  const authHeader = req.headers.get('Authorization');
+  console.log('🔔 [AUTOMATION-NOTIFICATION] Authorization header reçu :', authHeader ? `${authHeader.substring(0, 20)}...` : 'AUCUN HEADER');
+  console.log('🔔 [AUTOMATION-NOTIFICATION] Tous les headers reçus :', Object.fromEntries(req.headers.entries()));
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   try {
-    console.log('🔔 Automation Notification Service - Processing request');
+    console.log('🔔 [AUTOMATION-NOTIFICATION] Starting execution');
+    console.log('🔔 [AUTOMATION-NOTIFICATION] Request method:', req.method);
+    console.log('🔔 [AUTOMATION-NOTIFICATION] Request URL:', req.url);
+
+    // Initialize Supabase client (comme automation-scheduler)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    let supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    // Si la clé n'est pas dans l'environnement, essayer de la récupérer depuis le header
+    if (!supabaseServiceKey) {
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        supabaseServiceKey = authHeader.substring(7); // Enlever "Bearer "
+        console.log('🔔 [AUTOMATION-NOTIFICATION] Service key récupérée depuis le header Authorization');
+      } else {
+        console.error('❌ [AUTOMATION-NOTIFICATION] SUPABASE_SERVICE_ROLE_KEY not found in environment and no Authorization header provided');
+        throw new Error('SUPABASE_SERVICE_ROLE_KEY not found in environment and no Authorization header provided');
+      }
+    }
+    
+    if (!supabaseServiceKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required. Configure it in Edge Functions secrets or pass it in Authorization header');
+    }
+
+    console.log('🔔 [AUTOMATION-NOTIFICATION] Supabase URL:', supabaseUrl);
+    console.log('🔔 [AUTOMATION-NOTIFICATION] Service key présent:', supabaseServiceKey ? 'OUI' : 'NON');
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse request
+    const requestBody = await req.json();
+    console.log('🔔 [AUTOMATION-NOTIFICATION] Request body reçu:', JSON.stringify(requestBody));
+
     const {
       user_id,
       title,
@@ -41,20 +75,17 @@ serve(async (req) => {
       priority = 'normal',
       action_url,
       metadata = {}
-    }: NotificationRequest = await req.json();
+    }: NotificationRequest = requestBody;
 
     if (!user_id || !title || !message) {
+      console.error('❌ [AUTOMATION-NOTIFICATION] Missing required fields:', { user_id: !!user_id, title: !!title, message: !!message });
       throw new Error('Missing required fields: user_id, title, message');
     }
 
-    console.log(`📢 Creating notification for user: ${user_id}`);
-    console.log(`📋 Title: ${title}`);
-    console.log(`🏷️ Type: ${type}, Priority: ${priority}`);
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log(`📢 [AUTOMATION-NOTIFICATION] Creating notification for user: ${user_id}`);
+    console.log(`📋 [AUTOMATION-NOTIFICATION] Title: ${title}`);
+    console.log(`📋 [AUTOMATION-NOTIFICATION] Message: ${message}`);
+    console.log(`🏷️ [AUTOMATION-NOTIFICATION] Type: ${type}, Priority: ${priority}`);
 
     // Create notification record
     const notificationData = {
@@ -69,6 +100,8 @@ serve(async (req) => {
       created_at: new Date().toISOString(),
     };
 
+    console.log('🔔 [AUTOMATION-NOTIFICATION] Inserting notification data:', JSON.stringify(notificationData));
+
     const { data: notification, error: insertError } = await supabase
       .from('notifications')
       .insert([notificationData])
@@ -76,13 +109,15 @@ serve(async (req) => {
       .single();
 
     if (insertError) {
-      console.error('❌ Error creating notification:', insertError);
+      console.error('❌ [AUTOMATION-NOTIFICATION] Error creating notification:', insertError);
+      console.error('❌ [AUTOMATION-NOTIFICATION] Error details:', JSON.stringify(insertError));
       throw insertError;
     }
 
-    console.log(`✅ Notification created: ${notification.id}`);
+    console.log(`✅ [AUTOMATION-NOTIFICATION] Notification created: ${notification.id}`);
 
     // Update user's unread notification count in user_profiles
+    console.log('🔔 [AUTOMATION-NOTIFICATION] Updating user_profiles for user:', user_id);
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
       .select('unread_notifications')
@@ -90,16 +125,28 @@ serve(async (req) => {
       .single();
 
     if (!profileError && profileData) {
-      await supabase
+      console.log('🔔 [AUTOMATION-NOTIFICATION] Profile found, updating unread count');
+      const { error: updateError } = await supabase
         .from('user_profiles')
         .update({ unread_notifications: (profileData.unread_notifications || 0) + 1 })
         .eq('id', user_id);
+      if (updateError) {
+        console.warn('⚠️ [AUTOMATION-NOTIFICATION] Failed to update unread count:', updateError);
+      } else {
+        console.log('✅ [AUTOMATION-NOTIFICATION] Unread count updated');
+      }
     } else {
       // Create profile if it doesn't exist
-      await supabase
+      console.log('🔔 [AUTOMATION-NOTIFICATION] Profile not found, creating new profile');
+      const { error: insertProfileError } = await supabase
         .from('user_profiles')
         .insert([{ id: user_id, unread_notifications: 1 }])
         .select();
+      if (insertProfileError) {
+        console.warn('⚠️ [AUTOMATION-NOTIFICATION] Failed to create profile:', insertProfileError);
+      } else {
+        console.log('✅ [AUTOMATION-NOTIFICATION] Profile created');
+      }
     }
 
     // Send push notification if user has push tokens
@@ -145,11 +192,14 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('❌ Notification service error:', error);
+    console.error('❌ [AUTOMATION-NOTIFICATION] Notification service error:', error);
+    console.error('❌ [AUTOMATION-NOTIFICATION] Error stack:', error.stack);
+    console.error('❌ [AUTOMATION-NOTIFICATION] Error name:', error.name);
     return new Response(
       JSON.stringify({
         success: false,
         error: error.message,
+        error_name: error.name,
         timestamp: new Date().toISOString()
       }),
       { status: 500, headers: corsHeaders }
