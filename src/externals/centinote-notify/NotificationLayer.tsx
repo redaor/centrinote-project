@@ -7,7 +7,7 @@ export const NotificationLayer: React.FC = () => {
   const { notifications } = useNotifyCtx();
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {notifications.map((n) => (
         <DynamicIsland key={n.id} notification={n} />
       ))}

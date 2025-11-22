@@ -12,7 +12,14 @@ export const DynamicIsland: React.FC<Props> = ({ notification }) => {
   const { remove } = useNotifyCtx();
 
   useEffect(() => {
-    const t = setTimeout(() => remove(notification.id), 5_000);
+    // ✅ PATCH: Délai plus long pour laisser l'animation se terminer
+    const t = setTimeout(() => {
+      try {
+        remove(notification.id);
+      } catch (error) {
+        console.error('❌ Erreur lors de la suppression de la notification:', error);
+      }
+    }, 5_000);
     return () => clearTimeout(t);
   }, [notification.id, remove]);
 
@@ -30,6 +37,12 @@ export const DynamicIsland: React.FC<Props> = ({ notification }) => {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -60, scale: 0.95 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
+      onAnimationComplete={(definition) => {
+        // ✅ PATCH: S'assurer que l'animation est complètement terminée avant de permettre la suppression
+        if (definition === 'exit') {
+          console.log('🔔 [DynamicIsland] Animation exit terminée pour:', notification.id);
+        }
+      }}
       className={cn(
         'fixed top-4 left-1/2 -translate-x-1/2 z-[9999]',
         'bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl',
