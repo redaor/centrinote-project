@@ -13,12 +13,15 @@ export const DynamicIsland: React.FC<Props> = ({ notification }) => {
 
   useEffect(() => {
     // ✅ PATCH: Délai plus long pour laisser l'animation se terminer
+    // Utiliser requestAnimationFrame pour s'assurer que l'animation est terminée
     const t = setTimeout(() => {
-      try {
-        remove(notification.id);
-      } catch (error) {
-        console.error('❌ Erreur lors de la suppression de la notification:', error);
-      }
+      requestAnimationFrame(() => {
+        try {
+          remove(notification.id);
+        } catch (error) {
+          console.error('❌ Erreur lors de la suppression de la notification:', error);
+        }
+      });
     }, 5_000);
     return () => clearTimeout(t);
   }, [notification.id, remove]);
@@ -85,7 +88,12 @@ export const DynamicIsland: React.FC<Props> = ({ notification }) => {
           )}
         </div>
         <button
-          onClick={() => remove(notification.id)}
+          onClick={() => {
+            // ✅ PATCH: Délai pour laisser l'animation se terminer
+            requestAnimationFrame(() => {
+              remove(notification.id);
+            });
+          }}
           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0"
           aria-label="Close notification"
         >

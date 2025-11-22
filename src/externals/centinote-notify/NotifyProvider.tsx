@@ -30,21 +30,23 @@ export const NotifyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const remove = useCallback((id: string) => {
-    // ✅ PATCH: Protection contre les erreurs de suppression
-    try {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-    } catch (error) {
-      console.error('❌ Erreur lors de la suppression de la notification:', error);
-      // Forcer la suppression même en cas d'erreur
-      setNotifications((prev) => {
-        const filtered = prev.filter((n) => n.id !== id);
-        if (filtered.length === prev.length) {
-          // Si la notification n'a pas été supprimée, forcer la mise à jour
-          return [...prev].filter((n) => n.id !== id);
-        }
-        return filtered;
-      });
-    }
+    // ✅ PATCH: Utiliser requestAnimationFrame pour s'assurer que React a fini son cycle
+    requestAnimationFrame(() => {
+      try {
+        setNotifications((prev) => {
+          // Vérifier que la notification existe encore avant de la supprimer
+          const exists = prev.some((n) => n.id === id);
+          if (!exists) {
+            console.warn('⚠️ Tentative de suppression d\'une notification déjà supprimée:', id);
+            return prev;
+          }
+          return prev.filter((n) => n.id !== id);
+        });
+      } catch (error) {
+        console.error('❌ Erreur lors de la suppression de la notification:', error);
+        // Ne pas planter l'app, juste logger l'erreur
+      }
+    });
   }, []);
 
   // Exposer notify globalement pour les tests (dev uniquement)
