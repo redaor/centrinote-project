@@ -111,5 +111,11 @@ export function Modal({
   );
 
   // Render modal using React Portal to ensure it's rendered outside the DOM hierarchy
-  return createPortal(modalContent, document.body);
+  // ✅ PATCH: Utiliser un conteneur dédié pour éviter les collisions avec d'autres portails
+  const modalContainer = document.getElementById('modals');
+  if (!modalContainer) {
+    console.error('❌ Conteneur #modals non trouvé dans index.html');
+    return null;
+  }
+  return createPortal(modalContent, modalContainer);
 }
