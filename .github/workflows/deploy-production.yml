@@ -1,13 +1,14 @@
 name: 🚀 Deploy to Production
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'supabase/functions/**'
-      - 'supabase/migrations/**'
-      - '.github/workflows/deploy-production.yml'
-  workflow_dispatch:  # Permet de déclencher manuellement
+  # Désactivé temporairement - déploiement manuel via CLI
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'supabase/functions/**'
+  #     - 'supabase/migrations/**'
+  #     - '.github/workflows/deploy-production.yml'
+  workflow_dispatch:  # Permet de déclencher manuellement uniquement
 
 jobs:
   deploy:
