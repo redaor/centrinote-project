@@ -21,10 +21,12 @@ jobs:
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: 🔧 Install Supabase CLI
-        run: npm i -g supabase
+        run: |
+          curl -o- https://raw.githubusercontent.com/supabase/cli/main/install.sh | bash
+          echo "$HOME/.supabase/bin" >> $GITHUB_PATH
 
       - name: 🔐 Login to Supabase
         run: supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
