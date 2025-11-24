@@ -124,8 +124,8 @@ serve(async (req) => {
 
         console.log(`✅ Automation ${automation.name} should execute NOW`);
 
-        // ✅ Détecter si c'est un micro template (focus_mode, break_time, daily_quote, study-reminder)
-        const microTemplates = ['focus_mode', 'break_time', 'daily_quote', 'study-reminder'];
+        // ✅ Détecter si c'est un micro template (focus_mode, break_time, daily_quote, study-reminder, daily-review, vocab-milestone, forgotten-notes, weekly-summary)
+        const microTemplates = ['focus_mode', 'break_time', 'daily_quote', 'study-reminder', 'daily-review', 'vocab-milestone', 'forgotten-notes', 'weekly-summary'];
         const isMicroTemplate = microTemplates.includes(automation.name);
 
         let runnerResult: any;
@@ -136,6 +136,11 @@ serve(async (req) => {
           console.log(`   → Calling automation-micro-runner with templateId: ${automation.name}`);
           const microRunnerUrl = `${supabaseUrl}/functions/v1/automation-micro-runner`;
           console.log(`   → URL: ${microRunnerUrl}`);
+          console.log(`   → Service key length: ${supabaseServiceKey.length}`);
+          console.log(`   → Service key prefix: ${supabaseServiceKey.substring(0, 20)}...`);
+          
+          // ✅ Envoyer le service key pour l'authentification
+          // Supabase valide le JWT dans le header Authorization
           const microRunnerResponse = await fetch(microRunnerUrl, {
             method: 'POST',
             headers: {
@@ -259,9 +264,25 @@ serve(async (req) => {
  * NOUVELLE LOGIQUE SIMPLIFIÉE : Vérifie si c'est l'heure locale de l'utilisateur
  */
 async function checkExecutionTime(automation: ScheduledAutomation, now: Date): Promise<boolean> {
-  const { schedule_config, last_executed_at, user_local_time, user_timezone } = automation;
+  const { schedule_config, last_executed_at, user_local_time, user_timezone, next_execution_at } = automation;
 
-  // ✅ NOUVELLE LOGIQUE : Si user_local_time est défini, vérifier l'heure locale
+  // ✅ PRIORITÉ 1 : Vérifier next_execution_at (plus fiable)
+  if (next_execution_at) {
+    const nextExec = new Date(next_execution_at);
+    const diffMs = now.getTime() - nextExec.getTime();
+    const diffMinutes = diffMs / (1000 * 60);
+    
+    // Exécuter si next_execution_at est passé (avec une marge de 2 minutes pour le cron)
+    if (diffMinutes >= -2 && diffMinutes <= 5) {
+      console.log(`✅ next_execution_at atteint pour ${automation.name}: ${next_execution_at} (diff: ${diffMinutes.toFixed(1)} min)`);
+      return true;
+    } else {
+      console.log(`⏰ next_execution_at pour ${automation.name}: ${next_execution_at} (diff: ${diffMinutes.toFixed(1)} min, pas encore l'heure)`);
+      return false;
+    }
+  }
+
+  // ✅ PRIORITÉ 2 : Si user_local_time est défini, vérifier l'heure locale
   if (user_local_time) {
     const timezone = user_timezone || 'Europe/Paris';
     
@@ -281,9 +302,9 @@ async function checkExecutionTime(automation: ScheduledAutomation, now: Date): P
     const normalizedCurrent = currentLocalTime.padStart(5, '0'); // S'assurer du format "HH:mm"
     const normalizedTarget = user_local_time.padStart(5, '0');
     
-    // 🔍 DEBUG : Log détaillé pour daily_quote
-    if (automation.name === 'daily_quote') {
-      console.log(`🔍 DEBUG daily_quote:`);
+    // 🔍 DEBUG : Log détaillé pour daily_quote et study-reminder
+    if (automation.name === 'daily_quote' || automation.name === 'study-reminder') {
+      console.log(`🔍 DEBUG ${automation.name}:`);
       console.log(`   - user_local_time (raw): ${user_local_time}`);
       console.log(`   - user_timezone (raw): ${user_timezone}`);
       console.log(`   - timezone utilisé: ${timezone}`);
@@ -299,13 +320,13 @@ async function checkExecutionTime(automation: ScheduledAutomation, now: Date): P
       console.log(`✅ Heure locale atteinte pour ${automation.name}: ${normalizedCurrent} === ${normalizedTarget} (timezone: ${timezone})`);
       return true;
     } else {
-      // Log pour debug (seulement si proche de l'heure cible OU pour daily_quote)
+      // Log pour debug (seulement si proche de l'heure cible OU pour daily_quote/study-reminder)
       const [targetHour, targetMinute] = normalizedTarget.split(':').map(Number);
       const [currentHour, currentMinute] = normalizedCurrent.split(':').map(Number);
       const diffMinutes = (currentHour * 60 + currentMinute) - (targetHour * 60 + targetMinute);
       
-      // Log toujours pour daily_quote, ou si proche de l'heure cible
-      if (automation.name === 'daily_quote' || Math.abs(diffMinutes) <= 5) {
+      // Log toujours pour daily_quote/study-reminder, ou si proche de l'heure cible
+      if (automation.name === 'daily_quote' || automation.name === 'study-reminder' || Math.abs(diffMinutes) <= 5) {
         console.log(`⏰ Heure locale pour ${automation.name}: ${normalizedCurrent} (cible: ${normalizedTarget}, diff: ${diffMinutes} min, timezone: ${timezone})`);
       }
     }

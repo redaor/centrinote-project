@@ -307,7 +307,7 @@ class VocabularyService {
    */
   async updateVocabularyEntry(entry: VocabularyEntry): Promise<VocabularyEntry> {
     try {
-      log.debug('🔄 Mise à jour du mot:', entry.id);
+      log.debug('🔄 Mise à jour du mot (ID:', entry.id, ')');
       console.log('🔄 [VocabularyService] Mise à jour vocabulaire:', {
         id: entry.id,
         word: entry.word,
@@ -433,10 +433,98 @@ class VocabularyService {
       };
       
       log.debug('✅ Mot mis à jour avec succès');
+      
+      // ✅ NOUVEAU : Vérifier immédiatement si un milestone est atteint (si mastery >= 80)
+      if (entry.mastery >= 80 && entry.userId) {
+        // Déclencher la vérification du milestone en arrière-plan (ne pas bloquer)
+        this.checkVocabMilestone(entry.userId).catch(err => {
+          console.warn('⚠️ [VocabularyService] Erreur lors de la vérification du milestone:', err);
+          // Ne pas bloquer la mise à jour si la vérification échoue
+        });
+      }
+      
       return updatedEntry;
     } catch (error) {
       log.error('❌ Erreur lors de la mise à jour du mot:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Vérifie immédiatement si un milestone vocabulaire est atteint
+   * Appelle l'automation vocab-milestone en arrière-plan
+   */
+  private async checkVocabMilestone(userId: string): Promise<void> {
+    try {
+      // Récupérer l'automation vocab-milestone active pour cet utilisateur
+      const { data: automations, error: autoError } = await supabase
+        .from('automations')
+        .select('id, trigger_config, is_active')
+        .eq('user_id', userId)
+        .eq('name', 'vocab-milestone')
+        .eq('is_active', true)
+        .limit(1);
+
+      if (autoError || !automations || automations.length === 0) {
+        // Pas d'automation active, on ne fait rien
+        return;
+      }
+
+      const automation = automations[0];
+      const config = automation.trigger_config || { milestone: 50 };
+
+      // Appeler l'Edge Function automation-micro-runner
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) {
+        console.warn('⚠️ [VocabularyService] VITE_SUPABASE_URL non défini');
+        return;
+      }
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.warn('⚠️ [VocabularyService] Pas de session pour vérifier le milestone');
+        return;
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/automation-micro-runner`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          templateId: 'vocab-milestone',
+          userId: userId,
+          config: config,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`⚠️ [VocabularyService] Erreur lors de la vérification du milestone: ${response.status} - ${errorText}`);
+      } else {
+        const result = await response.json();
+        console.log('✅ [VocabularyService] Vérification du milestone effectuée:', result);
+        
+        // Afficher le détail du résultat pour debug
+        if (result.result) {
+          console.log('📊 [VocabularyService] Résultat détaillé:', {
+            success: result.result.success,
+            skipped: result.result.skipped,
+            reason: result.result.reason,
+            vocabCount: result.result.vocabCount,
+            milestone: result.result.milestone
+          });
+          
+          if (result.result.skipped) {
+            console.warn('⚠️ [VocabularyService] Milestone ignoré:', result.result.reason);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ [VocabularyService] Erreur lors de la vérification du milestone:', error);
+      // Ne pas bloquer la mise à jour si la vérification échoue
     }
   }
 

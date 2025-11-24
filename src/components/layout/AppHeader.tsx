@@ -16,14 +16,30 @@ import { useTheme } from '../../hooks/useTheme';
 import { useSettings } from '../../hooks/settings/useSettings';
 import { useTranslation } from '../../hooks/useTranslation';
 import { ConfirmModal } from '../settings/modals/ConfirmModal';
+import { useNotifications } from '../../hooks/useNotifications';
+import { NotificationDropdown } from '../notifications/NotificationDropdown';
 
 export function AppHeader() {
   const { state, dispatch } = useApp();
-  const { darkMode, currentView, sidebarCollapsed, user } = state;
-  const { toggleTheme, theme } = useTheme();
+  const { darkMode, currentView, user } = state;
+  const { toggleTheme } = useTheme();
   const { updateAppearance, logout } = useSettings(user?.id);
   const { t } = useTranslation();
   const navigate = useNavigate();
+  
+  // 🔔 Hook de notifications
+  const { notifications, unreadCount, loading: notificationsLoading } = useNotifications();
+  const [showNotifications, setShowNotifications] = useState(false);
+  
+  // 🔍 DEBUG: Afficher les notifications dans la console
+  useEffect(() => {
+    console.log('🔔 [APP-HEADER] Notifications:', {
+      count: notifications.length,
+      unreadCount,
+      loading: notificationsLoading,
+      user: user?.id
+    });
+  }, [notifications, unreadCount, notificationsLoading, user?.id]);
 
   // États pour les menus
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -232,21 +248,43 @@ export function AppHeader() {
           )}
 
           {/* Notifications */}
-          <button
-            id="notifications-button"
-            name="notifications"
-            className={`
-              p-2 rounded-lg transition-colors relative min-w-[2.5rem] min-h-[2.5rem]
-              ${darkMode
-                ? 'hover:bg-gray-800 text-gray-400 hover:text-white'
-                : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-              }
-            `}
-            aria-label="Voir les notifications"
-          >
-            <Bell className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" aria-hidden="true"></span>
-          </button>
+          <div className="relative">
+            <button
+              id="notifications-button"
+              name="notifications"
+              onClick={() => {
+                console.log('🔔 [APP-HEADER] Bouton cloche cliqué', {
+                  unreadCount,
+                  totalCount: notifications.length,
+                  notifications: notifications.map(n => ({ id: n.id, title: n.title, is_read: n.is_read }))
+                });
+                setShowNotifications(!showNotifications);
+              }}
+              className={`
+                p-2 rounded-lg transition-colors relative min-w-[2.5rem] min-h-[2.5rem]
+                ${darkMode
+                  ? 'hover:bg-gray-800 text-gray-400 hover:text-white'
+                  : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+                }
+              `}
+              aria-label="Voir les notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" aria-hidden="true">
+                  <span className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-75"></span>
+                </span>
+              )}
+              {/* 🔍 DEBUG: Afficher le nombre total même si 0 non lues */}
+              {notifications.length > 0 && unreadCount === 0 && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-gray-400 rounded-full" aria-hidden="true" title={`${notifications.length} notifications`}></span>
+              )}
+            </button>
+            <NotificationDropdown 
+              isOpen={showNotifications} 
+              onClose={() => setShowNotifications(false)} 
+            />
+          </div>
 
           {/* Dark Mode Toggle */}
           <button

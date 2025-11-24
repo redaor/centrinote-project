@@ -627,6 +627,10 @@ export function SimpleAutomationDashboard() {
       userLocalTime = tempSettings.backupHour;
     } else if (selectedAutomation.id === 'daily_quote' && tempSettings.quoteTime) {
       userLocalTime = tempSettings.quoteTime;
+    } else if (selectedAutomation.id === 'weekly-summary' && tempSettings.emailHour) {
+      // Pour weekly-summary, on utilise emailHour mais on doit aussi gérer le jour
+      // On stocke l'heure, le scheduler gérera le jour de la semaine
+      userLocalTime = tempSettings.emailHour;
     }
 
     // Calculer next_execution_at basé sur les nouveaux paramètres (pour compatibilité)

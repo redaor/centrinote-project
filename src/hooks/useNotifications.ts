@@ -52,10 +52,19 @@ export function useNotifications() {
         }
 
         console.log('✅ Notifications chargées:', data?.length || 0);
+        console.log('🔍 [useNotifications] Détail des notifications:', data?.map(n => ({ 
+          id: n.id, 
+          title: n.title, 
+          is_read: n.is_read,
+          created_at: n.created_at 
+        })));
         setNotifications(data || []);
         const unread = (data || []).filter(n => !n.is_read).length;
         setUnreadCount(unread);
         console.log(`✅ ${data?.length || 0} notifications chargées, ${unread} non lues`);
+        if (unread === 0 && (data || []).length > 0) {
+          console.warn('⚠️ [useNotifications] Toutes les notifications sont marquées comme lues !');
+        }
       } catch (error) {
         console.error('❌ Erreur lors du chargement des notifications:', error);
       } finally {
@@ -69,10 +78,15 @@ export function useNotifications() {
   // 2. Compteur de notifications non lues
   useEffect(() => {
     const unread = notifications.filter(n => !n.is_read).length;
+    console.log('🔔 [useNotifications] Calcul unreadCount:', {
+      total: notifications.length,
+      unread,
+      notifications: notifications.map(n => ({ id: n.id, title: n.title, is_read: n.is_read }))
+    });
     setUnreadCount(unread);
   }, [notifications]);
 
-  // 3. Écouter les nouvelles notifications en temps réel
+  // 3. Écouter les nouvelles notifications en temps réel + polling de secours
   useEffect(() => {
     if (!user?.id) {
       console.log('🔔 Pas d\'utilisateur, pas d\'écoute Realtime');
@@ -81,6 +95,7 @@ export function useNotifications() {
 
     console.log('🔔 Écoute des nouvelles notifications pour user:', user.id);
 
+    // A. Souscription Realtime
     const channelName = `notifications:${user.id}`;
     const channel = supabase
       .channel(channelName)
@@ -98,8 +113,10 @@ export function useNotifications() {
           setNotifications(prev => {
             // Éviter les doublons
             if (prev.some(n => n.id === newNotification.id)) {
+              console.log('⚠️ Notification déjà présente, ignorée');
               return prev;
             }
+            console.log('✅ Nouvelle notification ajoutée à la liste');
             return [newNotification, ...prev];
           });
           if (!newNotification.is_read) {
@@ -127,13 +144,49 @@ export function useNotifications() {
         if (status === 'SUBSCRIBED') {
           console.log('✅ Abonné aux notifications en temps réel');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Erreur de canal Realtime');
+          console.warn('⚠️ Erreur de canal Realtime - Le polling de secours prendra le relais');
+        } else if (status === 'TIMED_OUT') {
+          console.warn('⚠️ Timeout de connexion Realtime - Le polling de secours prendra le relais');
+        } else if (status === 'CLOSED') {
+          console.warn('⚠️ Canal Realtime fermé - Le polling de secours prendra le relais');
         }
       });
+
+    // B. Polling de secours toutes les 5 secondes (si Realtime ne fonctionne pas)
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error('❌ Erreur lors du polling des notifications:', error);
+          return;
+        }
+
+        // Comparer avec l'état actuel pour détecter les nouvelles notifications
+        setNotifications(prev => {
+          const currentIds = new Set(prev.map(n => n.id));
+          const newNotifications = (data || []).filter(n => !currentIds.has(n.id));
+          
+          if (newNotifications.length > 0) {
+            console.log(`🔄 [POLLING] ${newNotifications.length} nouvelle(s) notification(s) détectée(s)`);
+            return [...newNotifications, ...prev];
+          }
+          return prev;
+        });
+      } catch (error) {
+        console.error('❌ Erreur lors du polling:', error);
+      }
+    }, 5000); // Toutes les 5 secondes
 
     return () => {
       console.log('🔔 Désabonnement des notifications');
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [user?.id]);
 

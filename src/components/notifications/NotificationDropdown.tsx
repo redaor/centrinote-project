@@ -15,6 +15,18 @@ export function NotificationDropdown({ isOpen, onClose }: NotificationDropdownPr
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // 🔍 DEBUG: Log quand le dropdown s'ouvre
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🔔 [NotificationDropdown] Dropdown ouvert', {
+        isOpen,
+        notificationsCount: notifications.length,
+        unreadCount,
+        notifications: notifications.map(n => ({ id: n.id, title: n.title, is_read: n.is_read, created_at: n.created_at }))
+      });
+    }
+  }, [isOpen, notifications, unreadCount]);
+
   // Fermer quand on clique en dehors
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

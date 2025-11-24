@@ -176,29 +176,106 @@ function getTimezoneOffsetForDate(date: Date, timezone: string): number {
  * Calcule le prochain moment d'exécution pour un jour de la semaine spécifique
  * @param dayOfWeek - Jour de la semaine (0=dimanche, 1=lundi, ..., 6=samedi)
  * @param hour - Heure au format HH:MM
+ * @param timezone - Timezone IANA (ex: "Africa/Algiers")
  * @returns Date ISO string du prochain moment d'exécution
  */
 export function calculateNextExecutionFromWeekday(
   dayOfWeek: number,
-  hour: string
+  hour: string,
+  timezone: string = 'Europe/Paris'
 ): string {
-  const [hours, minutes] = hour.split(':').map(Number);
+  const [targetHours, targetMinutes] = hour.split(':').map(Number);
+
+  if (isNaN(targetHours) || isNaN(targetMinutes) || targetHours < 0 || targetHours > 23 || targetMinutes < 0 || targetMinutes > 59) {
+    throw new Error(`Invalid hour format: ${hour}. Expected HH:MM (ex: 22:00)`);
+  }
 
   const now = new Date();
-  const nextExecution = new Date();
-  nextExecution.setHours(hours, minutes, 0, 0);
+
+  // Obtenir le jour actuel dans le fuseau horaire de l'utilisateur
+  const localTimeFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    weekday: 'short',
+    hour12: false
+  });
+
+  const localParts = localTimeFormatter.formatToParts(now);
+  const localPartsObj: Record<string, string> = {};
+  localParts.forEach(part => {
+    if (part.type !== 'literal') {
+      localPartsObj[part.type] = part.value;
+    }
+  });
+
+  const currentLocalYear = parseInt(localPartsObj.year);
+  const currentLocalMonth = parseInt(localPartsObj.month) - 1;
+  const currentLocalDay = parseInt(localPartsObj.day);
+  const currentLocalHour = parseInt(localPartsObj.hour);
+  const currentLocalMinute = parseInt(localPartsObj.minute);
+
+  // Obtenir le jour de la semaine actuel dans le fuseau horaire de l'utilisateur
+  const currentDayOfWeek = new Date(currentLocalYear, currentLocalMonth, currentLocalDay).getDay();
 
   // Calculer le nombre de jours jusqu'au prochain jour cible
-  const currentDay = now.getDay();
-  let daysUntilTarget = dayOfWeek - currentDay;
+  let daysUntilTarget = dayOfWeek - currentDayOfWeek;
 
-  if (daysUntilTarget < 0 || (daysUntilTarget === 0 && nextExecution <= now)) {
+  // Si le jour cible est aujourd'hui, vérifier si l'heure est passée
+  if (daysUntilTarget === 0) {
+    const currentLocalTime = currentLocalHour * 60 + currentLocalMinute;
+    const targetTime = targetHours * 60 + targetMinutes;
+
+    // Si l'heure est déjà passée aujourd'hui, programmer pour la semaine prochaine
+    if (targetTime <= currentLocalTime) {
+      daysUntilTarget = 7;
+    }
+  }
+
+  // Si le jour cible est déjà passé cette semaine, programmer pour la semaine prochaine
+  if (daysUntilTarget < 0) {
     daysUntilTarget += 7;
   }
 
-  nextExecution.setDate(now.getDate() + daysUntilTarget);
+  // Calculer la date cible
+  const targetDate = new Date(currentLocalYear, currentLocalMonth, currentLocalDay + daysUntilTarget);
+  const targetYear = targetDate.getFullYear();
+  const targetMonth = targetDate.getMonth();
+  const targetDay = targetDate.getDate();
 
-  return nextExecution.toISOString();
+  // Créer une date locale pour l'heure cible
+  const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}T${String(targetHours).padStart(2, '0')}:${String(targetMinutes).padStart(2, '0')}:00`;
+
+  // Utiliser Intl pour obtenir l'offset UTC du fuseau horaire à cette date
+  const tempDate = new Date(dateStr + 'Z'); // Créer une date UTC de référence
+  const tzOffset = getTimezoneOffsetForDate(tempDate, timezone);
+
+  // Créer la date UTC finale
+  const nextExecutionUTC = new Date(tempDate.getTime() - tzOffset);
+
+  // Log pour debug
+  if (typeof console !== 'undefined' && (import.meta.env?.DEV || import.meta.env?.VITE_DEBUG === 'true')) {
+    const localFormatter = new Intl.DateTimeFormat('fr-FR', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      weekday: 'long',
+      hour12: false
+    });
+    const nextLocalTime = localFormatter.format(nextExecutionUTC);
+    console.log(`📅 [calculateNextExecutionFromWeekday] Jour cible: ${dayOfWeek}, Heure: ${hour}, Fuseau: ${timezone}`);
+    console.log(`   Jour actuel: ${currentDayOfWeek}, Jours jusqu'au cible: ${daysUntilTarget}`);
+    console.log(`   Prochaine exécution locale: ${nextLocalTime}`);
+    console.log(`   Prochaine exécution UTC: ${nextExecutionUTC.toISOString()}`);
+  }
+
+  return nextExecutionUTC.toISOString();
 }
 
 /**
@@ -257,7 +334,7 @@ export function calculateNextExecution(
           };
           const dayOfWeek = dayMap[settings.emailDay.toLowerCase()];
           if (dayOfWeek !== undefined) {
-            return calculateNextExecutionFromWeekday(dayOfWeek, settings.emailHour);
+            return calculateNextExecutionFromWeekday(dayOfWeek, settings.emailHour, userTimezone);
           }
         }
         break;
@@ -272,9 +349,14 @@ export function calculateNextExecution(
         }
         break;
 
-      // Les automatisations déclenchées par événement n'ont pas de next_execution_at
+      // Les automatisations déclenchées par événement sont vérifiées périodiquement
       case 'vocab-milestone':
       case 'forgotten-notes':
+        // Vérifier toutes les heures pour détecter les milestones/notes oubliées
+        const nextCheck = new Date();
+        nextCheck.setHours(nextCheck.getHours() + 1, 0, 0, 0); // Prochaine heure pile
+        return nextCheck.toISOString();
+      
       case 'break-reminder':
       case 'focus_mode':
       case 'break_time':
@@ -396,6 +478,11 @@ export function triggerConfigToScheduleConfig(
       scheduleConfig.cron_expression = `${m} ${h} 1 * *`;
       scheduleConfig.time = triggerConfig.emailHour;
     }
+  } else if (automationId === 'vocab-milestone' || automationId === 'forgotten-notes') {
+    // Vérification périodique toutes les heures
+    scheduleConfig.type = 'interval';
+    scheduleConfig.interval_minutes = 60; // Toutes les heures
+    scheduleConfig.cron_expression = '0 * * * *'; // Toutes les heures à :00
   }
 
   return scheduleConfig;

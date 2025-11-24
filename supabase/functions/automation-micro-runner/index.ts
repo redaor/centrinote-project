@@ -9,7 +9,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-service-key',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
@@ -43,26 +43,27 @@ serve(async (req) => {
     console.log(`👤 User ID: ${userId}`);
 
     // Initialize Supabase client
-    // ✅ Récupérer la clé depuis l'environnement OU depuis le header Authorization
+    // ✅ Comme automation-runner : utiliser uniquement les secrets de l'Edge Function
+    // Ne pas lire depuis Authorization pour éviter la validation JWT automatique de Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    let supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    // Si la clé n'est pas dans l'environnement, essayer de la récupérer depuis le header
     if (!supabaseServiceKey) {
-      const authHeader = req.headers.get('Authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        supabaseServiceKey = authHeader.substring(7); // Enlever "Bearer "
-        console.log('🔑 Service key récupérée depuis le header Authorization');
-      } else {
-        throw new Error('SUPABASE_SERVICE_ROLE_KEY not found in environment and no Authorization header provided');
+      console.error('❌ [AUTOMATION-MICRO-RUNNER] SUPABASE_SERVICE_ROLE_KEY not found in environment');
+      console.error('   Configurez SUPABASE_SERVICE_ROLE_KEY dans les secrets de l\'Edge Function');
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required. Configure it in Edge Functions secrets (Settings > Edge Functions > automation-micro-runner > Secrets)');
+    }
+    
+    console.log('🔑 [AUTOMATION-MICRO-RUNNER] Service key récupérée depuis l\'environnement (secrets)');
+    
+    console.log('✅ [AUTOMATION-MICRO-RUNNER] Initialisation du client Supabase avec service key');
+    // ✅ IMPORTANT : Utiliser le service key directement, pas comme JWT utilisateur
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
       }
-    }
-    
-    if (!supabaseServiceKey) {
-      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required. Configure it in Edge Functions secrets or pass it in Authorization header');
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    });
 
     // Execute based on template ID
     let result: any;
@@ -87,6 +88,26 @@ serve(async (req) => {
       case 'study-reminder':
         actionType = 'send_notification';
         result = await executeStudyReminder(userId, config, supabaseUrl, supabaseServiceKey);
+        break;
+
+      case 'daily-review':
+        actionType = 'send_notification';
+        result = await executeDailyReview(userId, config, supabaseUrl, supabaseServiceKey);
+        break;
+
+      case 'vocab-milestone':
+        actionType = 'send_notification';
+        result = await executeVocabMilestone(userId, config, supabaseUrl, supabaseServiceKey, supabase);
+        break;
+
+      case 'forgotten-notes':
+        actionType = 'send_notification';
+        result = await executeForgottenNotes(userId, config, supabaseUrl, supabaseServiceKey, supabase);
+        break;
+
+      case 'weekly-summary':
+        actionType = 'send_email';
+        result = await executeWeeklySummary(userId, config, supabase, supabaseUrl, supabaseServiceKey);
         break;
 
       default:
@@ -481,37 +502,673 @@ async function executeDailyQuote(
 /**
  * STUDY_REMINDER - Notification de rappel pour session d'étude
  */
+/**
+ * STUDY_REMINDER - Notification de rappel pour session d'étude
+ * ✅ Aligné sur le modèle break_time qui fonctionne
+ */
 async function executeStudyReminder(
   userId: string,
   config: Record<string, any>,
   supabaseUrl: string,
   serviceKey: string
 ): Promise<any> {
+  console.log(`📚 [STUDY-REMINDER] Starting execution for user: ${userId}`);
+  console.log(`📚 [STUDY-REMINDER] Config:`, JSON.stringify(config));
+  
   const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
   const message = config.message || 'C\'est l\'heure d\'étudier ! 💪';
 
-  const response = await fetch(notifUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${serviceKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      user_id: userId,
-      title: '📚 Session d\'étude',
-      message,
-      type: 'info',
-      priority: 'normal',
-    }),
-  });
+  console.log(`📚 [STUDY-REMINDER] Calling automation-notification: ${notifUrl}`);
+  
+  try {
+    const response = await fetch(notifUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        title: '📚 Session d\'étude',
+        message,
+        type: 'info',
+        priority: 'normal',
+      }),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`❌ Notification service error: ${response.status} - ${errorText}`);
-    throw new Error(`Notification service returned ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [STUDY-REMINDER] Notification service error: ${response.status} - ${errorText}`);
+      throw new Error(`Notification service returned ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ [STUDY-REMINDER] Notification sent successfully:`, result);
+    
+    return result;
+  } catch (error) {
+    console.error(`❌ [STUDY-REMINDER] Error sending notification:`, error);
+    throw error;
   }
+}
 
-  return await response.json();
+/**
+ * DAILY_REVIEW - Notification de révision quotidienne
+ * ✅ Aligné sur le modèle study-reminder qui fonctionne
+ */
+async function executeDailyReview(
+  userId: string,
+  config: Record<string, any>,
+  supabaseUrl: string,
+  serviceKey: string
+): Promise<any> {
+  console.log(`📚 [DAILY-REVIEW] Starting execution for user: ${userId}`);
+  console.log(`📚 [DAILY-REVIEW] Config:`, JSON.stringify(config));
+  
+  const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
+  const message = config.message || 'Il est temps de réviser vos notes ! 📝';
+
+  console.log(`📚 [DAILY-REVIEW] Calling automation-notification: ${notifUrl}`);
+  
+  try {
+    const response = await fetch(notifUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        title: '📝 Révision quotidienne',
+        message,
+        type: 'info',
+        priority: 'normal',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [DAILY-REVIEW] Notification service error: ${response.status} - ${errorText}`);
+      throw new Error(`Notification service returned ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ [DAILY-REVIEW] Notification sent successfully:`, result);
+    
+    return result;
+  } catch (error) {
+    console.error(`❌ [DAILY-REVIEW] Error sending notification:`, error);
+    throw error;
+  }
+}
+
+/**
+ * VOCAB_MILESTONE - Vérifie si l'utilisateur a atteint un seuil de vocabulaire
+ * ✅ Vérifie le nombre total de mots dans le vocabulaire de l'utilisateur
+ * ✅ Envoie une notification si un seuil est atteint (50, 100, 200, etc.)
+ */
+async function executeVocabMilestone(
+  userId: string,
+  config: Record<string, any>,
+  supabaseUrl: string,
+  serviceKey: string,
+  supabase: any
+): Promise<any> {
+  console.log(`🏆 [VOCAB-MILESTONE] Starting execution for user: ${userId}`);
+  console.log(`🏆 [VOCAB-MILESTONE] Config:`, JSON.stringify(config));
+  
+  try {
+    // 1. Récupérer le seuil configuré (par défaut 50)
+    const milestone = config.milestone || 50;
+    
+    console.log(`🏆 [VOCAB-MILESTONE] Config reçue:`, JSON.stringify(config));
+    console.log(`🏆 [VOCAB-MILESTONE] Milestone configuré: ${milestone} (config.milestone: ${config.milestone || 'non défini, utilisation du défaut 50'})`);
+    
+    // 2. Compter le nombre total de mots dans le vocabulaire de l'utilisateur
+    // ✅ RESTAURATION : Compter TOUS les mots (comme avant)
+    const { data: vocabData, error: vocabError, count } = await supabase
+      .from('vocabulary')
+      .select('id', { count: 'exact', head: false })
+      .eq('userId', userId);
+    
+    const vocabCount = count || vocabData?.length || 0;
+    
+    if (vocabError) {
+      console.error(`❌ [VOCAB-MILESTONE] Error counting vocabulary:`, vocabError);
+      throw vocabError;
+    }
+    
+    console.log(`🏆 [VOCAB-MILESTONE] Vocabulary count: ${vocabCount}, milestone: ${milestone}`);
+    console.log(`🏆 [VOCAB-MILESTONE] Comparaison: ${vocabCount} >= ${milestone} ? ${vocabCount >= milestone}`);
+    
+    // 3. Vérifier si le seuil est atteint
+    if (vocabCount < milestone) {
+      console.log(`⏭️ [VOCAB-MILESTONE] Milestone not reached (${vocabCount} < ${milestone}), skipping notification`);
+      return {
+        success: true,
+        skipped: true,
+        reason: `Milestone not reached: ${vocabCount} < ${milestone}`,
+        vocabCount,
+        milestone
+      };
+    }
+    
+    // 4. Vérifier si une notification a déjà été envoyée pour ce seuil récemment (éviter les doublons)
+    const { data: recentNotifs, error: notifCheckError } = await supabase
+      .from('notifications')
+      .select('id, created_at')
+      .eq('user_id', userId)
+      .eq('title', `🏆 Milestone vocabulaire : ${milestone} mots !`)
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Dernières 24h
+      .limit(1);
+    
+    if (notifCheckError) {
+      console.warn(`⚠️ [VOCAB-MILESTONE] Error checking recent notifications:`, notifCheckError);
+    } else if (recentNotifs && recentNotifs.length > 0) {
+      console.log(`⏭️ [VOCAB-MILESTONE] Notification already sent for milestone ${milestone} in last 24h, skipping`);
+      console.log(`⏭️ [VOCAB-MILESTONE] Notification trouvée:`, recentNotifs[0]);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Notification already sent recently',
+        vocabCount,
+        milestone,
+        lastNotificationAt: recentNotifs[0].created_at
+      };
+    } else {
+      console.log(`✅ [VOCAB-MILESTONE] Aucune notification récente trouvée, on peut envoyer`);
+    }
+    
+    // 5. Envoyer la notification
+    const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
+    const message = config.message || `Félicitations ! Vous avez atteint ${vocabCount} mots dans votre vocabulaire ! 🎉`;
+    
+    console.log(`🏆 [VOCAB-MILESTONE] Calling automation-notification: ${notifUrl}`);
+    
+    const response = await fetch(notifUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        title: `🏆 Milestone vocabulaire : ${milestone} mots !`,
+        message,
+        type: 'success',
+        priority: 'normal',
+        metadata: {
+          vocab_count: vocabCount,
+          milestone,
+          automation_type: 'vocab-milestone'
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [VOCAB-MILESTONE] Notification service error: ${response.status} - ${errorText}`);
+      throw new Error(`Notification service returned ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ [VOCAB-MILESTONE] Notification sent successfully:`, result);
+    
+    return {
+      success: true,
+      vocabCount,
+      milestone,
+      notification: result
+    };
+  } catch (error) {
+    console.error(`❌ [VOCAB-MILESTONE] Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * FORGOTTEN_NOTES - Vérifie les notes non consultées depuis X jours
+ * ✅ Trouve les notes non consultées depuis le nombre de jours configuré
+ * ✅ Envoie une notification avec la liste des notes à réviser
+ */
+async function executeForgottenNotes(
+  userId: string,
+  config: Record<string, any>,
+  supabaseUrl: string,
+  serviceKey: string,
+  supabase: any
+): Promise<any> {
+  console.log(`📝 [FORGOTTEN-NOTES] Starting execution for user: ${userId}`);
+  console.log(`📝 [FORGOTTEN-NOTES] Config:`, JSON.stringify(config));
+  
+  try {
+    // 1. Récupérer les paramètres de configuration
+    const delayDays = config.delayDays || 7;
+    const maxNotes = config.maxNotes || 3;
+    
+    // 2. Calculer la date limite (notes non consultées depuis delayDays jours)
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - delayDays);
+    
+    console.log(`📝 [FORGOTTEN-NOTES] Looking for notes not viewed since: ${limitDate.toISOString()}`);
+    
+    // 3. Récupérer les notes non consultées
+    // On utilise updated_at pour déterminer si une note a été consultée récemment
+    const { data: forgottenNotes, error: notesError } = await supabase
+      .from('notes')
+      .select('id, title, updated_at, created_at')
+      .eq('userId', userId)
+      .lt('updated_at', limitDate.toISOString())
+      .order('updated_at', { ascending: true })
+      .limit(maxNotes);
+    
+    if (notesError) {
+      console.error(`❌ [FORGOTTEN-NOTES] Error fetching notes:`, notesError);
+      // Si la requête échoue, on essaie avec created_at seulement
+      const { data: fallbackNotes, error: fallbackError } = await supabase
+        .from('notes')
+        .select('id, title, created_at')
+        .eq('userId', userId)
+        .lt('created_at', limitDate.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(maxNotes);
+      
+      if (fallbackError) {
+        console.error(`❌ [FORGOTTEN-NOTES] Fallback query also failed:`, fallbackError);
+        throw fallbackError;
+      }
+      
+      console.log(`📝 [FORGOTTEN-NOTES] Using fallback query, found ${fallbackNotes?.length || 0} notes`);
+      
+      if (!fallbackNotes || fallbackNotes.length === 0) {
+        console.log(`⏭️ [FORGOTTEN-NOTES] No forgotten notes found, skipping notification`);
+        return {
+          success: true,
+          skipped: true,
+          reason: 'No forgotten notes found',
+          delayDays,
+          notesFound: 0
+        };
+      }
+      
+      // Envoyer notification avec les notes trouvées
+      const notesList = fallbackNotes.map((n: any) => n.title || 'Sans titre').join(', ');
+      const message = config.message || `Vous avez ${fallbackNotes.length} note(s) non consultée(s) depuis ${delayDays} jour(s) : ${notesList}`;
+      
+      const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
+      const response = await fetch(notifUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          title: `📝 Notes oubliées (${fallbackNotes.length})`,
+          message,
+          type: 'info',
+          priority: 'normal',
+          metadata: {
+            notes_count: fallbackNotes.length,
+            delay_days: delayDays,
+            notes: fallbackNotes.map((n: any) => ({ id: n.id, title: n.title })),
+            automation_type: 'forgotten-notes'
+          }
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Notification service returned ${response.status}: ${errorText}`);
+      }
+      
+      return await response.json();
+    }
+    
+    if (!forgottenNotes || forgottenNotes.length === 0) {
+      console.log(`⏭️ [FORGOTTEN-NOTES] No forgotten notes found, skipping notification`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'No forgotten notes found',
+        delayDays,
+        notesFound: 0
+      };
+    }
+    
+    console.log(`📝 [FORGOTTEN-NOTES] Found ${forgottenNotes.length} forgotten notes`);
+    
+    // 4. Vérifier si une notification a déjà été envoyée récemment (éviter les doublons)
+    const { data: recentNotifs, error: notifCheckError } = await supabase
+      .from('notifications')
+      .select('id, created_at')
+      .eq('user_id', userId)
+      .eq('title', `📝 Notes oubliées (${forgottenNotes.length})`)
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Dernières 24h
+      .limit(1);
+    
+    if (notifCheckError) {
+      console.warn(`⚠️ [FORGOTTEN-NOTES] Error checking recent notifications:`, notifCheckError);
+    } else if (recentNotifs && recentNotifs.length > 0) {
+      console.log(`⏭️ [FORGOTTEN-NOTES] Notification already sent in last 24h, skipping`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Notification already sent recently',
+        notesFound: forgottenNotes.length
+      };
+    }
+    
+    // 5. Construire le message avec la liste des notes
+    const notesList = forgottenNotes.map((n: any) => n.title || 'Sans titre').join(', ');
+    const message = config.message || `Vous avez ${forgottenNotes.length} note(s) non consultée(s) depuis ${delayDays} jour(s) : ${notesList}`;
+    
+    // 6. Envoyer la notification
+    const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
+    console.log(`📝 [FORGOTTEN-NOTES] Calling automation-notification: ${notifUrl}`);
+    
+    const response = await fetch(notifUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        title: `📝 Notes oubliées (${forgottenNotes.length})`,
+        message,
+        type: 'info',
+        priority: 'normal',
+        metadata: {
+          notes_count: forgottenNotes.length,
+          delay_days: delayDays,
+          notes: forgottenNotes.map((n: any) => ({ id: n.id, title: n.title })),
+          automation_type: 'forgotten-notes'
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [FORGOTTEN-NOTES] Notification service error: ${response.status} - ${errorText}`);
+      throw new Error(`Notification service returned ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ [FORGOTTEN-NOTES] Notification sent successfully:`, result);
+    
+    return {
+      success: true,
+      notesFound: forgottenNotes.length,
+      delayDays,
+      notification: result
+    };
+  } catch (error) {
+    console.error(`❌ [FORGOTTEN-NOTES] Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * WEEKLY_SUMMARY - Résumé hebdomadaire par email
+ * ✅ Similaire à daily_quote mais pour un résumé hebdomadaire
+ */
+async function executeWeeklySummary(
+  userId: string,
+  config: Record<string, any>,
+  supabase: any,
+  supabaseUrl: string,
+  serviceKey: string
+): Promise<any> {
+  console.log(`📊 [WEEKLY-SUMMARY] Starting execution for user: ${userId}`);
+  console.log(`📊 [WEEKLY-SUMMARY] Config:`, JSON.stringify(config));
+
+  try {
+    // 1. Récupérer les statistiques de l'utilisateur pour la semaine
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    // Compter les notes créées cette semaine
+    const { count: notesCount } = await supabase
+      .from('notes')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId)
+      .gte('created_at', weekAgo.toISOString());
+
+    // Compter les mots de vocabulaire ajoutés cette semaine
+    const { count: vocabCount } = await supabase
+      .from('vocabulary')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId)
+      .gte('created_at', weekAgo.toISOString());
+
+    // Compter les mots maîtrisés (mastery >= 80)
+    const { count: masteredCount } = await supabase
+      .from('vocabulary')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId)
+      .gte('mastery', 80);
+
+    // Compter le total de notes
+    const { count: totalNotesCount } = await supabase
+      .from('notes')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId);
+
+    // Compter le total de vocabulaire
+    const { count: totalVocabCount } = await supabase
+      .from('vocabulary')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId);
+
+    console.log(`📊 [WEEKLY-SUMMARY] Stats:`, {
+      notesThisWeek: notesCount || 0,
+      vocabThisWeek: vocabCount || 0,
+      masteredWords: masteredCount || 0,
+      totalNotes: totalNotesCount || 0,
+      totalVocab: totalVocabCount || 0
+    });
+
+    // 2. Récupérer l'email de l'utilisateur
+    const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId);
+
+    if (userError || !user?.email) {
+      throw new Error('Could not fetch user email');
+    }
+
+    // 3. Construire le résumé hebdomadaire
+    const summaryHtml = `
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Résumé hebdomadaire - Centrinote</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px 30px;
+        text-align: center;
+      }
+      .header h1 {
+        font-size: 28px;
+        margin-bottom: 10px;
+      }
+      .header p {
+        opacity: 0.9;
+        font-size: 16px;
+      }
+      .content {
+        padding: 40px 30px;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+        margin: 30px 0;
+      }
+      .stat-card {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        border: 2px solid #e9ecef;
+      }
+      .stat-number {
+        font-size: 32px;
+        font-weight: bold;
+        color: #667eea;
+        margin-bottom: 5px;
+      }
+      .stat-label {
+        color: #6c757d;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .section {
+        margin: 30px 0;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 12px;
+      }
+      .section h2 {
+        color: #495057;
+        margin-bottom: 15px;
+        font-size: 20px;
+      }
+      .section p {
+        color: #6c757d;
+        margin: 10px 0;
+      }
+      .footer {
+        background: #f8f9fa;
+        padding: 30px;
+        text-align: center;
+        border-top: 1px solid #e9ecef;
+      }
+      .footer p {
+        color: #6c757d;
+        font-size: 14px;
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>📊 Résumé Hebdomadaire</h1>
+        <p>Vos progrès de la semaine</p>
+      </div>
+      <div class="content">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number">${notesCount || 0}</div>
+            <div class="stat-label">Notes créées</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${vocabCount || 0}</div>
+            <div class="stat-label">Mots ajoutés</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${masteredCount || 0}</div>
+            <div class="stat-label">Mots maîtrisés</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${totalVocabCount || 0}</div>
+            <div class="stat-label">Total vocabulaire</div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <h2>📝 Notes</h2>
+          <p><strong>Cette semaine:</strong> ${notesCount || 0} nouvelle(s) note(s)</p>
+          <p><strong>Total:</strong> ${totalNotesCount || 0} note(s)</p>
+        </div>
+        
+        <div class="section">
+          <h2>📚 Vocabulaire</h2>
+          <p><strong>Cette semaine:</strong> ${vocabCount || 0} nouveau(x) mot(s)</p>
+          <p><strong>Maîtrisés:</strong> ${masteredCount || 0} mot(s)</p>
+          <p><strong>Total:</strong> ${totalVocabCount || 0} mot(s)</p>
+        </div>
+      </div>
+      <div class="footer">
+        <p><strong>Centrinote</strong></p>
+        <p>Votre assistant d'étude intelligent</p>
+        <p style="margin-top: 15px; font-size: 12px; color: #adb5bd;">
+          Résumé généré le ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
+      </div>
+    </div>
+  </body>
+</html>`;
+
+    // 4. Envoyer l'email via automation-email
+    const emailUrl = `${supabaseUrl}/functions/v1/automation-email`;
+    const emailResponse = await fetch(emailUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: user.email,
+        subject: '📊 Résumé hebdomadaire - Centrinote',
+        body: `Résumé de votre semaine d'apprentissage:
+
+📝 Notes créées cette semaine: ${notesCount || 0}
+📚 Mots ajoutés cette semaine: ${vocabCount || 0}
+🏆 Mots maîtrisés: ${masteredCount || 0}
+📊 Total vocabulaire: ${totalVocabCount || 0}
+
+Continuez comme ça ! 💪
+
+Centrinote - Votre assistant d'étude`,
+        html: summaryHtml,
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      const errorText = await emailResponse.text();
+      throw new Error(`Email service returned ${emailResponse.status}: ${errorText}`);
+    }
+
+    const emailResult = await emailResponse.json();
+    console.log(`✅ [WEEKLY-SUMMARY] Email sent successfully:`, emailResult);
+
+    return {
+      success: true,
+      email_sent: true,
+      stats: {
+        notesThisWeek: notesCount || 0,
+        vocabThisWeek: vocabCount || 0,
+        masteredWords: masteredCount || 0,
+        totalNotes: totalNotesCount || 0,
+        totalVocab: totalVocabCount || 0
+      },
+      email: emailResult
+    };
+  } catch (error) {
+    console.error(`❌ [WEEKLY-SUMMARY] Error:`, error);
+    throw error;
+  }
 }
 
 /**

@@ -102,19 +102,88 @@ serve(async (req) => {
 
     console.log('🔔 [AUTOMATION-NOTIFICATION] Inserting notification data:', JSON.stringify(notificationData));
 
-    const { data: notification, error: insertError } = await supabase
-      .from('notifications')
-      .insert([notificationData])
-      .select()
-      .single();
+    // Retry logic pour gérer les erreurs TLS temporaires
+    let notification: any = null;
+    let insertError: any = null;
+    const maxRetries = 3;
+    let retryCount = 0;
 
-    if (insertError) {
-      console.error('❌ [AUTOMATION-NOTIFICATION] Error creating notification:', insertError);
-      console.error('❌ [AUTOMATION-NOTIFICATION] Error details:', JSON.stringify(insertError));
-      throw insertError;
+    while (retryCount < maxRetries && !notification) {
+      try {
+        const result = await supabase
+          .from('notifications')
+          .insert([notificationData])
+          .select()
+          .single();
+
+        if (result.error) {
+          insertError = result.error;
+          // Si c'est une erreur TLS, on réessaie
+          if (insertError.message && insertError.message.includes('tls handshake')) {
+            retryCount++;
+            console.warn(`⚠️ [AUTOMATION-NOTIFICATION] TLS error, retry ${retryCount}/${maxRetries}`);
+            if (retryCount < maxRetries) {
+              // Attendre un peu avant de réessayer
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+              continue;
+            }
+          }
+          // Sinon, on arrête
+          break;
+        } else {
+          notification = result.data;
+          break;
+        }
+      } catch (error: any) {
+        insertError = error;
+        // Si c'est une erreur TLS, on réessaie
+        if (error.message && error.message.includes('tls handshake')) {
+          retryCount++;
+          console.warn(`⚠️ [AUTOMATION-NOTIFICATION] TLS error (catch), retry ${retryCount}/${maxRetries}`);
+          if (retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+            continue;
+          }
+        }
+        // Sinon, on arrête
+        break;
+      }
     }
 
-    console.log(`✅ [AUTOMATION-NOTIFICATION] Notification created: ${notification.id}`);
+    if (insertError || !notification) {
+      console.error('❌ [AUTOMATION-NOTIFICATION] Error creating notification after retries:', insertError);
+      console.error('❌ [AUTOMATION-NOTIFICATION] Error details:', JSON.stringify(insertError));
+      
+      // Essayer une approche alternative : utiliser directement l'API REST avec fetch
+      console.log('🔄 [AUTOMATION-NOTIFICATION] Trying alternative method with direct REST API...');
+      try {
+        const restUrl = `${supabaseUrl}/rest/v1/notifications`;
+        const restResponse = await fetch(restUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'apikey': supabaseServiceKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(notificationData)
+        });
+
+        if (!restResponse.ok) {
+          const errorText = await restResponse.text();
+          throw new Error(`REST API error: ${restResponse.status} - ${errorText}`);
+        }
+
+        const restData = await restResponse.json();
+        notification = Array.isArray(restData) ? restData[0] : restData;
+        console.log(`✅ [AUTOMATION-NOTIFICATION] Notification created via REST API: ${notification.id}`);
+      } catch (restError: any) {
+        console.error('❌ [AUTOMATION-NOTIFICATION] REST API fallback also failed:', restError);
+        throw new Error(`Failed to create notification after all retries: ${insertError?.message || restError?.message}`);
+      }
+    } else {
+      console.log(`✅ [AUTOMATION-NOTIFICATION] Notification created: ${notification.id}`);
+    }
 
     // Update user's unread notification count in user_profiles
     console.log('🔔 [AUTOMATION-NOTIFICATION] Updating user_profiles for user:', user_id);
