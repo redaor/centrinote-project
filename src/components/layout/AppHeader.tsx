@@ -17,7 +17,29 @@ import { useSettings } from '../../hooks/settings/useSettings';
 import { useTranslation } from '../../hooks/useTranslation';
 import { ConfirmModal } from '../settings/modals/ConfirmModal';
 import { useNotifications } from '../../hooks/useNotifications';
-import { NotificationDropdown } from '../notifications/NotificationDropdown';
+import { BadgePulse, NotificationPanel } from '../notifications/NotificationVisuals2025';
+
+// Fonction pour formater le temps relatif
+const formatTime = (dateString: string) => {
+  if (!dateString) return 'Date inconnue';
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'À l\'instant';
+    if (minutes < 60) return `Il y a ${minutes} min`;
+    if (hours < 24) return `Il y a ${hours}h`;
+    if (days < 7) return `Il y a ${days}j`;
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  } catch (error) {
+    console.error('Erreur formatTime:', error);
+    return 'Date inconnue';
+  }
+};
 
 export function AppHeader() {
   const { state, dispatch } = useApp();
@@ -28,7 +50,7 @@ export function AppHeader() {
   const navigate = useNavigate();
   
   // 🔔 Hook de notifications
-  const { notifications, unreadCount, loading: notificationsLoading } = useNotifications();
+  const { notifications, unreadCount, loading: notificationsLoading, markAsRead, deleteNotification } = useNotifications();
   const [showNotifications, setShowNotifications] = useState(false);
   
   // 🔍 DEBUG: Afficher les notifications dans la console
@@ -249,40 +271,31 @@ export function AppHeader() {
 
           {/* Notifications */}
           <div className="relative">
-            <button
-              id="notifications-button"
-              name="notifications"
+            <BadgePulse
+              count={unreadCount}
+              darkMode={darkMode}
               onClick={() => {
-                console.log('🔔 [APP-HEADER] Bouton cloche cliqué', {
+                console.log('🔔 [APP-HEADER] Badge cliqué', {
                   unreadCount,
-                  totalCount: notifications.length,
-                  notifications: notifications.map(n => ({ id: n.id, title: n.title, is_read: n.is_read }))
+                  totalCount: notifications.length
                 });
                 setShowNotifications(!showNotifications);
               }}
-              className={`
-                p-2 rounded-lg transition-colors relative min-w-[2.5rem] min-h-[2.5rem]
-                ${darkMode
-                  ? 'hover:bg-gray-800 text-gray-400 hover:text-white'
-                  : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-                }
-              `}
-              aria-label="Voir les notifications"
-            >
-              <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" aria-hidden="true">
-                  <span className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-75"></span>
-                </span>
-              )}
-              {/* 🔍 DEBUG: Afficher le nombre total même si 0 non lues */}
-              {notifications.length > 0 && unreadCount === 0 && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-gray-400 rounded-full" aria-hidden="true" title={`${notifications.length} notifications`}></span>
-              )}
-            </button>
-            <NotificationDropdown 
-              isOpen={showNotifications} 
-              onClose={() => setShowNotifications(false)} 
+            />
+            <NotificationPanel
+              isOpen={showNotifications}
+              darkMode={darkMode}
+              onClose={() => setShowNotifications(false)}
+              onDelete={(id) => deleteNotification(id)}
+              onMarkAsRead={(id) => markAsRead(id)}
+              notifications={notifications.map(n => ({
+                id: n.id,
+                title: n.title,
+                message: n.message,
+                time: formatTime(n.sent_at || n.created_at),
+                isRead: n.is_read,
+                type: n.type
+              }))}
             />
           </div>
 
