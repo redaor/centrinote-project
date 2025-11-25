@@ -49,8 +49,17 @@ serve(async (req) => {
     console.log('🕐 Automation Scheduler - Starting execution');
 
     // Initialize Supabase client with service role
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
+
+    // 🔐 SÉCURITÉ : Utiliser uniquement les variables d'environnement
+    // Configurées via: supabase secrets set SUPABASE_SERVICE_ROLE_KEY="..."
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseServiceKey) {
+      console.error('❌ CRITICAL: SUPABASE_SERVICE_ROLE_KEY non définie');
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY must be set in Edge Function secrets');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const now = new Date();
@@ -124,8 +133,8 @@ serve(async (req) => {
 
         console.log(`✅ Automation ${automation.name} should execute NOW`);
 
-        // ✅ Détecter si c'est un micro template (focus_mode, break_time, daily_quote, study-reminder, daily-review, vocab-milestone, forgotten-notes, weekly-summary)
-        const microTemplates = ['focus_mode', 'break_time', 'daily_quote', 'study-reminder', 'daily-review', 'vocab-milestone', 'forgotten-notes', 'weekly-summary'];
+        // ✅ Détecter si c'est un micro template (focus_mode, break_time, daily_quote, study-reminder, daily-review, vocab-milestone, forgotten-notes, weekly-summary, monthly-report)
+        const microTemplates = ['focus_mode', 'break_time', 'daily_quote', 'study-reminder', 'daily-review', 'vocab-milestone', 'forgotten-notes', 'weekly-summary', 'monthly-report'];
         const isMicroTemplate = microTemplates.includes(automation.name);
 
         let runnerResult: any;

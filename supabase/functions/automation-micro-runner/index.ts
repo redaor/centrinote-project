@@ -110,6 +110,11 @@ serve(async (req) => {
         result = await executeWeeklySummary(userId, config, supabase, supabaseUrl, supabaseServiceKey);
         break;
 
+      case 'monthly-report':
+        actionType = 'send_email';
+        result = await executeMonthlyReport(userId, config, supabase, supabaseUrl, supabaseServiceKey);
+        break;
+
       default:
         throw new Error(`Unknown template: ${templateId}`);
     }
@@ -1167,6 +1172,268 @@ Centrinote - Votre assistant d'étude`,
     };
   } catch (error) {
     console.error(`❌ [WEEKLY-SUMMARY] Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * MONTHLY_REPORT - Bilan mensuel par email
+ * ✅ Similaire à weekly-summary mais pour un bilan mensuel (30 jours)
+ */
+async function executeMonthlyReport(
+  userId: string,
+  config: Record<string, any>,
+  supabase: any,
+  supabaseUrl: string,
+  serviceKey: string
+): Promise<any> {
+  console.log(`📊 [MONTHLY-REPORT] Starting execution for user: ${userId}`);
+  console.log(`📊 [MONTHLY-REPORT] Config:`, JSON.stringify(config));
+
+  try {
+    // 1. Récupérer les statistiques de l'utilisateur pour le mois (30 jours)
+    const monthAgo = new Date();
+    monthAgo.setDate(monthAgo.getDate() - 30);
+
+    // Compter les notes créées ce mois
+    const { count: notesCount } = await supabase
+      .from('notes')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId)
+      .gte('created_at', monthAgo.toISOString());
+
+    // Compter les mots de vocabulaire ajoutés ce mois
+    const { count: vocabCount } = await supabase
+      .from('vocabulary')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId)
+      .gte('created_at', monthAgo.toISOString());
+
+    // Compter les mots maîtrisés (mastery >= 80)
+    const { count: masteredCount } = await supabase
+      .from('vocabulary')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId)
+      .gte('mastery', 80);
+
+    // Compter le total de notes
+    const { count: totalNotesCount } = await supabase
+      .from('notes')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId);
+
+    // Compter le total de vocabulaire
+    const { count: totalVocabCount } = await supabase
+      .from('vocabulary')
+      .select('*', { count: 'exact', head: true })
+      .eq('userId', userId);
+
+    console.log(`📊 [MONTHLY-REPORT] Stats:`, {
+      notesThisMonth: notesCount || 0,
+      vocabThisMonth: vocabCount || 0,
+      masteredWords: masteredCount || 0,
+      totalNotes: totalNotesCount || 0,
+      totalVocab: totalVocabCount || 0
+    });
+
+    // 2. Récupérer l'email de l'utilisateur
+    const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId);
+
+    if (userError || !user?.email) {
+      throw new Error('Could not fetch user email');
+    }
+
+    // 3. Construire le bilan mensuel
+    const reportHtml = `
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Bilan Mensuel - Centrinote</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px 30px;
+        text-align: center;
+      }
+      .header h1 {
+        font-size: 28px;
+        margin-bottom: 10px;
+      }
+      .header p {
+        opacity: 0.9;
+        font-size: 16px;
+      }
+      .content {
+        padding: 40px 30px;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+        margin: 30px 0;
+      }
+      .stat-card {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        border: 2px solid #e9ecef;
+      }
+      .stat-number {
+        font-size: 32px;
+        font-weight: bold;
+        color: #667eea;
+        margin-bottom: 5px;
+      }
+      .stat-label {
+        color: #6c757d;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .section {
+        margin: 30px 0;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 12px;
+      }
+      .section h2 {
+        color: #495057;
+        margin-bottom: 15px;
+        font-size: 20px;
+      }
+      .section p {
+        color: #6c757d;
+        margin: 10px 0;
+      }
+      .footer {
+        background: #f8f9fa;
+        padding: 30px;
+        text-align: center;
+        border-top: 1px solid #e9ecef;
+      }
+      .footer p {
+        color: #6c757d;
+        font-size: 14px;
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>📊 Bilan Mensuel</h1>
+        <p>Vos progrès du mois</p>
+      </div>
+      <div class="content">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number">${notesCount || 0}</div>
+            <div class="stat-label">Notes créées</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${vocabCount || 0}</div>
+            <div class="stat-label">Mots ajoutés</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${masteredCount || 0}</div>
+            <div class="stat-label">Mots maîtrisés</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${totalVocabCount || 0}</div>
+            <div class="stat-label">Total vocabulaire</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>📝 Notes</h2>
+          <p><strong>Ce mois:</strong> ${notesCount || 0} nouvelle(s) note(s)</p>
+          <p><strong>Total:</strong> ${totalNotesCount || 0} note(s)</p>
+        </div>
+
+        <div class="section">
+          <h2>📚 Vocabulaire</h2>
+          <p><strong>Ce mois:</strong> ${vocabCount || 0} nouveau(x) mot(s)</p>
+          <p><strong>Maîtrisés:</strong> ${masteredCount || 0} mot(s)</p>
+          <p><strong>Total:</strong> ${totalVocabCount || 0} mot(s)</p>
+        </div>
+      </div>
+      <div class="footer">
+        <p><strong>Centrinote</strong></p>
+        <p>Votre assistant d'étude intelligent</p>
+        <p style="margin-top: 15px; font-size: 12px; color: #adb5bd;">
+          Bilan généré le ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
+      </div>
+    </div>
+  </body>
+</html>`;
+
+    // 4. Envoyer l'email via automation-email
+    const emailUrl = `${supabaseUrl}/functions/v1/automation-email`;
+    const emailResponse = await fetch(emailUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: user.email,
+        subject: '📊 Bilan Mensuel - Centrinote',
+        body: `Bilan de votre mois d'apprentissage:
+
+📝 Notes créées ce mois: ${notesCount || 0}
+📚 Mots ajoutés ce mois: ${vocabCount || 0}
+🏆 Mots maîtrisés: ${masteredCount || 0}
+📊 Total vocabulaire: ${totalVocabCount || 0}
+
+Excellent travail ! 💪
+
+Centrinote - Votre assistant d'étude`,
+        html: reportHtml,
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      const errorText = await emailResponse.text();
+      throw new Error(`Email service returned ${emailResponse.status}: ${errorText}`);
+    }
+
+    const emailResult = await emailResponse.json();
+    console.log(`✅ [MONTHLY-REPORT] Email sent successfully:`, emailResult);
+
+    return {
+      success: true,
+      email_sent: true,
+      stats: {
+        notesThisMonth: notesCount || 0,
+        vocabThisMonth: vocabCount || 0,
+        masteredWords: masteredCount || 0,
+        totalNotes: totalNotesCount || 0,
+        totalVocab: totalVocabCount || 0
+      },
+      email: emailResult
+    };
+  } catch (error) {
+    console.error(`❌ [MONTHLY-REPORT] Error:`, error);
     throw error;
   }
 }
