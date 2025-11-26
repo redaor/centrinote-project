@@ -136,10 +136,11 @@ serve(async (req) => {
 
           const { data: historyData, error: historyError } = await supabase
             .from('chat_history')
-            .select('role, content')
+            .select('role, content, created_at')
             .eq('session_id', sessionId)
             .eq('user_id', user.id)
             .order('created_at', { ascending: true })
+            .order('id', { ascending: true })  // MEM-FIX: Garantir ordre stable même si timestamps identiques
             .limit(MAX_HISTORY);
 
           if (historyError) {
@@ -546,25 +547,35 @@ L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, 
       try {
         console.log(`🔍 [DEBUG] Tentative sauvegarde historique pour session_id: ${sessionId.substring(0, 8)}...`);
 
-        const { data: saveData, error: saveError } = await supabase.from('chat_history').insert([
-          {
-            session_id: sessionId,
-            user_id: userId,
-            role: 'user',
-            content: effectiveQuestion
-          },
-          {
-            session_id: sessionId,
-            user_id: userId,
-            role: 'assistant',
-            content: finalReply
-          }
-        ]);
+        // Insérer le message user d'abord
+        const { error: userSaveError } = await supabase.from('chat_history').insert({
+          session_id: sessionId,
+          user_id: userId,
+          role: 'user',
+          content: effectiveQuestion
+        });
 
-        if (saveError) {
-          console.error("❌ [DEBUG] Erreur sauvegarde:", saveError.message, saveError.code, saveError.details);
-        } else {
-          console.log("💾 Historique sauvegardé dans la BDD");
+        if (userSaveError) {
+          console.error("❌ [DEBUG] Erreur sauvegarde user:", userSaveError.message);
+        }
+
+        // Micro-délai pour garantir created_at différent
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        // Insérer le message assistant ensuite
+        const { error: assistantSaveError } = await supabase.from('chat_history').insert({
+          session_id: sessionId,
+          user_id: userId,
+          role: 'assistant',
+          content: finalReply
+        });
+
+        if (assistantSaveError) {
+          console.error("❌ [DEBUG] Erreur sauvegarde assistant:", assistantSaveError.message);
+        }
+
+        if (!userSaveError && !assistantSaveError) {
+          console.log("💾 Historique sauvegardé dans la BDD (user + assistant)");
         }
       } catch (saveError: any) {
         console.error("⚠️ [DEBUG] Exception sauvegarde historique:", saveError.message, saveError.stack);
