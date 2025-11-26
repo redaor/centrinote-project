@@ -13,6 +13,7 @@ interface AIReply {
   timestamp: string;
   cached?: boolean;
   error?: string;
+  session_id?: string; // MEM-FIX: Ajouter session_id dans la réponse
 }
 
 export const useCentrinoteAI_Edge = () => {
@@ -46,11 +47,22 @@ export const useCentrinoteAI_Edge = () => {
           throw new Error('Non authentifié. Veuillez vous reconnecter.');
         }
 
+        // MEM-FIX: Récupérer ou créer un session_id depuis localStorage
+        const STORAGE_KEY = `ai_session_${session.user.id}`;
+        let sessionId = localStorage.getItem(STORAGE_KEY);
+
+        if (!sessionId) {
+          console.log('🆕 [useCentrinoteAI_Edge] Nouvelle session créée côté frontend');
+        } else {
+          console.log('🔄 [useCentrinoteAI_Edge] Session existante récupérée:', sessionId);
+        }
+
         // Appeler l'edge function Supabase ai-chat avec recherche web
         const { data, error: invokeError } = await supabase.functions.invoke('ai-chat', {
           body: {
             question: lastUser,
-            messages: messages
+            messages: messages,
+            session_id: sessionId || undefined // MEM-FIX: Envoyer session_id si disponible
           },
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -65,12 +77,19 @@ export const useCentrinoteAI_Edge = () => {
           throw new Error("Réponse vide de l'IA");
         }
 
+        // MEM-FIX: Sauvegarder le session_id renvoyé par l'Edge Function
+        if (data.session_id) {
+          localStorage.setItem(STORAGE_KEY, data.session_id);
+          console.log('💾 [useCentrinoteAI_Edge] Session ID sauvegardé:', data.session_id);
+        }
+
         console.log('✅ [useCentrinoteAI_Edge] Réponse enrichie reçue:', {
           enrichment_used: data.enrichment_used,
           notes_count: data.notes_count,
           vocabulary_count: data.vocabulary_count,
           news_injected: data.news_injected,
           searched: data.searched,
+          session_id: data.session_id, // MEM-FIX: Logger le session_id
         });
 
         // Log détaillé pour déboguer
@@ -88,6 +107,7 @@ export const useCentrinoteAI_Edge = () => {
           reply: data.reply,
           timestamp: data.timestamp || new Date().toISOString(),
           cached: data.cached || false,
+          session_id: data.session_id, // MEM-FIX: Retourner session_id
         };
       } catch (err) {
         console.error('❌ [useCentrinoteAI_Edge] Erreur:', err);
@@ -107,11 +127,26 @@ export const useCentrinoteAI_Edge = () => {
 
   const clearError = useCallback(() => setError(null), []);
 
+  // MEM-FIX: Fonction pour réinitialiser la session (nouvelle conversation)
+  const resetSession = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        const STORAGE_KEY = `ai_session_${session.user.id}`;
+        localStorage.removeItem(STORAGE_KEY);
+        console.log('🔄 [useCentrinoteAI_Edge] Session réinitialisée');
+      }
+    } catch (err) {
+      console.error('❌ [useCentrinoteAI_Edge] Erreur lors de la réinitialisation:', err);
+    }
+  }, []);
+
   return {
     sendMessage,
     loading,
     error,
     clearError,
+    resetSession, // MEM-FIX: Exposer la fonction de reset
   };
 };
 

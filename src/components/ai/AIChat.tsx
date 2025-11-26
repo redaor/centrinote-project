@@ -56,6 +56,7 @@ export function AIChat() {
     loading: edgeLoading,
     error: edgeError,
     clearError: clearEdgeError,
+    resetSession, // MEM-FIX: Récupérer la fonction resetSession
   } = useCentrinoteAI_Edge();
 
   // État local
@@ -656,7 +657,12 @@ export function AIChat() {
 
   const handleClear = useCallback(async () => {
     console.log('🧹 [AIChat] Effacement des messages');
-    
+
+    // MEM-FIX: Réinitialiser la session côté Edge Function (localStorage)
+    if (resetSession) {
+      await resetSession();
+    }
+
     // Supprimer les messages de la base de données
     if (userIdRef.current && sessionIdRef.current) {
       try {
@@ -669,11 +675,11 @@ export function AIChat() {
         console.error('❌ [AIChat] Erreur lors de la suppression de la session:', error);
       }
     }
-    
+
     setMessages([]);
     clearAllErrors();
     welcomeMessageShown.current = false; // Permettre de réafficher le message de bienvenue
-  }, [clearAllErrors]);
+  }, [clearAllErrors, resetSession]);
 
   const contextStats = getContextStats();
 
