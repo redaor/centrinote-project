@@ -49,7 +49,12 @@ export const useCentrinoteAI_Edge = () => {
 
         // MEM-FIX: Récupérer ou créer un session_id depuis localStorage
         const STORAGE_KEY = `ai_session_${session.user.id}`;
+        console.log('🔍 [DEBUG] user.id:', session.user.id);
+        console.log('🔍 [DEBUG] STORAGE_KEY:', STORAGE_KEY);
+        console.log('🔍 [DEBUG] localStorage avant retrieval:', localStorage);
+
         let sessionId = localStorage.getItem(STORAGE_KEY);
+        console.log('🔍 [DEBUG] sessionId récupéré:', sessionId);
 
         if (!sessionId) {
           console.log('🆕 [useCentrinoteAI_Edge] Nouvelle session créée côté frontend');
@@ -77,10 +82,20 @@ export const useCentrinoteAI_Edge = () => {
           throw new Error("Réponse vide de l'IA");
         }
 
+        console.log('🔍 [DEBUG] data.session_id reçu:', data.session_id);
+        console.log('🔍 [DEBUG] Type de data.session_id:', typeof data.session_id);
+
         // MEM-FIX: Sauvegarder le session_id renvoyé par l'Edge Function
         if (data.session_id) {
           localStorage.setItem(STORAGE_KEY, data.session_id);
           console.log('💾 [useCentrinoteAI_Edge] Session ID sauvegardé:', data.session_id);
+
+          // Vérifier immédiatement après sauvegarde
+          const verifySessionId = localStorage.getItem(STORAGE_KEY);
+          console.log('🔍 [DEBUG] Vérification immédiate après setItem:', verifySessionId);
+          console.log('🔍 [DEBUG] localStorage après setItem:', localStorage);
+        } else {
+          console.warn('⚠️ [DEBUG] data.session_id est undefined/null, non sauvegardé');
         }
 
         console.log('✅ [useCentrinoteAI_Edge] Réponse enrichie reçue:', {

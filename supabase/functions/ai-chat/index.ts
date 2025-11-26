@@ -170,6 +170,8 @@ serve(async (req) => {
           .join("\n")
       : String(context || "");
 
+    console.log(`📜 [DEBUG] Historique construit (${history.length} caractères):`, history.slice(0, 200));
+
     const effectiveQuestion =
       typeof question === "string" && question.trim().length > 0
         ? question
@@ -330,7 +332,11 @@ serve(async (req) => {
           console.log(`✅ ${results.length} résultats Brave trouvés`);
 
           // Construire le prompt système avec recherche web + notes/vocabulaire
-          let systemContent = `Tu es Centrinote AI. Il est ${now} (heure française). Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ces informations pour répondre de manière précise et concise à la question de l'utilisateur. Cite tes sources si pertinent.`;
+          let systemContent = `Tu es Centrinote AI, l'assistant intelligent de Centrinote. Il est ${now} (heure française).
+
+IMPORTANT : Cette conversation est continue. Tu as accès à l'historique complet de la discussion. Utilise les messages précédents pour fournir des réponses contextuelles et cohérentes.
+
+Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ces informations pour répondre de manière précise et concise à la question de l'utilisateur. Cite tes sources si pertinent.`;
 
           if (userNotes || userVocabulary) {
             systemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;
@@ -395,7 +401,9 @@ serve(async (req) => {
 
       // Si pas de recherche web ET pas de réponse générée, générer une réponse avec notes/vocabulaire si disponibles
       if (!searched && !finalReply && (userNotes || userVocabulary)) {
-        let directSystemContent = `Tu es Centrinote AI. Il est ${now} (heure française).`;
+        let directSystemContent = `Tu es Centrinote AI, l'assistant intelligent de Centrinote. Il est ${now} (heure française).
+
+IMPORTANT : Cette conversation est continue. Tu as accès à l'historique complet de la discussion. Utilise les messages précédents pour fournir des réponses contextuelles et cohérentes.`;
         
         if (userNotes || userVocabulary) {
           directSystemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;
@@ -465,7 +473,11 @@ serve(async (req) => {
         : "";
 
       // Construire le prompt système pour analyse de document + notes/vocabulaire
-      let fileSystemContent = `Tu es Centrinote AI, l'assistant intelligent de l'application d'apprentissage Centrinote. Il est ${now} (heure française). L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, amicale et professionnelle en te basant sur le contenu du document.`;
+      let fileSystemContent = `Tu es Centrinote AI, l'assistant intelligent de l'application d'apprentissage Centrinote. Il est ${now} (heure française).
+
+IMPORTANT : Cette conversation est continue. Tu as accès à l'historique complet de la discussion. Utilise les messages précédents pour fournir des réponses contextuelles et cohérentes.
+
+L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, amicale et professionnelle en te basant sur le contenu du document.`;
 
       if (userNotes || userVocabulary) {
         fileSystemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;

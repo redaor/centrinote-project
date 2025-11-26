@@ -31,7 +31,9 @@
       "Bash(supabase functions delete:*)",
       "Bash(supabase functions logs:*)",
       "Bash(git checkout:*)",
-      "Bash(supabase functions list:*)"
+      "Bash(supabase functions list:*)",
+      "Bash(git log:*)",
+      "Bash(deno check:*)"
     ],
     "deny": [],
     "ask": []
