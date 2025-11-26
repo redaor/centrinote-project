@@ -6,6 +6,7 @@ const BRAVE_KEY = Deno.env.get("BRAVE_API_KEY");
 const BRAVE_URL = "https://api.search.brave.com/res/v1/web/search";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 Mo
+const MAX_HISTORY = 30; // MEM-FIX: Limite de messages à charger depuis la BDD
 
 // Supabase client pour accéder aux notes et vocabulaire
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
@@ -61,21 +62,22 @@ async function parseMultipartForm(req: Request): Promise<{ question: string; fil
 
 serve(async (req) => {
   const origin = req.headers.get("origin");
+  const corsHeaders = buildCorsHeaders(origin, true); // MEM-FIX: Déclarer en dehors du try/catch
 
   try {
     // Gérer OPTIONS (preflight CORS) sans Content-Type
     if (req.method === "OPTIONS") {
-      const corsHeaders = buildCorsHeaders(origin, false);
-      return new Response(null, { status: 204, headers: corsHeaders });
+      const preflightHeaders = buildCorsHeaders(origin, false);
+      return new Response(null, { status: 204, headers: preflightHeaders });
     }
-
-    // Pour les requêtes POST, inclure Content-Type
-    const corsHeaders = buildCorsHeaders(origin, true);
 
     if (!OPENAI_KEY) {
       console.error("❌ OPENAI_API_KEY manquante");
       throw new Error("OPENAI_API_KEY manquante");
     }
+
+    // MEM-FIX: Récupérer ou créer un session_id
+    let sessionId: string | null = null;
 
     // Détecter si c'est un upload de fichier ou une requête JSON classique
     const contentType = req.headers.get("content-type") || "";
@@ -91,6 +93,7 @@ serve(async (req) => {
       question = formData.question;
       context = formData.context || "";
       messages = formData.messages;
+      sessionId = (formData as any).sessionId || null; // MEM-FIX: Récupérer session_id depuis form
 
       if (formData.fileText && formData.fileText.length > 0) {
         fileText = formData.fileText;
@@ -103,10 +106,60 @@ serve(async (req) => {
       question = body.question;
       context = body.context || "";
       messages = body.messages;
+      sessionId = body.session_id || null; // MEM-FIX: Récupérer session_id depuis body
     }
 
-    // Construire l'historique de conversation (limité aux 20 derniers messages pour performance)
-    const history = Array.isArray(messages)
+    // MEM-FIX: Générer ou réutiliser un session_id
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      console.log("🆕 Nouvelle session créée:", sessionId);
+    } else {
+      console.log("🔄 Session existante:", sessionId);
+    }
+
+    // 🔍 Récupérer le user_id et charger l'historique
+    const authHeader = req.headers.get("authorization");
+    let userId: string | null = null;
+
+    // MEM-FIX: Charger l'historique depuis la BDD si session_id existe
+    let dbHistory: Array<{ role: string; content: string }> = [];
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.replace("Bearer ", "");
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+        if (!userError && user) {
+          userId = user.id; // MEM-FIX: Stocker userId pour la sauvegarde ultérieure
+          console.log("✅ User ID récupéré:", userId.substring(0, 8) + "...");
+
+          const { data: historyData, error: historyError } = await supabase
+            .from('chat_history')
+            .select('role, content')
+            .eq('session_id', sessionId)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true })
+            .limit(MAX_HISTORY);
+
+          if (!historyError && historyData && historyData.length > 0) {
+            dbHistory = historyData;
+            console.log(`📜 ${dbHistory.length} messages chargés depuis la BDD`);
+          }
+        }
+      } catch (dbError: any) {
+        console.warn("⚠️ Erreur chargement historique BDD:", dbError.message);
+      }
+    }
+
+    // Construire l'historique de conversation (priorité à la BDD, fallback sur messages frontend)
+    const history = dbHistory.length > 0
+      ? dbHistory
+          .map((msg) => {
+            const role = msg.role.toUpperCase();
+            const content = msg.content.slice(0, 400);
+            return `${role}: ${content}`;
+          })
+          .join("\n")
+      : Array.isArray(messages)
       ? messages
           .slice(-20) // Garder seulement les 20 derniers messages
           .map((msg: { role?: string; content?: string }) => {
@@ -138,21 +191,12 @@ serve(async (req) => {
 
     const now = new Date().toLocaleString("fr-FR", { timeZone: "Europe/Paris" });
 
-    // 🔍 Récupérer le user_id depuis le token JWT
-    const authHeader = req.headers.get("authorization");
-    let userId: string | null = null;
+    // 🔍 Récupérer notes et vocabulaire via recherche vectorielle
     let userNotes: string = "";
     let userVocabulary: string = "";
 
-    if (authHeader && authHeader.startsWith("Bearer ")) {
+    if (userId) { // MEM-FIX: userId est déjà récupéré plus haut
       try {
-        const token = authHeader.replace("Bearer ", "");
-        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-        
-        if (!userError && user) {
-          userId = user.id;
-          console.log("✅ User ID récupéré:", userId.substring(0, 8) + "...");
-          
           // Récupérer les notes et vocabulaire pertinents via recherche vectorielle
           try {
             // Générer l'embedding de la question
@@ -205,10 +249,8 @@ serve(async (req) => {
             console.warn("⚠️ Erreur enrichissement notes/vocabulaire:", enrichError.message);
             // Continuer sans enrichissement si erreur
           }
-        }
-      } catch (authError: any) {
-        console.warn("⚠️ Erreur authentification:", authError.message);
-        // Continuer sans enrichissement si erreur d'auth
+      } catch (enrichError: any) {
+        console.warn("⚠️ Erreur enrichissement:", enrichError.message);
       }
     }
 
@@ -479,9 +521,34 @@ serve(async (req) => {
       console.log("✅ Réponse basée sur document générée:", finalReply.slice(0, 100));
     }
 
+    // MEM-FIX: Sauvegarder l'historique dans la BDD (user + assistant)
+    if (userId && sessionId) {
+      try {
+        await supabase.from('chat_history').insert([
+          {
+            session_id: sessionId,
+            user_id: userId,
+            role: 'user',
+            content: effectiveQuestion
+          },
+          {
+            session_id: sessionId,
+            user_id: userId,
+            role: 'assistant',
+            content: finalReply
+          }
+        ]);
+        console.log("💾 Historique sauvegardé dans la BDD");
+      } catch (saveError: any) {
+        console.warn("⚠️ Erreur sauvegarde historique:", saveError.message);
+        // Ne pas bloquer la réponse si la sauvegarde échoue
+      }
+    }
+
     return new Response(
       JSON.stringify({
         reply: finalReply,
+        session_id: sessionId, // MEM-FIX: Renvoyer le session_id au client
         timestamp: now,
         searched,
         fileProcessed,
