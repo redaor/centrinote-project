@@ -132,6 +132,8 @@ serve(async (req) => {
           userId = user.id; // MEM-FIX: Stocker userId pour la sauvegarde ultérieure
           console.log("✅ User ID récupéré:", userId.substring(0, 8) + "...");
 
+          console.log(`🔍 [DEBUG] Tentative chargement historique pour session_id: ${sessionId.substring(0, 8)}...`);
+
           const { data: historyData, error: historyError } = await supabase
             .from('chat_history')
             .select('role, content')
@@ -140,9 +142,15 @@ serve(async (req) => {
             .order('created_at', { ascending: true })
             .limit(MAX_HISTORY);
 
+          if (historyError) {
+            console.error(`❌ [DEBUG] Erreur chargement historique:`, historyError.message, historyError.code, historyError.details);
+          }
+
           if (!historyError && historyData && historyData.length > 0) {
             dbHistory = historyData;
             console.log(`📜 ${dbHistory.length} messages chargés depuis la BDD`);
+          } else {
+            console.log(`⚠️ [DEBUG] Aucun historique trouvé (${historyData?.length || 0} messages)`);
           }
         }
       } catch (dbError: any) {
@@ -536,7 +544,9 @@ L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, 
     // MEM-FIX: Sauvegarder l'historique dans la BDD (user + assistant)
     if (userId && sessionId) {
       try {
-        await supabase.from('chat_history').insert([
+        console.log(`🔍 [DEBUG] Tentative sauvegarde historique pour session_id: ${sessionId.substring(0, 8)}...`);
+
+        const { data: saveData, error: saveError } = await supabase.from('chat_history').insert([
           {
             session_id: sessionId,
             user_id: userId,
@@ -550,11 +560,18 @@ L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, 
             content: finalReply
           }
         ]);
-        console.log("💾 Historique sauvegardé dans la BDD");
+
+        if (saveError) {
+          console.error("❌ [DEBUG] Erreur sauvegarde:", saveError.message, saveError.code, saveError.details);
+        } else {
+          console.log("💾 Historique sauvegardé dans la BDD");
+        }
       } catch (saveError: any) {
-        console.warn("⚠️ Erreur sauvegarde historique:", saveError.message);
+        console.error("⚠️ [DEBUG] Exception sauvegarde historique:", saveError.message, saveError.stack);
         // Ne pas bloquer la réponse si la sauvegarde échoue
       }
+    } else {
+      console.warn(`⚠️ [DEBUG] Sauvegarde ignorée - userId: ${userId ? 'OK' : 'NULL'}, sessionId: ${sessionId ? 'OK' : 'NULL'}`);
     }
 
     return new Response(

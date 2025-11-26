@@ -33,7 +33,9 @@
       "Bash(git checkout:*)",
       "Bash(supabase functions list:*)",
       "Bash(git log:*)",
-      "Bash(deno check:*)"
+      "Bash(deno check:*)",
+      "Bash(docker:*)",
+      "Bash(/dev/null)"
     ],
     "deny": [],
     "ask": []
