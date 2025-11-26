@@ -18,6 +18,148 @@ interface MicroRunnerRequest {
   templateId: string;
   userId: string;
   config?: Record<string, any>;
+  testMode?: boolean; // Flag optionnel pour indiquer un test manuel
+}
+
+/**
+ * Vérifie si un email peut être envoyé (toggle emails activé)
+ * @returns true si les emails sont activés, false sinon
+ */
+async function canSendEmail(userId: string, supabase: any): Promise<boolean> {
+  try {
+    const { data: userSettings, error } = await supabase
+      .from('user_settings')
+      .select('settings')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log(`⚠️ [EMAIL-CHECK] Could not load user settings, allowing email by default:`, error.message);
+      return true; // Par défaut, autoriser
+    }
+
+    const emailsEnabled = userSettings?.settings?.notifications?.emails;
+
+    if (emailsEnabled === false) {
+      console.log(`📧 [EMAIL-CHECK] User has disabled email notifications, blocking email`);
+      return false;
+    }
+
+    console.log(`✅ [EMAIL-CHECK] Email notifications enabled for user ${userId}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ [EMAIL-CHECK] Error checking email preference:`, error);
+    return true; // En cas d'erreur, autoriser par défaut
+  }
+}
+
+/**
+ * Vérifie si un rappel peut être envoyé (toggle reminders activé)
+ * @returns true si les rappels sont activés, false sinon
+ */
+async function canSendReminder(userId: string, supabase: any): Promise<boolean> {
+  try {
+    const { data: userSettings, error } = await supabase
+      .from('user_settings')
+      .select('settings')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log(`⚠️ [REMINDER-CHECK] Could not load user settings, allowing reminder by default:`, error.message);
+      return true; // Par défaut, autoriser
+    }
+
+    const remindersEnabled = userSettings?.settings?.notifications?.reminders;
+
+    if (remindersEnabled === false) {
+      console.log(`🔔 [REMINDER-CHECK] User has disabled reminders, blocking reminder`);
+      return false;
+    }
+
+    console.log(`✅ [REMINDER-CHECK] Reminders enabled for user ${userId}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ [REMINDER-CHECK] Error checking reminder preference:`, error);
+    return true; // En cas d'erreur, autoriser par défaut
+  }
+}
+
+/**
+ * Vérifie si une notification peut être envoyée en respectant les heures calmes
+ * @returns true si la notification peut être envoyée, false sinon
+ */
+async function shouldSendNotification(userId: string, supabase: any): Promise<boolean> {
+  try {
+    // Charger les préférences utilisateur depuis user_settings
+    const { data: userSettings, error } = await supabase
+      .from('user_settings')
+      .select('settings')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.log(`⚠️ [QUIET-HOURS] Could not load user settings (table may not exist), allowing notification:`, error.message);
+      return true; // Par défaut, autoriser si les settings n'existent pas
+    }
+
+    const quietHours = userSettings?.settings?.notifications?.quietHours;
+
+    // Si les heures calmes ne sont pas activées, autoriser
+    if (!quietHours?.enabled) {
+      console.log(`✅ [QUIET-HOURS] Quiet hours not enabled for user ${userId}, allowing notification`);
+      return true;
+    }
+
+    // Obtenir le fuseau horaire de l'utilisateur
+    const timezone = userSettings?.settings?.notifications?.timezone || 'Europe/Paris';
+
+    // Obtenir l'heure locale actuelle dans le fuseau horaire de l'utilisateur
+    const now = new Date();
+    const localTimeFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+
+    const currentLocalTime = localTimeFormatter.format(now);
+    const [currentHour, currentMinute] = currentLocalTime.split(':').map(Number);
+    const currentMinutes = currentHour * 60 + currentMinute;
+
+    const [startHour, startMinute] = quietHours.start.split(':').map(Number);
+    const [endHour, endMinute] = quietHours.end.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+
+    console.log(`🔍 [QUIET-HOURS] Checking for user ${userId}:`, {
+      currentTime: currentLocalTime,
+      quietStart: quietHours.start,
+      quietEnd: quietHours.end,
+      timezone
+    });
+
+    // Vérifier si on est dans les heures calmes
+    let isQuietTime: boolean;
+    if (startMinutes <= endMinutes) {
+      // Plage normale (ex: 22:00 → 08:00)
+      isQuietTime = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    } else {
+      // Plage qui traverse minuit (ex: 22:00 → 02:00)
+      isQuietTime = currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    }
+
+    if (isQuietTime) {
+      console.log(`🌙 [QUIET-HOURS] Currently in quiet hours (${quietHours.start} - ${quietHours.end}), blocking notification`);
+      return false;
+    } else {
+      console.log(`✅ [QUIET-HOURS] Outside quiet hours, allowing notification`);
+      return true;
+    }
+  } catch (error) {
+    console.error(`❌ [QUIET-HOURS] Error checking quiet hours:`, error);
+    return true; // En cas d'erreur, autoriser par défaut
+  }
 }
 
 serve(async (req) => {
@@ -33,7 +175,7 @@ serve(async (req) => {
     console.log(`🚀 Micro Runner - Execution ${executionId}`);
 
     // Parse request
-    const { templateId, userId, config = {} }: MicroRunnerRequest = await req.json();
+    const { templateId, userId, config = {}, testMode = false }: MicroRunnerRequest = await req.json();
 
     if (!templateId || !userId) {
       throw new Error('templateId and userId are required');
@@ -41,6 +183,9 @@ serve(async (req) => {
 
     console.log(`📋 Template ID: ${templateId}`);
     console.log(`👤 User ID: ${userId}`);
+    if (testMode) {
+      console.log(`🧪 TEST MODE ACTIVATED - Manual test from UI`);
+    }
 
     // Initialize Supabase client
     // ✅ Comme automation-runner : utiliser uniquement les secrets de l'Edge Function
@@ -87,7 +232,7 @@ serve(async (req) => {
 
       case 'study-reminder':
         actionType = 'send_notification';
-        result = await executeStudyReminder(userId, config, supabaseUrl, supabaseServiceKey);
+        result = await executeStudyReminder(userId, config, supabaseUrl, supabaseServiceKey, supabase);
         break;
 
       case 'daily-review':
@@ -169,6 +314,21 @@ async function executeFocusMode(
   supabaseUrl: string,
   serviceKey: string
 ): Promise<any> {
+  console.log(`🎯 [FOCUS-MODE] Starting execution for user: ${userId}`);
+
+  const supabase = createClient(supabaseUrl, serviceKey);
+
+  // ✅ Vérifier les heures calmes
+  const canSend = await shouldSendNotification(userId, supabase);
+  if (!canSend) {
+    console.log(`🌙 [FOCUS-MODE] Skipping due to quiet hours`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Quiet hours active'
+    };
+  }
+
   const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
   const message = config.message || 'Mode focus activé – notifications silencieuses';
 
@@ -203,10 +363,45 @@ async function executeBreakTime(
   supabaseUrl: string,
   serviceKey: string
 ): Promise<any> {
+  console.log(`☕ [BREAK-TIME] Starting execution for user: ${userId}`);
+
   const delayMinutes = config.delay_minutes || 15;
 
   // Get user email from Supabase auth
   const supabase = createClient(supabaseUrl, serviceKey);
+
+  // ✅ Vérifier les préférences avant d'envoyer (c'est un email + rappel)
+  const canEmail = await canSendEmail(userId, supabase);
+  if (!canEmail) {
+    console.log(`📧 [BREAK-TIME] Skipping email due to user preferences`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Email notifications disabled by user'
+    };
+  }
+
+  const canRemind = await canSendReminder(userId, supabase);
+  if (!canRemind) {
+    console.log(`🔔 [BREAK-TIME] Skipping reminder due to user preferences`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Reminders disabled by user'
+    };
+  }
+
+  // ✅ Vérifier les heures calmes
+  const canSend = await shouldSendNotification(userId, supabase);
+  if (!canSend) {
+    console.log(`🌙 [BREAK-TIME] Skipping due to quiet hours`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Quiet hours active'
+    };
+  }
+
   const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId);
 
   if (userError || !user?.email) {
@@ -276,6 +471,30 @@ async function executeDailyQuote(
   supabaseUrl: string,
   serviceKey: string
 ): Promise<any> {
+  console.log(`💭 [DAILY-QUOTE] Starting execution for user: ${userId}`);
+
+  // ✅ Vérifier les préférences avant d'envoyer
+  const canEmail = await canSendEmail(userId, supabase);
+  if (!canEmail) {
+    console.log(`📧 [DAILY-QUOTE] Skipping email due to user preferences`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Email notifications disabled by user'
+    };
+  }
+
+  // ✅ Vérifier les heures calmes
+  const canSend = await shouldSendNotification(userId, supabase);
+  if (!canSend) {
+    console.log(`🌙 [DAILY-QUOTE] Skipping email due to quiet hours`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Quiet hours active'
+    };
+  }
+
   // ✅ NOUVEAU : Récupérer une citation non utilisée aujourd'hui via la fonction SQL
   const { data: quote, error: quoteError } = await supabase.rpc('get_today_quote', {
     lang: 'fr',
@@ -510,21 +729,45 @@ async function executeDailyQuote(
 /**
  * STUDY_REMINDER - Notification de rappel pour session d'étude
  * ✅ Aligné sur le modèle break_time qui fonctionne
+ * ✅ Respecte les heures calmes de l'utilisateur
  */
 async function executeStudyReminder(
   userId: string,
   config: Record<string, any>,
   supabaseUrl: string,
-  serviceKey: string
+  serviceKey: string,
+  supabase: any
 ): Promise<any> {
   console.log(`📚 [STUDY-REMINDER] Starting execution for user: ${userId}`);
   console.log(`📚 [STUDY-REMINDER] Config:`, JSON.stringify(config));
-  
+
+  // ✅ Vérifier le toggle reminders
+  const canRemind = await canSendReminder(userId, supabase);
+  if (!canRemind) {
+    console.log(`🔔 [STUDY-REMINDER] Skipping reminder due to user preferences`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Reminders disabled by user'
+    };
+  }
+
+  // ✅ Vérifier les heures calmes avant d'envoyer
+  const canSend = await shouldSendNotification(userId, supabase);
+  if (!canSend) {
+    console.log(`🌙 [STUDY-REMINDER] Skipping notification due to quiet hours`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Quiet hours active'
+    };
+  }
+
   const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
   const message = config.message || 'C\'est l\'heure d\'étudier ! 💪';
 
   console.log(`📚 [STUDY-REMINDER] Calling automation-notification: ${notifUrl}`);
-  
+
   try {
     const response = await fetch(notifUrl, {
       method: 'POST',
@@ -549,7 +792,7 @@ async function executeStudyReminder(
 
     const result = await response.json();
     console.log(`✅ [STUDY-REMINDER] Notification sent successfully:`, result);
-    
+
     return result;
   } catch (error) {
     console.error(`❌ [STUDY-REMINDER] Error sending notification:`, error);
@@ -569,7 +812,31 @@ async function executeDailyReview(
 ): Promise<any> {
   console.log(`📚 [DAILY-REVIEW] Starting execution for user: ${userId}`);
   console.log(`📚 [DAILY-REVIEW] Config:`, JSON.stringify(config));
-  
+
+  const supabase = createClient(supabaseUrl, serviceKey);
+
+  // ✅ Vérifier le toggle reminders
+  const canRemind = await canSendReminder(userId, supabase);
+  if (!canRemind) {
+    console.log(`🔔 [DAILY-REVIEW] Skipping reminder due to user preferences`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Reminders disabled by user'
+    };
+  }
+
+  // ✅ Vérifier les heures calmes
+  const canSend = await shouldSendNotification(userId, supabase);
+  if (!canSend) {
+    console.log(`🌙 [DAILY-REVIEW] Skipping due to quiet hours`);
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Quiet hours active'
+    };
+  }
+
   const notifUrl = `${supabaseUrl}/functions/v1/automation-notification`;
   const message = config.message || 'Il est temps de réviser vos notes ! 📝';
 
@@ -621,8 +888,19 @@ async function executeVocabMilestone(
 ): Promise<any> {
   console.log(`🏆 [VOCAB-MILESTONE] Starting execution for user: ${userId}`);
   console.log(`🏆 [VOCAB-MILESTONE] Config:`, JSON.stringify(config));
-  
+
   try {
+    // ✅ Vérifier les heures calmes
+    const canSend = await shouldSendNotification(userId, supabase);
+    if (!canSend) {
+      console.log(`🌙 [VOCAB-MILESTONE] Skipping due to quiet hours`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Quiet hours active'
+      };
+    }
+
     // 1. Récupérer le seuil configuré (par défaut 50)
     const milestone = config.milestone || 50;
     
@@ -745,8 +1023,19 @@ async function executeForgottenNotes(
 ): Promise<any> {
   console.log(`📝 [FORGOTTEN-NOTES] Starting execution for user: ${userId}`);
   console.log(`📝 [FORGOTTEN-NOTES] Config:`, JSON.stringify(config));
-  
+
   try {
+    // ✅ Vérifier les heures calmes
+    const canSend = await shouldSendNotification(userId, supabase);
+    if (!canSend) {
+      console.log(`🌙 [FORGOTTEN-NOTES] Skipping due to quiet hours`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Quiet hours active'
+      };
+    }
+
     // 1. Récupérer les paramètres de configuration
     const delayDays = config.delayDays || 7;
     const maxNotes = config.maxNotes || 3;
@@ -929,6 +1218,28 @@ async function executeWeeklySummary(
   console.log(`📊 [WEEKLY-SUMMARY] Config:`, JSON.stringify(config));
 
   try {
+    // ✅ Vérifier les préférences avant d'envoyer
+    const canEmail = await canSendEmail(userId, supabase);
+    if (!canEmail) {
+      console.log(`📧 [WEEKLY-SUMMARY] Skipping email due to user preferences`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Email notifications disabled by user'
+      };
+    }
+
+    // ✅ Vérifier les heures calmes
+    const canSend = await shouldSendNotification(userId, supabase);
+    if (!canSend) {
+      console.log(`🌙 [WEEKLY-SUMMARY] Skipping email due to quiet hours`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Quiet hours active'
+      };
+    }
+
     // 1. Récupérer les statistiques de l'utilisateur pour la semaine
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
@@ -1191,6 +1502,28 @@ async function executeMonthlyReport(
   console.log(`📊 [MONTHLY-REPORT] Config:`, JSON.stringify(config));
 
   try {
+    // ✅ Vérifier les préférences avant d'envoyer
+    const canEmail = await canSendEmail(userId, supabase);
+    if (!canEmail) {
+      console.log(`📧 [MONTHLY-REPORT] Skipping email due to user preferences`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Email notifications disabled by user'
+      };
+    }
+
+    // ✅ Vérifier les heures calmes
+    const canSend = await shouldSendNotification(userId, supabase);
+    if (!canSend) {
+      console.log(`🌙 [MONTHLY-REPORT] Skipping email due to quiet hours`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Quiet hours active'
+      };
+    }
+
     // 1. Récupérer les statistiques de l'utilisateur pour le mois (30 jours)
     const monthAgo = new Date();
     monthAgo.setDate(monthAgo.getDate() - 30);

@@ -234,6 +234,8 @@ class SettingsService {
    */
   async updateNotifications(userId: string, updates: NotificationUpdate): Promise<void> {
     try {
+      console.log('[SettingsService] Updating notifications:', { userId, updates });
+
       const currentSettings = await this.getSettings(userId);
 
       const updatedSettings: SettingsState = {
@@ -245,6 +247,8 @@ class SettingsService {
       };
 
       await this.saveSettings(userId, updatedSettings);
+
+      console.log('[SettingsService] Notifications update completed successfully');
     } catch (error) {
       console.error('Error updating notifications:', error);
       throw new Error('Impossible de mettre à jour les notifications');

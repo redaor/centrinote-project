@@ -36,10 +36,6 @@ export function NotificationsSection({
     });
   };
 
-  const handleEmailTimeChange = async (value: string) => {
-    await onUpdate({ emailTime: value });
-  };
-
   return (
     <SettingsCard
       icon={Bell}
@@ -58,7 +54,7 @@ export function NotificationsSection({
           id="notif-emails"
         />
 
-        {/* Heure d'envoi des emails */}
+        {/* Note explicative pour les heures d'envoi */}
         {notifications.emails && (
           <div
             className={`
@@ -67,38 +63,13 @@ export function NotificationsSection({
               animate-slideDown
             `}
           >
-            <label
-              htmlFor="email-time"
-              className={`
-                block text-sm font-medium
-                ${isDark ? 'text-gray-300' : 'text-gray-700'}
-              `}
-            >
-              Heure d'envoi des emails 📧
-            </label>
-            <input
-              id="email-time"
-              type="time"
-              value={notifications.emailTime || '08:00'}
-              onChange={(e) => handleEmailTimeChange(e.target.value)}
-              className={`
-                w-full max-w-xs px-4 py-3 rounded-lg border
-                ${isDark
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500'
-                  : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                }
-                focus:outline-none focus:ring-4 focus:ring-blue-500/20
-                transition-all
-              `}
-              aria-label="Heure d'envoi des emails"
-            />
             <p
               className={`
-                text-xs
+                text-sm
                 ${isDark ? 'text-gray-400' : 'text-gray-600'}
               `}
             >
-              Citations, rappels et autres emails seront envoyés à cette heure
+              💡 <strong>Astuce :</strong> Configurez l'heure d'envoi de chaque automation individuellement dans le Dashboard des Automations (icône ⋮ sur chaque carte).
             </p>
           </div>
         )}

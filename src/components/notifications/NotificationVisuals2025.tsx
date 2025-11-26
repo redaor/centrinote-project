@@ -328,17 +328,14 @@ export function NotificationPanel({
                         }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ delay: index * 0.05, duration: prefersReducedMotion ? 0 : 0.2 }}
-                        whileHover={{
-                          scale: deletingId === notif.id ? 0.95 : 1.02,
-                          transition: { duration: 0.2 }
-                        }}
+                        whileHover={{ scale: deletingId === notif.id ? 0.95 : 1.02 }}
                         className={`
                           relative p-4 cursor-pointer transition-all duration-200
                           ${getTypeColors(notif.type, notif.isRead)}
                           ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'}
                           border-b last:border-b-0
                           ${darkMode ? 'border-gray-700/30' : 'border-gray-200/30'}
-                          overflow-hidden
+                          overflow-hidden group
                         `}
                         onClick={() => !notif.isRead && onMarkAsRead?.(notif.id)}
                       >
@@ -348,9 +345,7 @@ export function NotificationPanel({
                             className="absolute inset-0 pointer-events-none"
                             initial={{ opacity: 0 }}
                             whileHover={{ opacity: 0.05 }}
-                            style={{
-                              background: 'radial-gradient(circle at center, rgba(147, 51, 234, 0.3), transparent 70%)'
-                            }}
+                            style={{ background: 'radial-gradient(circle at center, rgba(147, 51, 234, 0.3), transparent 70%)' }}
                           />
                         )}
 
@@ -362,28 +357,19 @@ export function NotificationPanel({
                           `} />
 
                           {/* Contenu */}
-                          <div className="flex-1 min-w-0 pr-8">
-                            <h4 className={`
-                              font-semibold text-sm
-                              ${darkMode ? 'text-gray-100' : 'text-gray-900'}
-                            `}>
+                          <div className="flex-1 min-w-0 pr-10">
+                            <h4 className={`font-semibold text-sm ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
                               {notif.title}
                             </h4>
-                            <p className={`
-                              text-sm mt-1
-                              ${darkMode ? 'text-gray-300' : 'text-gray-600'}
-                            `}>
+                            <p className={`text-sm mt-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                               {notif.message}
                             </p>
-                            <p className={`
-                              text-xs mt-2
-                              ${darkMode ? 'text-gray-500' : 'text-gray-400'}
-                            `}>
+                            <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                               {notif.time}
                             </p>
                           </div>
 
-                          {/* Bouton supprimer */}
+                          {/* Bouton supprimer X - TOUJOURS visible */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -391,17 +377,14 @@ export function NotificationPanel({
                             }}
                             aria-label="Supprimer la notification"
                             className={`
-                              absolute top-2 right-2 w-8 h-8
+                              absolute top-2 right-2 z-20
+                              w-8 h-8 min-w-[44px] min-h-[44px]
                               flex items-center justify-center
                               rounded-full transition-all duration-200
-                              ${darkMode
-                                ? 'bg-gray-700/50 hover:bg-gray-600 text-gray-400 hover:text-white'
-                                : 'bg-gray-100/80 hover:bg-gray-200 text-gray-500 hover:text-gray-700'
-                              }
+                              bg-white/10 hover:bg-white/20
+                              text-neutral-400 hover:text-white
                               focus:outline-none focus:ring-2 focus:ring-rose-400
-                              opacity-0 group-hover:opacity-100
                             `}
-                            style={{ minWidth: '44px', minHeight: '44px' }}
                           >
                             <X className="w-4 h-4" />
                           </button>

@@ -231,7 +231,7 @@ export function useNotifications() {
       console.log('🔔 Marquer toutes les notifications comme lues');
       const { error } = await supabase
         .from('notifications')
-        .update({ 
+        .update({
           is_read: true,
           read_at: new Date().toISOString()
         })
@@ -244,7 +244,7 @@ export function useNotifications() {
       }
 
       // Mettre à jour l'état local
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
       );
       setUnreadCount(0);
@@ -254,12 +254,55 @@ export function useNotifications() {
     }
   }, [user?.id]);
 
+  // 6. Supprimer une notification
+  const deleteNotification = useCallback(async (notificationId: string) => {
+    try {
+      console.log('🔔 Suppression de la notification:', notificationId);
+
+      // Sauvegarder l'état de la notification avant suppression (pour rollback si erreur)
+      const notificationToDelete = notifications.find(n => n.id === notificationId);
+      const wasUnread = notificationToDelete && !notificationToDelete.is_read;
+
+      // Mettre à jour l'UI immédiatement (optimistic update)
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      if (wasUnread) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+
+      // Supprimer de la base de données
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId)
+        .eq('user_id', user?.id); // Sécurité supplémentaire
+
+      if (error) {
+        console.error('❌ Erreur lors de la suppression de la notification:', error);
+        // Rollback en cas d'erreur
+        if (notificationToDelete) {
+          setNotifications(prev => [notificationToDelete, ...prev].sort((a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          ));
+          if (wasUnread) {
+            setUnreadCount(prev => prev + 1);
+          }
+        }
+        return;
+      }
+
+      console.log('✅ Notification supprimée avec succès');
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression de la notification:', error);
+    }
+  }, [user?.id, notifications]);
+
   return {
     notifications,
     unreadCount,
     loading,
     markAsRead,
-    markAllAsRead
+    markAllAsRead,
+    deleteNotification
   };
 }
 
