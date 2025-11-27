@@ -4,20 +4,46 @@ import { notesService } from '../services/notesService';
 import { Note, Tag, NoteAttachment } from '../types';
 import { log } from '../utils/logger';
 
+// PERF: Cache SWR-like pour éviter les refetch inutiles
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const CACHE: {
+  notes: CacheEntry<Note[]> | null;
+  tags: CacheEntry<Tag[]> | null;
+} = {
+  notes: null,
+  tags: null,
+};
+
+// PERF: Durée de validité du cache (2 secondes comme SWR par défaut)
+const DEDUPING_INTERVAL = 2000;
+
+function isCacheValid<T>(entry: CacheEntry<T> | null): boolean {
+  if (!entry) return false;
+  // PERF: Vérifier si le cache est encore frais
+  return Date.now() - entry.timestamp < DEDUPING_INTERVAL;
+}
+
 export function useNotes() {
   const { state } = useApp();
   const { user } = state;
-  
+
   const [notes, setNotes] = useState<Note[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
+  // PERF: Tracker si un fetch est en cours pour éviter les duplications
+  const isFetchingRef = useRef(false);
+
   // Charger les notes depuis Supabase
   const loadNotes = useCallback(async () => {
     const isDev = import.meta.env.DEV;
-    
+
     if (!user?.id) {
       if (isDev) log.warn("⚠️ Tentative de chargement des notes sans ID utilisateur");
       setLoading(false);
@@ -25,25 +51,48 @@ export function useNotes() {
       return;
     }
 
+    // PERF: Retourner immédiatement depuis le cache si valide
+    if (isCacheValid(CACHE.notes) && isCacheValid(CACHE.tags)) {
+      if (isDev) log.debug("⚡ Données servies depuis le cache (fraîches < 2s)");
+      setNotes(CACHE.notes!.data);
+      setTags(CACHE.tags!.data);
+      setInitialized(true);
+      setLoading(false);
+      return;
+    }
+
+    // PERF: Éviter les fetch parallèles (deduplication)
+    if (isFetchingRef.current) {
+      if (isDev) log.debug("⏳ Fetch déjà en cours, skip");
+      return;
+    }
+
     try {
+      isFetchingRef.current = true; // PERF: Marquer comme en cours
       setLoading(true);
       setError(null);
-      
+
       const startTime = Date.now();
       if (isDev) log.debug("🔄 Chargement des notes pour l'utilisateur:", user.id);
-      
-      // ⚡ Chargement parallèle optimisé
+
+      // PERF: Chargement parallèle optimisé
       const [notesData, tagsData] = await Promise.all([
         notesService.getNotes(user.id),
         notesService.getTags(user.id)
       ]);
-      
+
       setNotes(notesData);
       setTags(tagsData);
-      
+
+      // PERF: Mettre à jour le cache
+      CACHE.notes = { data: notesData, timestamp: Date.now() };
+      CACHE.tags = { data: tagsData, timestamp: Date.now() };
+
+      if (isDev) log.debug("💾 Cache mis à jour");
+
       const loadTime = Date.now() - startTime;
       if (isDev) log.debug(`⚡ Données chargées en ${loadTime}ms: ${notesData.length} notes, ${tagsData.length} tags`);
-      
+
       setInitialized(true);
     } catch (err) {
       log.error("❌ Erreur lors du chargement des notes:", err);
@@ -67,6 +116,7 @@ export function useNotes() {
       setInitialized(true);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false; // PERF: Libérer le verrou
     }
   }, [user?.id]);
 
@@ -101,14 +151,19 @@ export function useNotes() {
       log.debug("✅ Note ajoutée avec succès:", newNote.id);
       log.debug("📊 Note complète:", newNote);
       setNotes(prev => [newNote, ...prev]);
-      
+
+      // PERF: Invalider le cache après mutation
+      CACHE.notes = { data: [newNote, ...notes], timestamp: Date.now() };
+
+      if (import.meta.env.DEV) log.debug("💾 Cache invalidé après ajout");
+
       // Mettre à jour les tags si de nouveaux ont été créés
       if (tagNames.length > 0) {
         log.debug("🔄 Rechargement des tags après ajout de note");
         const tagsData = await notesService.getTags(user.id);
         setTags(tagsData);
       }
-      
+
       return newNote;
     } catch (err) {
       log.error("❌ ERREUR CRITIQUE lors de l'ajout de la note:", err);
@@ -150,16 +205,20 @@ export function useNotes() {
       }, tagNames);
       
       log.debug("✅ Note mise à jour:", updatedNote.id);
-      setNotes(prev => prev.map(note => 
+      setNotes(prev => prev.map(note =>
         note.id === noteId ? updatedNote : note
       ));
-      
+
+      // PERF: Invalider le cache après mutation
+      const updatedNotes = notes.map(n => n.id === noteId ? updatedNote : n);
+      CACHE.notes = { data: updatedNotes, timestamp: Date.now() };
+
       // Mettre à jour les tags si de nouveaux ont été créés
       if (tagNames && tagNames.length > 0) {
         const tagsData = await notesService.getTags(user.id);
         setTags(tagsData);
       }
-      
+
       return updatedNote;
     } catch (err) {
       log.error("❌ Erreur lors de la mise à jour de la note:", err);
@@ -183,10 +242,14 @@ export function useNotes() {
       
       log.debug("🔄 Suppression de la note:", noteId);
       await notesService.deleteNote(noteId);
-      
+
       log.debug("✅ Note supprimée:", noteId);
       setNotes(prev => prev.filter(note => note.id !== noteId));
-      
+
+      // PERF: Invalider le cache après mutation
+      const filteredNotes = notes.filter(n => n.id !== noteId);
+      CACHE.notes = { data: filteredNotes, timestamp: Date.now() };
+
       return true;
     } catch (err) {
       log.error("❌ Erreur lors de la suppression de la note:", err);

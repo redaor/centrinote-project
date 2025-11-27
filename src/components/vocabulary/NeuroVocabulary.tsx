@@ -1624,7 +1624,18 @@ export function NeuroVocabulary() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 mt-6">
+                <div className="flex justify-between items-center gap-3 mt-6">
+                  <AIContentHelper
+                    content={editingWord.definition}
+                    title={editingWord.word}
+                    contentType="vocabulaire"
+                    onApply={(improvedContent) => {
+                      setEditingWord({ ...editingWord, definition: improvedContent });
+                      triggerReward('Définition améliorée avec l\'IA ✨', { type: 'success' });
+                    }}
+                    darkMode={darkMode}
+                  />
+                  <div className="flex gap-3">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}

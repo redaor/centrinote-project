@@ -2,8 +2,18 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- PERF: Preconnect aux domaines externes pour réduire la latence DNS/TLS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://supabase.co" />
+
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- PERF: Description pour le SEO et performance -->
+    <meta name="description" content="Centrinote - Plateforme de gestion des connaissances avec IA" />
+
     <title>Centrinote - Knowledge Management Platform</title>
   </head>
   <body>
@@ -12,6 +22,8 @@
     <div id="modals"></div>
     <div id="toasts"></div>
     <div id="notifs"></div>
+
+    <!-- PERF: Script principal chargé en module pour supporter le code-splitting -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

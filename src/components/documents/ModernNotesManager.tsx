@@ -367,6 +367,16 @@ export function ModernNotesManager() {
                 >
                   Annuler
                 </Button>
+                <AIContentHelper
+                  content={formData.content}
+                  title={formData.title}
+                  contentType="note"
+                  onApply={(improvedContent) => {
+                    handleFormDataChange('content', improvedContent);
+                    setMessage({ type: 'success', text: 'Contenu amélioré avec l\'IA' });
+                  }}
+                  darkMode={darkMode}
+                />
                 <Button
                   variant="primary"
                   onClick={handleUpdateNote}

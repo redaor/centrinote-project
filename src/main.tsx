@@ -6,39 +6,55 @@ import './styles/global.css';
 import { AuthProvider } from './components/AuthProvider.tsx';
 import { AppProvider } from './contexts/AppContext.tsx';
 
-// DEBUG: Activer le traçage removeChild en développement
+// PERF: Charger les outils de debug de manière asynchrone pour ne pas bloquer le démarrage
 if (import.meta.env.DEV) {
-  if (import.meta.env.DEV) {
+  // PERF: Dynamic import pour éviter de bloquer le thread principal
   import('./utils/debugRemoveChild').then(({ setupRemoveChildDebug }) => {
     setupRemoveChildDebug();
+  }).catch(err => {
+    console.warn('Debug removeChild non disponible:', err);
   });
-}
 
-  // ✅ PATCH: Diagnostic autocomplete automatique (dev only)
-  if (import.meta.env.DEV) {
+  // PERF: Autocomplete check en arrière-plan
   import('./utils/autocompleteCheck').then(({ setupAutocompleteCheck }) => {
     setupAutocompleteCheck();
+  }).catch(err => {
+    console.warn('Autocomplete check non disponible:', err);
   });
 }
+
+// PERF: Charger les protections de sécurité après le paint initial
+if (typeof requestIdleCallback !== 'undefined') {
+  // PERF: Utiliser requestIdleCallback si disponible
+  requestIdleCallback(() => {
+    import('./utils/disableTranslate').then(({ disableTranslateExtensions, protectCriticalElements }) => {
+      disableTranslateExtensions();
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', protectCriticalElements);
+      } else {
+        protectCriticalElements();
+      }
+    });
+  });
+} else {
+  // PERF: Fallback pour Safari/navigateurs anciens
+  import('./utils/disableTranslate').then(({ disableTranslateExtensions, protectCriticalElements }) => {
+    disableTranslateExtensions();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', protectCriticalElements);
+    } else {
+      protectCriticalElements();
+    }
+  });
 }
 
-// SECURITY: Désactiver Google Translate et autres extensions qui manipulent le DOM
-import('./utils/disableTranslate').then(({ disableTranslateExtensions, protectCriticalElements }) => {
-  disableTranslateExtensions();
-  // Protéger après le chargement du DOM
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', protectCriticalElements);
-  } else {
-    protectCriticalElements();
-  }
-});
-
-// Make sure the root element exists
+// PERF: Vérification rapide du DOM
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element not found. Make sure there is a div with id "root" in your HTML.');
 }
 
+// PERF: Render immédiat pour réduire Time-to-Interactive
 createRoot(rootElement).render(
   <StrictMode>
     <AppProvider>
