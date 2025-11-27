@@ -10,24 +10,31 @@ export const forumService = {
    * Récupérer tous les posts du forum (non masqués)
    */
   async getPosts(userId?: string): Promise<ForumPost[]> {
-    let query = supabase
+    // Récupérer les posts sans JOIN (car auth.users n'est pas accessible via PostgREST)
+    const { data, error } = await supabase
       .from('forum_posts')
-      .select(`
-        *,
-        user:user_id (
-          id,
-          email,
-          raw_user_meta_data
-        )
-      `)
+      .select('*')
       .eq('hidden', false)
       .order('created_at', { ascending: false });
-
-    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching posts:', error);
       throw error;
+    }
+
+    // Récupérer les infos utilisateurs pour tous les posts
+    const userIds = [...new Set((data || []).map(post => post.user_id))];
+    const usersMap = new Map();
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, avatar_url')
+        .in('id', userIds);
+
+      profiles?.forEach(profile => {
+        usersMap.set(profile.id, profile);
+      });
     }
 
     // Enrichir avec les stats
@@ -38,12 +45,14 @@ export const forumService = {
           ? await this.hasUserLikedPost(post.id, userId)
           : false;
 
+        const userProfile = usersMap.get(post.user_id);
+
         return {
           ...post,
           user: {
-            id: post.user?.id || '',
-            email: post.user?.email || '',
-            name: post.user?.raw_user_meta_data?.name || 'Utilisateur',
+            id: post.user_id,
+            email: userProfile?.name || 'Utilisateur',
+            name: userProfile?.name || 'Utilisateur',
           },
           replies_count: repliesCount,
           user_has_liked: userHasLiked,
@@ -60,14 +69,7 @@ export const forumService = {
   async getPost(postId: string, userId?: string): Promise<ForumPost | null> {
     const { data, error } = await supabase
       .from('forum_posts')
-      .select(`
-        *,
-        user:user_id (
-          id,
-          email,
-          raw_user_meta_data
-        )
-      `)
+      .select('*')
       .eq('id', postId)
       .single();
 
@@ -76,6 +78,13 @@ export const forumService = {
       return null;
     }
 
+    // Récupérer les infos utilisateur
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, name, avatar_url')
+      .eq('id', data.user_id)
+      .single();
+
     const userHasLiked = userId
       ? await this.hasUserLikedPost(postId, userId)
       : false;
@@ -83,9 +92,9 @@ export const forumService = {
     return {
       ...data,
       user: {
-        id: data.user?.id || '',
-        email: data.user?.email || '',
-        name: data.user?.raw_user_meta_data?.name || 'Utilisateur',
+        id: data.user_id,
+        email: profile?.name || 'Utilisateur',
+        name: profile?.name || 'Utilisateur',
       },
       user_has_liked: userHasLiked,
     };
@@ -145,14 +154,7 @@ export const forumService = {
   async getReplies(postId: string, userId?: string): Promise<ForumReply[]> {
     const { data, error } = await supabase
       .from('forum_replies')
-      .select(`
-        *,
-        user:user_id (
-          id,
-          email,
-          raw_user_meta_data
-        )
-      `)
+      .select('*')
       .eq('post_id', postId)
       .eq('hidden', false)
       .order('created_at', { ascending: true });
@@ -162,6 +164,21 @@ export const forumService = {
       throw error;
     }
 
+    // Récupérer les infos utilisateurs pour toutes les réponses
+    const userIds = [...new Set((data || []).map(reply => reply.user_id))];
+    const usersMap = new Map();
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, avatar_url')
+        .in('id', userIds);
+
+      profiles?.forEach(profile => {
+        usersMap.set(profile.id, profile);
+      });
+    }
+
     // Enrichir avec user_has_liked
     const enrichedReplies = await Promise.all(
       (data || []).map(async (reply) => {
@@ -169,12 +186,14 @@ export const forumService = {
           ? await this.hasUserLikedReply(reply.id, userId)
           : false;
 
+        const userProfile = usersMap.get(reply.user_id);
+
         return {
           ...reply,
           user: {
-            id: reply.user?.id || '',
-            email: reply.user?.email || '',
-            name: reply.user?.raw_user_meta_data?.name || 'Utilisateur',
+            id: reply.user_id,
+            email: userProfile?.name || 'Utilisateur',
+            name: userProfile?.name || 'Utilisateur',
           },
           user_has_liked: userHasLiked,
         };
