@@ -40,6 +40,8 @@ import VerifyEmailPage from '../../pages/VerifyEmailPage';
 import EmailSentPage from '../../pages/EmailSentPage';
 import WelcomePage from '../../pages/WelcomePage';
 import ConfirmEmailPage from '../../pages/ConfirmEmailPage';
+import { ForumPage } from '../../pages/ForumPage';
+import { ForumPostDetailPage } from '../../pages/ForumPostDetailPage';
 
 export function AppRouter() {
   const { user, loading } = useAuth();
@@ -121,6 +123,10 @@ export function AppRouter() {
         <Route path="/legal-mentions" element={<LegalMentions />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/support" element={<Support />} />
+
+        {/* Forum - Accessible à tous (lecture publique, écriture si connecté) */}
+        <Route path="/forum" element={<ForumPage />} />
+        <Route path="/forum/:id" element={<ForumPostDetailPage />} />
 
         {/* Route de diagnostic Settings + IA - DEV ONLY */}
         <Route path="/debug/settings-ia" element={<SettingsIADiagnostic />} />
