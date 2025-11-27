@@ -138,21 +138,55 @@ export function Help() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulation d'envoi
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // Appel à la fonction Supabase Edge Function
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-support`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            name: user?.email?.split('@')[0] || 'Utilisateur',
+            email: contactForm.email,
+            subject: contactForm.subject,
+            message: contactForm.message,
+          }),
+        }
+      );
 
-    setFormSubmitted(true);
-    setIsSubmitting(false);
+      const data = await response.json();
 
-    // Reset après 3 secondes
-    setTimeout(() => {
-      setFormSubmitted(false);
-      setShowContactForm(false);
-      setContactForm({ subject: '', message: '', email: user?.email || '' });
-    }, 3000);
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de l\'envoi du message');
+      }
+
+      setFormSubmitted(true);
+
+      // Reset après 3 secondes
+      setTimeout(() => {
+        setFormSubmitted(false);
+        setShowContactForm(false);
+        setContactForm({ subject: '', message: '', email: user?.email || '' });
+      }, 3000);
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi du message:', error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Erreur lors de l\'envoi du message. Veuillez réessayer.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const isAdmin = user?.email === 'admin@centrinote.fr' || user?.role === 'admin';
+  const isAdmin =
+    user?.email === 'contact@centrinote.fr' ||
+    user?.email === 'reda_sahraoui@outlook.fr' ||
+    user?.role === 'admin';
 
   return (
     <div className="p-6 space-y-8">

@@ -8,7 +8,8 @@ import {
   LogOut,
   User,
   Settings,
-  HelpCircle
+  HelpCircle,
+  Shield
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
@@ -161,6 +162,23 @@ export function AppHeader() {
     dispatch({ type: 'SET_CURRENT_VIEW', payload: 'help' });
     navigate('/help');
   };
+
+  // Navigation vers l'admin (visible uniquement pour les admins)
+  const handleAdminClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('🔄 Navigation vers l\'admin...');
+
+    setShowUserMenu(false);
+    dispatch({ type: 'SET_CURRENT_VIEW', payload: 'admin' });
+    navigate('/admin/support');
+  };
+
+  // Vérifier si l'utilisateur est admin
+  const isAdmin =
+    user?.email === 'contact@centrinote.fr' ||
+    user?.email === 'reda_sahraoui@outlook.fr' ||
+    user?.role === 'admin';
 
   // Ouvrir le modal de confirmation de déconnexion
   const handleLogoutClick = (e: React.MouseEvent) => {
@@ -438,6 +456,27 @@ export function AppHeader() {
                     <HelpCircle className="w-5 h-5" />
                     <span>Aide & Support</span>
                   </button>
+
+                  {/* Bouton Admin (visible uniquement pour les admins) */}
+                  {isAdmin && (
+                    <button
+                      id="user-menu-admin"
+                      name="admin"
+                      type="button"
+                      onClick={handleAdminClick}
+                      className={`
+                        w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors
+                        ${darkMode
+                          ? 'text-purple-400 hover:bg-purple-900/20 hover:text-purple-300'
+                          : 'text-purple-600 hover:bg-purple-50 hover:text-purple-700'
+                        }
+                      `}
+                      aria-label="Ouvrir le panneau d'administration"
+                    >
+                      <Shield className="w-5 h-5" />
+                      <span>👨‍💼 Administration</span>
+                    </button>
+                  )}
 
                   {/* Séparateur */}
                   <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
