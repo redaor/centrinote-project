@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, Calendar, Flag, Bell, Repeat } from 'lucide-react';
+import { X, Clock, Calendar, Flag, Bell, Repeat, Plus, Loader2 } from 'lucide-react';
 import type { Task, CreateTaskInput } from '../../services/planningService';
 
 interface TaskModalProps {
@@ -20,6 +20,14 @@ const categoryColors = {
   personal: 'from-gray-500 to-slate-500'
 };
 
+const categoryLabels: Record<CreateTaskInput['category'], string> = {
+  study: 'Étude',
+  meeting: 'Réunion',
+  review: 'Révision',
+  break: 'Pause',
+  personal: 'Personnel'
+};
+
 export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = false, editingTask }: TaskModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -30,6 +38,8 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
   const [priority, setPriority] = useState<CreateTaskInput['priority']>('medium');
   const [reminder, setReminder] = useState(false);
   const [recurring, setRecurring] = useState<CreateTaskInput['recurring']>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Initialiser avec la date sélectionnée ou aujourd'hui
   useEffect(() => {
@@ -54,32 +64,49 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
     }
   }, [isOpen, initialDate, editingTask]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Construire les dates
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const startDateTime = new Date(startDate);
-    startDateTime.setHours(hours, minutes, 0, 0);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
-    const endDateTime = new Date(startDateTime);
-    endDateTime.setHours(hours + duration, minutes, 0, 0);
+    try {
+      // Construire les dates
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startDateTime = new Date(startDate);
+      startDateTime.setHours(hours, minutes, 0, 0);
 
-    const task: CreateTaskInput = {
-      title: title.trim(),
-      description: description.trim() || undefined,
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
-      category,
-      priority,
-      completed: false,
-      reminder,
-      recurring: recurring || undefined,
-      color: categoryColors[category]
-    };
+      const endDateTime = new Date(startDateTime);
+      endDateTime.setHours(hours + duration, minutes, 0, 0);
 
-    onSave(task);
-    resetForm();
+      const task: CreateTaskInput = {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        category,
+        priority,
+        completed: false,
+        reminder,
+        recurring: recurring || undefined,
+        color: categoryColors[category]
+      };
+
+      await onSave(task);
+
+      // Afficher le message de succès
+      setShowSuccessMessage(true);
+
+      // Fermer automatiquement après 1.5 secondes
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+        resetForm();
+        onClose();
+      }, 1500);
+    } catch (error) {
+      console.error('Error saving task:', error);
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -164,16 +191,21 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                     darkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
                     Description
+                    <span className={`text-xs ml-2 ${
+                      darkMode ? 'text-gray-500' : 'text-gray-500'
+                    }`}>
+                      (Ajoute des détails pour mieux te rappeler de la tâche)
+                    </span>
                   </label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Ajouter des détails..."
-                    rows={3}
+                    placeholder="Ex: Chapitres 3 à 5, focus sur les formules..."
+                    rows={4}
                     className={`w-full px-4 py-3 rounded-lg border resize-none ${
                       darkMode
-                        ? 'bg-gray-900 border-gray-700 text-white'
-                        : 'bg-white border-gray-300 text-gray-900'
+                        ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-600'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
                     } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                   />
                 </div>
@@ -226,7 +258,7 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                   <label className={`block text-sm font-medium mb-2 ${
                     darkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Durée (heures)
+                    Durée
                   </label>
                   <select
                     value={duration}
@@ -237,9 +269,18 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                         : 'bg-white border-gray-300 text-gray-900'
                     } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                   >
-                    {[0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8].map(h => (
-                      <option key={h} value={h}>{h}h</option>
-                    ))}
+                    <option value={0.25}>15 min</option>
+                    <option value={0.5}>30 min</option>
+                    <option value={0.75}>45 min</option>
+                    <option value={1}>1h</option>
+                    <option value={1.5}>1h 30</option>
+                    <option value={2}>2h</option>
+                    <option value={2.5}>2h 30</option>
+                    <option value={3}>3h</option>
+                    <option value={4}>4h</option>
+                    <option value={5}>5h</option>
+                    <option value={6}>6h</option>
+                    <option value={8}>8h</option>
                   </select>
                 </div>
 
@@ -256,7 +297,7 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                         key={cat}
                         type="button"
                         onClick={() => setCategory(cat)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium capitalize transition-all ${
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                           category === cat
                             ? `bg-gradient-to-r ${categoryColors[cat]} text-white`
                             : darkMode
@@ -264,7 +305,7 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                       >
-                        {cat}
+                        {categoryLabels[cat]}
                       </button>
                     ))}
                   </div>
@@ -302,37 +343,59 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                   </div>
                 </div>
 
-                {/* Options */}
-                <div className="flex items-center gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={reminder}
-                      onChange={(e) => setReminder(e.target.checked)}
-                      className="w-5 h-5 rounded text-blue-500 focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      <Bell className="w-4 h-4 inline mr-1" />
-                      Rappel
-                    </span>
-                  </label>
+                {/* Options - Rappel et Récurrence */}
+                <div className={`border rounded-lg p-4 ${
+                  darkMode
+                    ? 'bg-gray-900 border-gray-700'
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <h4 className={`text-sm font-semibold mb-3 ${
+                    darkMode ? 'text-gray-200' : 'text-gray-800'
+                  }`}>
+                    ⏰ Options de notification
+                  </h4>
 
-                  <div className="flex items-center gap-2">
-                    <Repeat className="w-4 h-4" />
-                    <select
-                      value={recurring || ''}
-                      onChange={(e) => setRecurring(e.target.value as any || null)}
-                      className={`px-3 py-2 rounded-lg border text-sm ${
-                        darkMode
-                          ? 'bg-gray-900 border-gray-700 text-white'
-                          : 'bg-white border-gray-300 text-gray-900'
-                      }`}
-                    >
-                      <option value="">Pas de récurrence</option>
-                      <option value="daily">Quotidien</option>
-                      <option value="weekly">Hebdomadaire</option>
-                      <option value="monthly">Mensuel</option>
-                    </select>
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={reminder}
+                        onChange={(e) => setReminder(e.target.checked)}
+                        className="w-5 h-5 mt-0.5 rounded text-blue-500 focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          <Bell className="w-4 h-4 inline mr-1" />
+                          Activer le rappel
+                        </div>
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
+                          Recevoir une notification 15 min avant le début
+                        </p>
+                      </div>
+                    </label>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                        darkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        <Repeat className="w-4 h-4 inline mr-1" />
+                        Récurrence
+                      </label>
+                      <select
+                        value={recurring || ''}
+                        onChange={(e) => setRecurring(e.target.value as any || null)}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                          darkMode
+                            ? 'bg-gray-800 border-gray-700 text-white'
+                            : 'bg-white border-gray-300 text-gray-900'
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      >
+                        <option value="">Pas de récurrence</option>
+                        <option value="daily">📅 Quotidien</option>
+                        <option value="weekly">📆 Hebdomadaire</option>
+                        <option value="monthly">🗓️ Mensuel</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -351,13 +414,51 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                   </button>
                   <button
                     type="submit"
-                    disabled={!title.trim()}
-                    className="px-6 py-2 rounded-lg font-medium bg-gradient-to-r from-blue-500 to-teal-500 text-white hover:from-blue-600 hover:to-teal-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!title.trim() || isSubmitting}
+                    className="px-8 py-3 rounded-lg font-semibold text-base bg-gradient-to-r from-blue-500 to-teal-500 text-white hover:from-blue-600 hover:to-teal-600 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {editingTask ? 'Sauvegarder' : 'Créer'}
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>{editingTask ? 'Sauvegarde...' : 'Création...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-5 h-5" />
+                        <span>{editingTask ? 'Sauvegarder la tâche' : 'Créer la tâche'}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
+
+              {/* Message de succès */}
+              <AnimatePresence>
+                {showSuccessMessage && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl"
+                  >
+                    <div className={`px-8 py-6 rounded-xl shadow-2xl ${
+                      darkMode ? 'bg-gray-800' : 'bg-white'
+                    } text-center`}>
+                      <div className="text-5xl mb-3">✅</div>
+                      <h3 className={`text-xl font-bold ${
+                        darkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        {editingTask ? 'Tâche modifiée !' : 'Tâche créée !'}
+                      </h3>
+                      <p className={`text-sm mt-2 ${
+                        darkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {editingTask ? 'Les modifications ont été enregistrées' : 'Ta tâche a bien été ajoutée au planning'}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           </motion.div>
         </>
