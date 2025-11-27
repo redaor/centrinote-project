@@ -237,7 +237,7 @@ export function Help() {
 
           {/* Guide utilisateur */}
           <button
-            onClick={() => window.open('https://github.com/redaor/centrinote-project/blob/main/GUIDE_UTILISATEUR_CENTRINOTE.md', '_blank')}
+            onClick={() => navigate('/guide')}
             className={`
               w-full flex items-start space-x-3 p-4 rounded-lg transition-colors text-left
               ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}

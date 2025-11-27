@@ -42,6 +42,7 @@ import WelcomePage from '../../pages/WelcomePage';
 import ConfirmEmailPage from '../../pages/ConfirmEmailPage';
 import { ForumPage } from '../../pages/ForumPage';
 import { ForumPostDetailPage } from '../../pages/ForumPostDetailPage';
+import { GuidePage } from '../../pages/GuidePage';
 
 export function AppRouter() {
   const { user, loading } = useAuth();
@@ -127,6 +128,9 @@ export function AppRouter() {
         {/* Forum - Accessible à tous (lecture publique, écriture si connecté) */}
         <Route path="/forum" element={<ForumPage />} />
         <Route path="/forum/:id" element={<ForumPostDetailPage />} />
+
+        {/* Guide utilisateur - Page publique */}
+        <Route path="/guide" element={<GuidePage />} />
 
         {/* Route de diagnostic Settings + IA - DEV ONLY */}
         <Route path="/debug/settings-ia" element={<SettingsIADiagnostic />} />
