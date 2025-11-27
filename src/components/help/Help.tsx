@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Video,
   FileText,
-  Users
+  Users,
+  Send
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -23,61 +24,103 @@ interface FAQItem {
   category: string;
 }
 
+interface QuickAnswer {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 export function Help() {
   const { state } = useApp();
-  const { darkMode } = state;
+  const { darkMode, user } = state;
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    subject: '',
+    message: '',
+    email: user?.email || ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formSubmitted, setFormSubmitted] = useState(false);
+
+  // Réponses rapides - Les 5 questions les plus fréquentes
+  const quickAnswers: QuickAnswer[] = [
+    {
+      id: 'q1',
+      question: 'Comment importer un document ?',
+      answer: 'Cliquez sur "+ Nouvelle Note" puis sélectionnez "Importer".'
+    },
+    {
+      id: 'q2',
+      question: 'Comment utiliser l\'IA pour résumer ?',
+      answer: 'Sélectionnez votre texte, puis cliquez sur l\'icône ✨ "Résumer avec l\'IA".'
+    },
+    {
+      id: 'q3',
+      question: 'Comment créer une réunion vidéo ?',
+      answer: 'Allez dans l\'onglet "Réunions" et cliquez sur "Nouvelle réunion".'
+    },
+    {
+      id: 'q4',
+      question: 'Comment activer les automatisations ?',
+      answer: 'Rendez-vous dans Paramètres > Automatisations et activez les règles souhaitées.'
+    },
+    {
+      id: 'q5',
+      question: 'Comment partager une note ?',
+      answer: 'Ouvrez la note, cliquez sur les 3 points, puis "Partager".'
+    }
+  ];
 
   const faqItems: FAQItem[] = [
     {
       id: '1',
       question: t('faq_import_documents_q'),
       answer: t('faq_import_documents_a'),
-      category: 'documents'
+      category: 'importation'
     },
     {
       id: '2',
       question: t('faq_ai_search_q'),
       answer: t('faq_ai_search_a'),
-      category: 'search'
+      category: 'ia'
     },
     {
       id: '3',
       question: t('faq_collaboration_q'),
       answer: t('faq_collaboration_a'),
-      category: 'collaboration'
+      category: 'reunions'
     },
     {
       id: '4',
       question: t('faq_flashcards_q'),
       answer: t('faq_flashcards_a'),
-      category: 'vocabulary'
+      category: 'ia'
     },
     {
       id: '5',
       question: t('faq_subscription_q'),
       answer: t('faq_subscription_a'),
-      category: 'billing'
+      category: 'automation'
     },
     {
       id: '6',
       question: t('faq_security_q'),
       answer: t('faq_security_a'),
-      category: 'security'
+      category: 'importation'
     }
   ];
 
+  // Tags cliquables pour la recherche FAQ
   const categories = [
-    { id: 'all', label: t('all_topics') },
-    { id: 'documents', label: t('documents_category') },
-    { id: 'vocabulary', label: t('vocabulary_category') },
-    { id: 'search', label: t('ai_search_category') },
-    { id: 'collaboration', label: t('collaboration_category') },
-    { id: 'billing', label: t('billing_category') },
-    { id: 'security', label: t('security_category') }
+    { id: 'all', label: 'Tous', emoji: '📋' },
+    { id: 'importation', label: 'Importation', emoji: '📥' },
+    { id: 'ia', label: 'IA', emoji: '✨' },
+    { id: 'reunions', label: 'Réunions', emoji: '📹' },
+    { id: 'automation', label: 'Automatisation', emoji: '⚡' }
   ];
 
   const filteredFAQs = faqItems.filter(item => {
@@ -90,6 +133,26 @@ export function Help() {
   const toggleFAQ = (id: string) => {
     setExpandedFAQ(expandedFAQ === id ? null : id);
   };
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    // Simulation d'envoi
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    setFormSubmitted(true);
+    setIsSubmitting(false);
+
+    // Reset après 3 secondes
+    setTimeout(() => {
+      setFormSubmitted(false);
+      setShowContactForm(false);
+      setContactForm({ subject: '', message: '', email: user?.email || '' });
+    }, 3000);
+  };
+
+  const isAdmin = user?.email === 'admin@centrinote.fr' || user?.role === 'admin';
 
   return (
     <div className="p-6 space-y-8">
@@ -108,69 +171,223 @@ export function Help() {
         </p>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className={`
-          ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-          border rounded-lg p-6 hover:shadow-md transition-all duration-200 cursor-pointer
-        `}>
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Video className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+      {/* Ressources simplifiées - Liste verticale compacte */}
+      <div className="max-w-2xl mx-auto">
+        <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          📚 Ressources
+        </h2>
+        <div className="space-y-3">
+          {/* Tutoriels vidéo */}
+          <a
+            href="#tutorials"
+            className={`
+              flex items-start space-x-3 p-4 rounded-lg transition-colors
+              ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
+            `}
+          >
+            <span className="text-2xl">📹</span>
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Tutoriels vidéo
+                </h3>
+                <ExternalLink className="w-4 h-4 text-blue-500" />
+              </div>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Apprenez à utiliser Centrinote en vidéo
+              </p>
             </div>
-            <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {t('video_tutorials')}
-            </h3>
-          </div>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            {t('video_tutorials_desc')}
-          </p>
-          <div className="mt-3 flex items-center text-blue-500 text-sm font-medium">
-            <span>{t('watch_now')}</span>
-            <ExternalLink className="w-4 h-4 ml-1" />
-          </div>
-        </div>
+          </a>
 
-        <div className={`
-          ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-          border rounded-lg p-6 hover:shadow-md transition-all duration-200 cursor-pointer
-        `}>
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg">
-              <Book className="w-6 h-6 text-teal-600 dark:text-teal-400" />
+          {/* Guide utilisateur */}
+          <a
+            href="#guide"
+            className={`
+              flex items-start space-x-3 p-4 rounded-lg transition-colors
+              ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
+            `}
+          >
+            <span className="text-2xl">📘</span>
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Guide utilisateur
+                </h3>
+                <ExternalLink className="w-4 h-4 text-blue-500" />
+              </div>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Documentation complète de toutes les fonctionnalités
+              </p>
             </div>
-            <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {t('user_guide')}
-            </h3>
-          </div>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            {t('user_guide_desc')}
-          </p>
-          <div className="mt-3 flex items-center text-teal-500 text-sm font-medium">
-            <span>{t('read_guide')}</span>
-            <ExternalLink className="w-4 h-4 ml-1" />
-          </div>
-        </div>
+          </a>
 
-        <div className={`
-          ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-          border rounded-lg p-6 hover:shadow-md transition-all duration-200 cursor-pointer
-        `}>
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <Users className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          {/* Forum communautaire */}
+          <a
+            href="#forum"
+            className={`
+              flex items-start space-x-3 p-4 rounded-lg transition-colors
+              ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
+            `}
+          >
+            <span className="text-2xl">💬</span>
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Forum communautaire
+                </h3>
+                <ExternalLink className="w-4 h-4 text-blue-500" />
+              </div>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Échangez avec d'autres utilisateurs et partagez vos astuces
+              </p>
             </div>
-            <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {t('community_forum')}
-            </h3>
+          </a>
+        </div>
+      </div>
+
+      {/* Bouton Contacter le support */}
+      <div className="max-w-2xl mx-auto">
+        <button
+          onClick={() => setShowContactForm(!showContactForm)}
+          className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:shadow-lg transition-all duration-200"
+        >
+          <Mail className="w-5 h-5" />
+          <span>📩 Contacter le support</span>
+        </button>
+
+        {/* Formulaire de contact */}
+        {showContactForm && (
+          <div className={`
+            mt-4 p-6 rounded-lg border
+            ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
+          `}>
+            {formSubmitted ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Send className="w-8 h-8 text-white" />
+                </div>
+                <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Message envoyé !
+                </h3>
+                <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Nous vous répondrons sous 24h
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleContactSubmit} className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={contactForm.email}
+                    onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                    className={`
+                      w-full px-4 py-2 rounded-lg border
+                      ${darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                      }
+                      focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                    `}
+                    placeholder="votre@email.com"
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Sujet
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={contactForm.subject}
+                    onChange={(e) => setContactForm({ ...contactForm, subject: e.target.value })}
+                    className={`
+                      w-full px-4 py-2 rounded-lg border
+                      ${darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                      }
+                      focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                    `}
+                    placeholder="Résumé de votre question"
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Message
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={contactForm.message}
+                    onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
+                    className={`
+                      w-full px-4 py-2 rounded-lg border resize-none
+                      ${darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                      }
+                      focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                    `}
+                    placeholder="Décrivez votre question en détail..."
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : (
+                    <>
+                      <Send className="w-5 h-5" />
+                      <span>Envoyer</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
           </div>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            {t('community_forum_desc')}
-          </p>
-          <div className="mt-3 flex items-center text-purple-500 text-sm font-medium">
-            <span>{t('join_community')}</span>
-            <ExternalLink className="w-4 h-4 ml-1" />
-          </div>
+        )}
+      </div>
+
+      {/* Réponses rapides */}
+      <div className="max-w-2xl mx-auto">
+        <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          ⚡ Réponses rapides
+        </h2>
+        <div className="space-y-3">
+          {quickAnswers.map((qa) => (
+            <div
+              key={qa.id}
+              className={`
+                p-4 rounded-lg border
+                ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}
+              `}
+            >
+              <div className="flex items-start space-x-2">
+                <span className="text-lg">❓</span>
+                <div className="flex-1">
+                  <p className={`font-medium mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {qa.question}
+                  </p>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-lg">✅</span>
+                    <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {qa.answer}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -180,19 +397,19 @@ export function Help() {
           {t('frequently_asked_questions')}
         </h2>
 
-        {/* Search and Filter */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
+        {/* Search Bar */}
+        <div className="mb-4">
+          <div className="relative">
             <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
             <input
               id="help-search-input"
               name="help-search"
               type="text"
-              placeholder={t('search_faqs')}
+              placeholder="Tapez votre question ici…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={`
-                w-full pl-10 pr-4 py-2 rounded-lg border transition-colors
+                w-full pl-10 pr-4 py-3 rounded-lg border transition-colors
                 ${darkMode
                   ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-blue-500'
                   : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
@@ -201,28 +418,28 @@ export function Help() {
               `}
             />
           </div>
-          
-          <select
-            id="help-category-filter"
-            name="category-filter"
-            value={activeCategory}
-            onChange={(e) => setActiveCategory(e.target.value)}
-            className={`
-              px-3 py-2 rounded-lg border transition-colors
-              ${darkMode
-                ? 'bg-gray-800 border-gray-700 text-white focus:border-blue-500'
-                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-              }
-              focus:outline-none focus:ring-2 focus:ring-blue-500/20
-            `}
-            aria-label="Filtrer par catégorie"
-          >
-            {categories.map(category => (
-              <option key={category.id} value={category.id}>
-                {category.label}
-              </option>
-            ))}
-          </select>
+        </div>
+
+        {/* Tags cliquables */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setActiveCategory(category.id)}
+              className={`
+                px-4 py-2 rounded-full text-sm font-medium transition-all duration-200
+                ${activeCategory === category.id
+                  ? 'bg-blue-500 text-white shadow-md'
+                  : darkMode
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }
+              `}
+            >
+              <span className="mr-1">{category.emoji}</span>
+              {category.label}
+            </button>
+          ))}
         </div>
 
         {/* FAQ Items */}
@@ -278,64 +495,37 @@ export function Help() {
         )}
       </div>
 
-      {/* Contact Support */}
-      <div className="max-w-4xl mx-auto">
-        <div className={`
-          ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-          border rounded-lg p-8 text-center
-        `}>
-          <h3 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            {t('still_need_help')}
-          </h3>
-          <p className={`mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            {t('still_need_help_desc')}
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              id="help-live-chat"
-              name="live-chat"
-              className="flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:shadow-md transition-all duration-200"
-              aria-label="Démarrer une conversation en direct"
-            >
-              <MessageCircle className="w-5 h-5" />
-              <span>{t('live_chat')}</span>
-            </button>
-
-            <button
-              id="help-email-support"
-              name="email-support"
-              className={`
-                flex items-center justify-center space-x-2 px-6 py-3 rounded-lg border transition-colors
-                ${darkMode
-                  ? 'border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700'
-                  : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }
-              `}
-              aria-label="Contacter le support par email"
-            >
-              <Mail className="w-5 h-5" />
-              <span>{t('email_support')}</span>
-            </button>
-
-            <button
-              id="help-schedule-call"
-              name="schedule-call"
-              className={`
-                flex items-center justify-center space-x-2 px-6 py-3 rounded-lg border transition-colors
-                ${darkMode
-                  ? 'border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700'
-                  : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }
-              `}
-              aria-label="Planifier un appel avec le support"
-            >
-              <Phone className="w-5 h-5" />
-              <span>{t('schedule_call')}</span>
-            </button>
+      {/* Mode Admin - Répondre aux questions (visible uniquement pour les admins) */}
+      {isAdmin && (
+        <div className="max-w-4xl mx-auto">
+          <div className={`
+            ${darkMode ? 'bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-purple-700' : 'bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200'}
+            border rounded-lg p-6
+          `}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-500 rounded-lg">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    👨‍💼 Mode Administrateur
+                  </h3>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Gérer et répondre aux questions fréquentes
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => alert('Interface d\'administration FAQ à venir...')}
+                className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors font-medium"
+              >
+                Gérer la FAQ
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
