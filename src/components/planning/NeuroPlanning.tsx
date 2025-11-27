@@ -30,6 +30,8 @@ import {
 import { useApp } from '../../contexts/AppContext';
 import { useNeuroFeedback } from '../../hooks/useNeuroFeedback';
 import { useAdaptiveView } from '../../hooks/useAdaptiveView';
+import { planningService, Task as DBTask, CreateTaskInput } from '../../services/planningService';
+import { TaskModal } from './TaskModal';
 
 interface Task {
   id: string;
@@ -84,47 +86,38 @@ export function NeuroPlanning() {
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Generate sample tasks for demo
+  // Charger les tâches depuis la base de données
   useEffect(() => {
-    const sampleTasks: Task[] = [
-      {
-        id: '1',
-        title: 'Révision vocabulaire',
-        description: 'Revoir les 10 mots oubliés',
-        startTime: new Date(selectedDate.setHours(9, 0)),
-        endTime: new Date(selectedDate.setHours(10, 0)),
-        category: 'review',
-        priority: 'high',
-        completed: false,
-        reminder: true,
-        color: categoryColors.review
-      },
-      {
-        id: '2',
-        title: 'Réunion équipe',
-        description: 'Point hebdomadaire',
-        startTime: new Date(selectedDate.setHours(11, 0)),
-        endTime: new Date(selectedDate.setHours(12, 0)),
-        category: 'meeting',
-        priority: 'high',
-        completed: false,
-        color: categoryColors.meeting
-      },
-      {
-        id: '3',
-        title: 'Session étude',
-        description: 'Chapitre 5 - Machine Learning',
-        startTime: new Date(selectedDate.setHours(14, 0)),
-        endTime: new Date(selectedDate.setHours(16, 0)),
-        category: 'study',
-        priority: 'medium',
-        completed: false,
-        color: categoryColors.study
+    if (!user?.id) return;
+
+    const loadTasks = async () => {
+      try {
+        const dbTasks = await planningService.getTasksForDate(user.id, selectedDate);
+
+        // Convertir les tâches de la BDD au format du composant
+        const convertedTasks: Task[] = dbTasks.map(dbTask => ({
+          id: dbTask.id,
+          title: dbTask.title,
+          description: dbTask.description,
+          startTime: new Date(dbTask.start_time),
+          endTime: new Date(dbTask.end_time),
+          category: dbTask.category,
+          priority: dbTask.priority,
+          completed: dbTask.completed,
+          reminder: dbTask.reminder,
+          recurring: dbTask.recurring || undefined,
+          color: dbTask.color
+        }));
+
+        setTasks(convertedTasks);
+        updateCognitiveLoad(convertedTasks.filter(t => !t.completed).length);
+      } catch (error) {
+        console.error('Error loading tasks:', error);
       }
-    ];
-    setTasks(sampleTasks);
-    updateCognitiveLoad(sampleTasks.filter(t => !t.completed).length);
-  }, [selectedDate]);
+    };
+
+    loadTasks();
+  }, [selectedDate, user?.id]);
 
   // Calculate optimal time slots based on user behavior
   const getOptimalTimeSlots = (): TimeSlot[] => {
@@ -174,39 +167,84 @@ export function NeuroPlanning() {
   };
 
   // Toggle task completion with reward
-  const toggleTaskCompletion = (taskId: string) => {
+  const toggleTaskCompletion = async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-    
-    setTasks(prev => prev.map(t => 
-      t.id === taskId 
-        ? { ...t, completed: !t.completed }
-        : t
-    ));
-    
-    if (!task.completed) {
-      triggerReward(`"${task.title}" terminée! 🎉`, { type: 'reward', haptic: true, sound: true });
-      
-      // Check for achievements
-      const completedToday = tasks.filter(t => t.completed).length + 1;
-      if (completedToday === 5) {
-        triggerReward('🏆 5 tâches complétées aujourd\'hui!', { type: 'reward', haptic: true, sound: true });
+    if (!task || !user?.id) return;
+
+    try {
+      // Mettre à jour dans la BDD
+      await planningService.toggleTaskCompletion(taskId, !task.completed);
+
+      // Mettre à jour localement
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, completed: !t.completed }
+          : t
+      ));
+
+      if (!task.completed) {
+        triggerReward(`"${task.title}" terminée! 🎉`, { type: 'reward', haptic: true, sound: true });
+
+        // Check for achievements
+        const completedToday = tasks.filter(t => t.completed).length + 1;
+        if (completedToday === 5) {
+          triggerReward('🏆 5 tâches complétées aujourd\'hui!', { type: 'reward', haptic: true, sound: true });
+        }
       }
+    } catch (error) {
+      console.error('Error toggling task completion:', error);
     }
   };
 
   // Add new task
-  const addTask = (newTask: Omit<Task, 'id'>) => {
-    const task: Task = {
-      ...newTask,
-      id: Date.now().toString()
-    };
-    
-    setTasks(prev => [...prev, task]);
-    setIsAddingTask(false);
-    triggerReward('Nouvelle tâche ajoutée! 📌', { type: 'success', sound: true });
-    focusAttention(`task-${task.id}`);
-    updateCognitiveLoad(tasks.filter(t => !t.completed).length + 1);
+  const addTask = async (newTaskData: CreateTaskInput) => {
+    if (!user?.id) return;
+
+    try {
+      // Créer dans la BDD
+      const createdTask = await planningService.createTask(user.id, newTaskData);
+
+      // Convertir au format du composant
+      const task: Task = {
+        id: createdTask.id,
+        title: createdTask.title,
+        description: createdTask.description,
+        startTime: new Date(createdTask.start_time),
+        endTime: new Date(createdTask.end_time),
+        category: createdTask.category,
+        priority: createdTask.priority,
+        completed: createdTask.completed,
+        reminder: createdTask.reminder,
+        recurring: createdTask.recurring || undefined,
+        color: createdTask.color
+      };
+
+      // Ajouter localement
+      setTasks(prev => [...prev, task]);
+      setIsAddingTask(false);
+      triggerReward('Nouvelle tâche ajoutée! 📌', { type: 'success', sound: true });
+      focusAttention(`task-${task.id}`);
+      updateCognitiveLoad(tasks.filter(t => !t.completed).length + 1);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      alert('Erreur lors de la création de la tâche');
+    }
+  };
+
+  // Delete task
+  const deleteTask = async (taskId: string) => {
+    if (!user?.id) return;
+
+    if (!confirm('Supprimer cette tâche définitivement ?')) return;
+
+    try {
+      await planningService.deleteTask(taskId);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      triggerReward('Tâche supprimée', { type: 'success', sound: true });
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Erreur lors de la suppression');
+    }
   };
 
   // AI-powered task suggestions
@@ -433,19 +471,36 @@ export function NeuroPlanning() {
                                 {task.reminder && <Bell className="w-3 h-3" />}
                               </div>
                             </div>
-                            
-                            <motion.button
-                              whileHover={{ scale: 1.2 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => toggleTaskCompletion(task.id)}
-                              className="p-1"
-                            >
-                              {task.completed ? (
-                                <CheckCircle className="w-5 h-5" />
-                              ) : (
-                                <div className="w-5 h-5 border-2 border-white rounded-full" />
-                              )}
-                            </motion.button>
+
+                            <div className="flex flex-col gap-2">
+                              <motion.button
+                                whileHover={{ scale: 1.2 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleTaskCompletion(task.id);
+                                }}
+                                className="p-1"
+                              >
+                                {task.completed ? (
+                                  <CheckCircle className="w-5 h-5" />
+                                ) : (
+                                  <div className="w-5 h-5 border-2 border-white rounded-full" />
+                                )}
+                              </motion.button>
+                              <motion.button
+                                whileHover={{ scale: 1.2 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTask(task.id);
+                                }}
+                                className="p-1 opacity-70 hover:opacity-100"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </motion.button>
+                            </div>
                           </div>
                         </motion.div>
                       ))
@@ -544,6 +599,15 @@ export function NeuroPlanning() {
             </div>
           </div>
         </motion.div>
+
+        {/* Task Modal */}
+        <TaskModal
+          isOpen={isAddingTask}
+          onClose={() => setIsAddingTask(false)}
+          onSave={addTask}
+          initialDate={selectedDate}
+          darkMode={darkMode}
+        />
       </div>
     </div>
   );
