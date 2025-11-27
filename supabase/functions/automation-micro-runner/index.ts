@@ -260,6 +260,11 @@ serve(async (req) => {
         result = await executeMonthlyReport(userId, config, supabase, supabaseUrl, supabaseServiceKey);
         break;
 
+      case 'task-reminder':
+        actionType = 'check_task_reminders';
+        result = await executeTaskReminder(userId, config, supabaseUrl, supabaseServiceKey);
+        break;
+
       default:
         throw new Error(`Unknown template: ${templateId}`);
     }
@@ -1767,6 +1772,50 @@ Centrinote - Votre assistant d'étude`,
     };
   } catch (error) {
     console.error(`❌ [MONTHLY-REPORT] Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * TASK_REMINDER - Vérifie les rappels de tâches du planning
+ * ✅ Appelle task-reminder-checker pour vérifier les tâches avec rappels
+ */
+async function executeTaskReminder(
+  userId: string,
+  config: Record<string, any>,
+  supabaseUrl: string,
+  serviceKey: string
+): Promise<any> {
+  console.log(`⏰ [TASK-REMINDER] Starting execution for user: ${userId}`);
+
+  try {
+    // Appeler la fonction task-reminder-checker
+    const checkerUrl = `${supabaseUrl}/functions/v1/task-reminder-checker`;
+    console.log(`⏰ [TASK-REMINDER] Calling task-reminder-checker: ${checkerUrl}`);
+
+    const response = await fetch(checkerUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [TASK-REMINDER] Task reminder checker error: ${response.status} - ${errorText}`);
+      throw new Error(`Task reminder checker returned ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ [TASK-REMINDER] Task reminder check completed:`, result);
+
+    return result;
+  } catch (error) {
+    console.error(`❌ [TASK-REMINDER] Error checking task reminders:`, error);
     throw error;
   }
 }
