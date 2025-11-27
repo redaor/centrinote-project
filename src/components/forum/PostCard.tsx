@@ -9,18 +9,31 @@ import { forumService } from '../../services/forumService';
 interface PostCardProps {
   post: ForumPost;
   userId?: string;
+  userEmail?: string;
   userStats?: any;
   onLikeToggle?: () => void;
   onReport?: () => void;
+  onDelete?: () => void;
 }
 
-export function PostCard({ post, userId, userStats, onLikeToggle, onReport }: PostCardProps) {
+export function PostCard({ post, userId, userEmail, userStats, onLikeToggle, onReport, onDelete }: PostCardProps) {
   const navigate = useNavigate();
   const [isLiked, setIsLiked] = useState(post.user_has_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [isLiking, setIsLiking] = useState(false);
 
   const badges = userStats ? getUserBadges(userStats) : [];
+
+  // Vérifier si l'utilisateur est admin
+  const isAdmin =
+    userEmail === 'contact@centrinote.fr' ||
+    userEmail === 'reda_sahraoui@outlook.fr';
+
+  // Vérifier si l'utilisateur peut supprimer ce post
+  const canDelete = userId && (
+    (userId === post.user_id && post.reply_count === 0) || // Auteur + pas de réponses
+    isAdmin // Admin
+  );
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -71,6 +84,22 @@ export function PostCard({ post, userId, userStats, onLikeToggle, onReport }: Po
     } catch (error) {
       console.error('Error reporting post:', error);
       alert('Erreur lors du signalement');
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!canDelete) return;
+
+    if (!confirm('Supprimer ce post définitivement ?')) return;
+
+    try {
+      await forumService.deletePost(post.id);
+      onDelete?.();
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Erreur lors de la suppression');
     }
   };
 
@@ -144,26 +173,38 @@ export function PostCard({ post, userId, userStats, onLikeToggle, onReport }: Po
       </p>
 
       {/* Footer */}
-      <div className="flex items-center space-x-4 text-sm">
-        {/* Like button */}
-        <button
-          onClick={handleLike}
-          disabled={isLiking}
-          className={`flex items-center space-x-1 transition-colors ${
-            isLiked
-              ? 'text-red-500'
-              : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
-          }`}
-        >
-          <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-          <span>{likesCount}</span>
-        </button>
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center space-x-4">
+          {/* Like button */}
+          <button
+            onClick={handleLike}
+            disabled={isLiking}
+            className={`flex items-center space-x-1 transition-colors ${
+              isLiked
+                ? 'text-red-500'
+                : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
+            }`}
+          >
+            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            <span>{likesCount}</span>
+          </button>
 
-        {/* Replies count */}
-        <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-400">
-          <MessageCircle className="w-5 h-5" />
-          <span>{post.replies_count || 0}</span>
+          {/* Replies count */}
+          <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-400">
+            <MessageCircle className="w-5 h-5" />
+            <span>{post.replies_count || post.reply_count || 0}</span>
+          </div>
         </div>
+
+        {/* Delete button */}
+        {canDelete && (
+          <button
+            onClick={handleDelete}
+            className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+          >
+            Supprimer
+          </button>
+        )}
       </div>
     </div>
   );

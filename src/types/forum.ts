@@ -7,6 +7,7 @@ export interface ForumPost {
   reports_count: number;
   hidden: boolean;
   accepted_answer_id: string | null;
+  reply_count: number;
   created_at: string;
   updated_at: string;
   // Relations

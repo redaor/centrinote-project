@@ -127,6 +127,22 @@ export const forumService = {
   },
 
   /**
+   * Supprimer un post
+   * Règles : auteur si reply_count=0 OU admin
+   */
+  async deletePost(postId: string): Promise<void> {
+    const { error } = await supabase
+      .from('forum_posts')
+      .delete()
+      .eq('id', postId);
+
+    if (error) {
+      console.error('Error deleting post:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Nombre de réponses d'un post
    */
   async getRepliesCount(postId: string): Promise<number> {
@@ -226,7 +242,27 @@ export const forumService = {
       throw error;
     }
 
+    // Le trigger auto_increment_reply_count s'occupe d'incrémenter reply_count
+
     return data;
+  },
+
+  /**
+   * Supprimer une réponse
+   * Règles : auteur OU admin
+   */
+  async deleteReply(replyId: string): Promise<void> {
+    const { error } = await supabase
+      .from('forum_replies')
+      .delete()
+      .eq('id', replyId);
+
+    if (error) {
+      console.error('Error deleting reply:', error);
+      throw error;
+    }
+
+    // Le trigger auto_decrement_reply_count s'occupe de décrémenter reply_count
   },
 
   // ============================================

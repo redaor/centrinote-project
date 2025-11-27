@@ -8,29 +8,44 @@ import { forumService } from '../../services/forumService';
 interface ReplyCardProps {
   reply: ForumReply;
   userId?: string;
+  userEmail?: string;
   isPostAuthor: boolean;
   isAccepted: boolean;
   userStats?: any;
   onAccept?: () => void;
   onLikeToggle?: () => void;
   onReport?: () => void;
+  onDelete?: () => void;
 }
 
 export function ReplyCard({
   reply,
   userId,
+  userEmail,
   isPostAuthor,
   isAccepted,
   userStats,
   onAccept,
   onLikeToggle,
   onReport,
+  onDelete,
 }: ReplyCardProps) {
   const [isLiked, setIsLiked] = useState(reply.user_has_liked || false);
   const [likesCount, setLikesCount] = useState(reply.likes_count);
   const [isLiking, setIsLiking] = useState(false);
 
   const badges = userStats ? getUserBadges(userStats) : [];
+
+  // Vérifier si l'utilisateur est admin
+  const isAdmin =
+    userEmail === 'contact@centrinote.fr' ||
+    userEmail === 'reda_sahraoui@outlook.fr';
+
+  // Vérifier si l'utilisateur peut supprimer cette réponse
+  const canDelete = userId && (
+    userId === reply.user_id || // Auteur
+    isAdmin // Admin
+  );
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,6 +88,22 @@ export function ReplyCard({
     } catch (error) {
       console.error('Error reporting reply:', error);
       alert('Erreur lors du signalement');
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!canDelete) return;
+
+    if (!confirm('Supprimer cette réponse définitivement ?')) return;
+
+    try {
+      await forumService.deleteReply(reply.id);
+      onDelete?.();
+    } catch (error) {
+      console.error('Error deleting reply:', error);
+      alert('Erreur lors de la suppression');
     }
   };
 
@@ -159,20 +190,32 @@ export function ReplyCard({
       </p>
 
       {/* Footer */}
-      <div className="flex items-center space-x-4 text-sm">
-        {/* Like button */}
-        <button
-          onClick={handleLike}
-          disabled={isLiking || !userId}
-          className={`flex items-center space-x-1 transition-colors ${
-            isLiked
-              ? 'text-red-500'
-              : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
-          } ${!userId ? 'cursor-not-allowed opacity-50' : ''}`}
-        >
-          <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-          <span>{likesCount}</span>
-        </button>
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center space-x-4">
+          {/* Like button */}
+          <button
+            onClick={handleLike}
+            disabled={isLiking || !userId}
+            className={`flex items-center space-x-1 transition-colors ${
+              isLiked
+                ? 'text-red-500'
+                : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
+            } ${!userId ? 'cursor-not-allowed opacity-50' : ''}`}
+          >
+            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            <span>{likesCount}</span>
+          </button>
+        </div>
+
+        {/* Delete button */}
+        {canDelete && (
+          <button
+            onClick={handleDelete}
+            className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+          >
+            Supprimer
+          </button>
+        )}
       </div>
     </div>
   );

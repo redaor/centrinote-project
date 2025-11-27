@@ -119,6 +119,20 @@ export function ForumPostDetailPage() {
     }
   };
 
+  const handleDeletePost = async () => {
+    if (!user || !post) return;
+
+    if (!confirm('Supprimer ce post définitivement ?')) return;
+
+    try {
+      await forumService.deletePost(post.id);
+      navigate('/forum'); // Rediriger vers la liste après suppression
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Erreur lors de la suppression');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('fr-FR', {
@@ -154,6 +168,17 @@ export function ForumPostDetailPage() {
   }
 
   const isPostAuthor = user?.id === post.user_id;
+
+  // Vérifier si l'utilisateur est admin
+  const isAdmin =
+    user?.email === 'contact@centrinote.fr' ||
+    user?.email === 'reda_sahraoui@outlook.fr';
+
+  // Vérifier si l'utilisateur peut supprimer ce post
+  const canDelete = user && post && (
+    (user.id === post.user_id && post.reply_count === 0) || // Auteur + pas de réponses
+    isAdmin // Admin
+  );
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -219,7 +244,7 @@ export function ForumPostDetailPage() {
           </p>
 
           {/* Footer */}
-          <div className="flex items-center space-x-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               onClick={handleLike}
               disabled={isLiking || !user}
@@ -232,6 +257,16 @@ export function ForumPostDetailPage() {
               <Heart className={`w-6 h-6 ${isLiked ? 'fill-current' : ''}`} />
               <span className="font-medium">{likesCount}</span>
             </button>
+
+            {/* Delete button */}
+            {canDelete && (
+              <button
+                onClick={handleDeletePost}
+                className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+              >
+                Supprimer
+              </button>
+            )}
           </div>
         </div>
 
@@ -275,11 +310,16 @@ export function ForumPostDetailPage() {
                   key={reply.id}
                   reply={reply}
                   userId={user?.id}
+                  userEmail={user?.email}
                   isPostAuthor={isPostAuthor}
                   isAccepted={post.accepted_answer_id === reply.id}
                   onAccept={() => handleAcceptAnswer(reply.id)}
                   onLikeToggle={loadReplies}
                   onReport={loadReplies}
+                  onDelete={() => {
+                    loadReplies();
+                    loadPost(); // Recharger aussi le post pour mettre à jour reply_count
+                  }}
                 />
               ))}
             </div>

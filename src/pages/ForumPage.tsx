@@ -134,8 +134,10 @@ export function ForumPage() {
                 key={post.id}
                 post={post}
                 userId={user?.id}
+                userEmail={user?.email}
                 onLikeToggle={loadPosts}
                 onReport={loadPosts}
+                onDelete={loadPosts}
               />
             ))}
           </div>
