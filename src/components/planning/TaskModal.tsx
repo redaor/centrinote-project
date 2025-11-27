@@ -233,12 +233,12 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className={`w-full max-w-2xl rounded-2xl ${
+              className={`w-full max-w-2xl max-h-[90vh] rounded-2xl ${
                 darkMode ? 'bg-gray-800' : 'bg-white'
-              } shadow-2xl overflow-hidden`}
+              } shadow-2xl overflow-hidden flex flex-col`}
             >
-              {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              {/* Header - Fixed */}
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
                 <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   {editingTask ? '✏️ Modifier la tâche' : '➕ Nouvelle tâche'}
                 </h2>
@@ -252,8 +252,9 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                 </button>
               </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {/* Form - Scrollable */}
+              <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                <div className="p-6 space-y-5 overflow-y-auto flex-1">
                 {/* Titre */}
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${
@@ -538,9 +539,10 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                     </div>
                   </div>
                 )}
+                </div>
 
-                {/* Actions */}
-                <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                {/* Actions - Fixed at bottom */}
+                <div className={`px-6 py-4 border-t ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'} flex flex-col sm:flex-row justify-end gap-3 flex-shrink-0`}>
                   <button
                     type="button"
                     onClick={handleClose}
