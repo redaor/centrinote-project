@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, Calendar, Flag, Bell, Repeat, Plus, Loader2 } from 'lucide-react';
+import { X, Clock, Calendar, Flag, Bell, Repeat, Plus, Loader2, AlertCircle } from 'lucide-react';
 import type { Task, CreateTaskInput } from '../../services/planningService';
 
 interface TaskModalProps {
@@ -40,6 +40,15 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
   const [recurring, setRecurring] = useState<CreateTaskInput['recurring']>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Ref pour le focus sur le champ titre
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // États de validation
+  const [titleError, setTitleError] = useState('');
+  const [dateError, setDateError] = useState('');
+  const [durationError, setDurationError] = useState('');
 
   // Initialiser avec la date sélectionnée ou aujourd'hui
   useEffect(() => {
@@ -61,14 +70,85 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
         setReminder(editingTask.reminder || false);
         setRecurring(editingTask.recurring || null);
       }
+
+      // Focus sur le champ titre
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 100);
+
+      // Réinitialiser les erreurs
+      setTitleError('');
+      setDateError('');
+      setDurationError('');
+      setErrorMessage('');
     }
   }, [isOpen, initialDate, editingTask]);
+
+  // Fonction de validation
+  const validateForm = (): boolean => {
+    let isValid = true;
+
+    // Réinitialiser les erreurs
+    setTitleError('');
+    setDateError('');
+    setDurationError('');
+    setErrorMessage('');
+
+    // Validation titre (min 3 caractères)
+    if (title.trim().length < 3) {
+      setTitleError('Le titre doit contenir au moins 3 caractères');
+      isValid = false;
+    }
+
+    // Validation date (>= aujourd'hui)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(startDate);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+      setDateError('La date doit être aujourd\'hui ou plus tard');
+      isValid = false;
+    }
+
+    // Validation durée (> 0)
+    if (duration <= 0) {
+      setDurationError('La durée doit être supérieure à 0');
+      isValid = false;
+    }
+
+    return isValid;
+  };
+
+  // Vérifier si le formulaire est valide en temps réel
+  const isFormValid = (): boolean => {
+    if (title.trim().length < 3) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(startDate);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) return false;
+    if (duration <= 0) return false;
+    if (!startTime) return false;
+
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Empêcher double-envoi
     if (isSubmitting) return;
+
+    // Valider le formulaire
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
+    setErrorMessage('');
 
     try {
       // Construire les dates
@@ -103,8 +183,9 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
         resetForm();
         onClose();
       }, 1500);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving task:', error);
+      setErrorMessage(error?.message || 'Une erreur est survenue lors de la création de la tâche. Veuillez réessayer.');
       setIsSubmitting(false);
     }
   };
@@ -118,6 +199,15 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
     setPriority('medium');
     setReminder(false);
     setRecurring(null);
+    setTitleError('');
+    setDateError('');
+    setDurationError('');
+    setErrorMessage('');
+
+    // Remettre le focus sur le champ titre
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+    }, 100);
   };
 
   const handleClose = () => {
@@ -172,17 +262,30 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                     Titre *
                   </label>
                   <input
+                    ref={titleInputRef}
                     type="text"
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(e) => {
+                      setTitle(e.target.value);
+                      if (titleError) setTitleError('');
+                    }}
                     placeholder="Ex: Révision vocabulaire"
                     required
+                    minLength={3}
                     className={`w-full px-4 py-3 rounded-lg border ${
-                      darkMode
-                        ? 'bg-gray-900 border-gray-700 text-white'
-                        : 'bg-white border-gray-300 text-gray-900'
-                    } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      titleError
+                        ? 'border-red-500 focus:ring-red-500'
+                        : darkMode
+                          ? 'bg-gray-900 border-gray-700 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 ${!titleError && 'focus:ring-blue-500'}`}
                   />
+                  {titleError && (
+                    <div className="flex items-center gap-1 mt-2 text-red-500 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>{titleError}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Description */}
@@ -211,7 +314,7 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                 </div>
 
                 {/* Date et heure */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${
                       darkMode ? 'text-gray-300' : 'text-gray-700'
@@ -222,14 +325,26 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                     <input
                       type="date"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        if (dateError) setDateError('');
+                      }}
                       required
+                      min={new Date().toISOString().split('T')[0]}
                       className={`w-full px-4 py-3 rounded-lg border ${
-                        darkMode
-                          ? 'bg-gray-900 border-gray-700 text-white'
-                          : 'bg-white border-gray-300 text-gray-900'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                        dateError
+                          ? 'border-red-500 focus:ring-red-500'
+                          : darkMode
+                            ? 'bg-gray-900 border-gray-700 text-white'
+                            : 'bg-white border-gray-300 text-gray-900'
+                      } focus:outline-none focus:ring-2 ${!dateError && 'focus:ring-blue-500'}`}
                     />
+                    {dateError && (
+                      <div className="flex items-center gap-1 mt-2 text-red-500 text-sm">
+                        <AlertCircle className="w-4 h-4" />
+                        <span>{dateError}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -258,16 +373,22 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                   <label className={`block text-sm font-medium mb-2 ${
                     darkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Durée
+                    Durée *
                   </label>
                   <select
                     value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
+                    onChange={(e) => {
+                      setDuration(Number(e.target.value));
+                      if (durationError) setDurationError('');
+                    }}
+                    required
                     className={`w-full px-4 py-3 rounded-lg border ${
-                      darkMode
-                        ? 'bg-gray-900 border-gray-700 text-white'
-                        : 'bg-white border-gray-300 text-gray-900'
-                    } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      durationError
+                        ? 'border-red-500 focus:ring-red-500'
+                        : darkMode
+                          ? 'bg-gray-900 border-gray-700 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 ${!durationError && 'focus:ring-blue-500'}`}
                   >
                     <option value={0.25}>15 min</option>
                     <option value={0.5}>30 min</option>
@@ -282,6 +403,12 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                     <option value={6}>6h</option>
                     <option value={8}>8h</option>
                   </select>
+                  {durationError && (
+                    <div className="flex items-center gap-1 mt-2 text-red-500 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>{durationError}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Catégorie */}
@@ -291,7 +418,7 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                   }`}>
                     Catégorie
                   </label>
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                     {(Object.keys(categoryColors) as Array<keyof typeof categoryColors>).map((cat) => (
                       <button
                         key={cat}
@@ -399,23 +526,37 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
                   </div>
                 </div>
 
+                {/* Message d'erreur API */}
+                {errorMessage && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-red-800 mb-1">Erreur</h4>
+                        <p className="text-sm text-red-700">{errorMessage}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Actions */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <button
                     type="button"
                     onClick={handleClose}
+                    disabled={isSubmitting}
                     className={`px-6 py-2 rounded-lg font-medium ${
                       darkMode
                         ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    } transition-colors`}
+                    } transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     Annuler
                   </button>
                   <button
                     type="submit"
-                    disabled={!title.trim() || isSubmitting}
-                    className="px-8 py-3 rounded-lg font-semibold text-base bg-gradient-to-r from-blue-500 to-teal-500 text-white hover:from-blue-600 hover:to-teal-600 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    disabled={!isFormValid() || isSubmitting}
+                    className="px-8 py-3 rounded-lg font-semibold text-base bg-gradient-to-r from-blue-500 to-teal-500 text-white hover:from-blue-600 hover:to-teal-600 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {isSubmitting ? (
                       <>
