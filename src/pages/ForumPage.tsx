@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Plus, Loader } from 'lucide-react';
+import { MessageCircle, Plus, Loader, ArrowLeft } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../components/AuthProvider';
 import { forumService } from '../services/forumService';
@@ -69,6 +69,17 @@ export function ForumPage() {
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="max-w-4xl mx-auto px-4 py-8">
+        {/* Back button */}
+        <button
+          onClick={() => navigate('/help')}
+          className={`flex items-center space-x-2 mb-6 ${
+            darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+          } transition-colors`}
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>Retour à Aide & Support</span>
+        </button>
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">

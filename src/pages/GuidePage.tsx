@@ -164,7 +164,7 @@ export function GuidePage() {
           } transition-colors`}
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Retour à l'aide</span>
+          <span>Retour à Aide & Support</span>
         </button>
 
         {/* Header */}
