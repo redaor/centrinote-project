@@ -66,47 +66,73 @@ serve(async (req) => {
 
     // 2. Envoyer un email de notification aux admins
     try {
-      const emailBody = {
-        to: ["contact@centrinote.fr", "reda_sahraoui@outlook.fr"],
-        subject: `🆘 Nouveau message de support: ${subject}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-            <h2 style="color: #3b82f6; margin-bottom: 20px;">📩 Nouveau message de support</h2>
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+          <h2 style="color: #3b82f6; margin-bottom: 20px;">📩 Nouveau message de support</h2>
 
-            <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
-              <p style="margin: 5px 0;"><strong>De :</strong> ${name || "Anonyme"}</p>
-              <p style="margin: 5px 0;"><strong>Email :</strong> <a href="mailto:${email}">${email}</a></p>
-              <p style="margin: 5px 0;"><strong>Sujet :</strong> ${subject}</p>
-              <p style="margin: 5px 0;"><strong>Date :</strong> ${new Date().toLocaleString("fr-FR")}</p>
-            </div>
-
-            <div style="background-color: #ffffff; padding: 15px; border-left: 4px solid #3b82f6; margin-bottom: 15px;">
-              <h3 style="margin-top: 0; color: #1f2937;">Message :</h3>
-              <p style="white-space: pre-wrap; line-height: 1.6;">${message}</p>
-            </div>
-
-            <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
-              <a href="https://centrinote.fr/admin/support"
-                 style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                📊 Voir dans le dashboard admin
-              </a>
-            </div>
-
-            <p style="margin-top: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-              Message ID: ${data.id}
-            </p>
+          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+            <p style="margin: 5px 0;"><strong>De :</strong> ${name || "Anonyme"}</p>
+            <p style="margin: 5px 0;"><strong>Email :</strong> <a href="mailto:${email}">${email}</a></p>
+            <p style="margin: 5px 0;"><strong>Sujet :</strong> ${subject}</p>
+            <p style="margin: 5px 0;"><strong>Date :</strong> ${new Date().toLocaleString("fr-FR")}</p>
           </div>
-        `,
-      };
 
-      const { error: emailError } = await supabase.functions.invoke("send-user-emails", {
-        body: emailBody,
+          <div style="background-color: #ffffff; padding: 15px; border-left: 4px solid #3b82f6; margin-bottom: 15px;">
+            <h3 style="margin-top: 0; color: #1f2937;">Message :</h3>
+            <p style="white-space: pre-wrap; line-height: 1.6;">${message}</p>
+          </div>
+
+          <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+            <a href="https://centrinote.fr/admin/support"
+               style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+              📊 Voir dans le dashboard admin
+            </a>
+          </div>
+
+          <p style="margin-top: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+            Message ID: ${data.id}
+          </p>
+        </div>
+      `;
+
+      // Envoyer l'email aux deux admins
+      const emailPromises = [
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-email`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: "contact@centrinote.fr",
+            subject: `🆘 Nouveau message de support: ${subject}`,
+            html: emailHtml,
+          }),
+        }),
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-email`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: "reda_sahraoui@outlook.fr",
+            subject: `🆘 Nouveau message de support: ${subject}`,
+            html: emailHtml,
+          }),
+        }),
+      ];
+
+      const emailResults = await Promise.allSettled(emailPromises);
+
+      emailResults.forEach((result, index) => {
+        const recipient = index === 0 ? "contact@centrinote.fr" : "reda_sahraoui@outlook.fr";
+        if (result.status === "fulfilled" && result.value.ok) {
+          console.log(`✅ Email envoyé à ${recipient}`);
+        } else {
+          console.error(`❌ Erreur email pour ${recipient}:`, result);
+        }
       });
-
-      if (emailError) {
-        console.error("Erreur email:", emailError);
-        // On continue même si l'email échoue, le message est déjà enregistré
-      }
     } catch (emailErr) {
       console.error("Exception email:", emailErr);
       // On continue même si l'email échoue
