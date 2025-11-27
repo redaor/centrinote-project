@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   HelpCircle,
   Search,
@@ -34,14 +35,15 @@ export function Help() {
   const { state } = useApp();
   const { darkMode, user } = state;
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState('all');
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactForm, setContactForm] = useState({
     subject: '',
-    message: '',
-    email: user?.email || ''
+    email: user?.email || '',
+    message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -234,10 +236,10 @@ export function Help() {
           </a>
 
           {/* Guide utilisateur */}
-          <a
-            href="#guide"
+          <button
+            onClick={() => window.open('https://github.com/redaor/centrinote-project/blob/main/GUIDE_UTILISATEUR_CENTRINOTE.md', '_blank')}
             className={`
-              flex items-start space-x-3 p-4 rounded-lg transition-colors
+              w-full flex items-start space-x-3 p-4 rounded-lg transition-colors text-left
               ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
             `}
           >
@@ -253,13 +255,13 @@ export function Help() {
                 Documentation complète de toutes les fonctionnalités
               </p>
             </div>
-          </a>
+          </button>
 
           {/* Forum communautaire */}
-          <a
-            href="#forum"
+          <button
+            onClick={() => navigate('/forum')}
             className={`
-              flex items-start space-x-3 p-4 rounded-lg transition-colors
+              w-full flex items-start space-x-3 p-4 rounded-lg transition-colors text-left
               ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
             `}
           >
@@ -275,7 +277,7 @@ export function Help() {
                 Échangez avec d'autres utilisateurs et partagez vos astuces
               </p>
             </div>
-          </a>
+          </button>
         </div>
       </div>
 
