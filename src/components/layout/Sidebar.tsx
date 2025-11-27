@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -14,7 +14,8 @@ import {
   X,
   Zap,
   StickyNote,
-  CreditCard
+  CreditCard,
+  Shield
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -42,12 +43,43 @@ export function Sidebar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
+  // Vérifier si l'utilisateur est admin
+  const isAdmin = useMemo(() => {
+    return (
+      user?.email === 'contact@centrinote.fr' ||
+      user?.email === 'reda_sahraoui@outlook.fr' ||
+      user?.role === 'admin'
+    );
+  }, [user?.email, user?.role]);
+
+  // Menu items dynamiques (avec Admin si utilisateur est admin)
+  const dynamicMenuItems = useMemo(() => {
+    const items = [...menuItems];
+
+    // Insérer l'onglet Admin avant Settings si l'utilisateur est admin
+    if (isAdmin) {
+      const settingsIndex = items.findIndex(item => item.id === 'settings');
+      items.splice(settingsIndex, 0, {
+        id: 'admin',
+        label: 'Administration',
+        icon: Shield
+      });
+    }
+
+    return items;
+  }, [isAdmin]);
+
   const handleViewChange = (viewId: string) => {
     DEBUG && console.log('🎯 [SIDEBAR] Click navigation:', viewId);
 
-    // Toujours naviguer, même si on est déjà sur la page
-    // Cela force un rafraîchissement si nécessaire
-    navigate(`/${viewId}`);
+    // Navigation spéciale pour Admin
+    if (viewId === 'admin') {
+      navigate('/admin/support');
+    } else {
+      // Toujours naviguer, même si on est déjà sur la page
+      // Cela force un rafraîchissement si nécessaire
+      navigate(`/${viewId}`);
+    }
 
     // Fermer sidebar sur mobile
     if (window.innerWidth < 1024) {
@@ -108,9 +140,9 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 p-4 lg:p-4 overflow-y-auto">
           <ul className="space-y-3 lg:space-y-2">
-            {menuItems.map((item) => {
+            {dynamicMenuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = currentView === item.id;
+              const isActive = currentView === item.id || (item.id === 'admin' && window.location.pathname.startsWith('/admin'));
               
               return (
                 <li key={item.id}>
@@ -131,7 +163,7 @@ export function Sidebar() {
                     <Icon className="w-6 h-6 lg:w-5 lg:h-5 flex-shrink-0" />
                     {!sidebarCollapsed && (
                       <span className="font-medium text-base lg:text-sm">
-                        {item.id === 'automation' || item.id === 'meetings' ? item.label : t(item.label as any)}
+                        {item.id === 'automation' || item.id === 'meetings' || item.id === 'admin' ? item.label : t(item.label as any)}
                       </span>
                     )}
                   </button>

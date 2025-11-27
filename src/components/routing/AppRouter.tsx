@@ -322,8 +322,8 @@ export function AppRouter() {
           }
         />
         
-        <Route 
-          path="/help" 
+        <Route
+          path="/help"
           element={
             <ProtectedRoute>
               <AppProvider>
@@ -332,9 +332,22 @@ export function AppRouter() {
                 </LanguageProvider>
               </AppProvider>
             </ProtectedRoute>
-          } 
+          }
         />
 
+        {/* Route Admin - Messages de support */}
+        <Route
+          path="/admin/support"
+          element={
+            <ProtectedRoute>
+              <AppProvider>
+                <LanguageProvider>
+                  <AppLayout />
+                </LanguageProvider>
+              </AppProvider>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Redirection par défaut */}
         <Route path="*" element={<Navigate to="/" replace />} />

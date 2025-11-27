@@ -29,6 +29,7 @@ import { AdminFloatingButton } from '../admin/AdminFloatingButton';
 import { NavigationDebugger } from '../debug/NavigationDebugger';
 import { useNavigationGuard } from '../../hooks/useNavigationGuard';
 import { useUserSync } from '../../hooks/useUserSync';
+import { SupportMessagesPage } from '../../pages/admin/SupportMessagesPage';
 
 // Debug flag pour réduire les logs en production
 const DEBUG = import.meta.env.DEV;
@@ -116,7 +117,7 @@ export function AppLayout() {
 
     const validViews = [
       'dashboard', 'notes', 'vocabulary', 'collaboration', 'meetings',
-      'search', 'plan', 'planning', 'automation', 'settings', 'help'
+      'search', 'plan', 'planning', 'automation', 'settings', 'help', 'admin/support'
     ];
 
     // Synchroniser le state avec l'URL actuelle
@@ -135,6 +136,12 @@ export function AppLayout() {
       DEBUG && console.log('✅ [APP-LAYOUT] Route meetings détectée:', { path, targetView });
     }
 
+    // ✅ Gérer les routes /admin/*
+    if (path === 'admin/support' || path.startsWith('admin/')) {
+      targetView = 'admin/support';
+      DEBUG && console.log('✅ [APP-LAYOUT] Route admin détectée:', { path, targetView });
+    }
+
     // Mettre à jour le state si nécessaire
     if (validViews.includes(targetView)) {
       if (currentView !== targetView) {
@@ -151,6 +158,12 @@ export function AppLayout() {
     const path = location.pathname.slice(1); // Enlever le '/' initial
 
     DEBUG && console.log('🎨 [APP-LAYOUT] Rendu pour path:', path);
+
+    // Gestion des routes admin spéciales
+    if (location.pathname.startsWith('/admin')) {
+      DEBUG && console.log('✅ [APP-LAYOUT] Route /admin détectée, rendu de SupportMessagesPage');
+      return <SupportMessagesPage key={`admin-support-${Date.now()}`} />;
+    }
 
     // Gestion des routes meetings spéciales
     if (location.pathname.startsWith('/meetings')) {
@@ -194,6 +207,8 @@ export function AppLayout() {
         return <Help key={`help-${Date.now()}`} />;
       case 'automation':
         return <AutomationManager key={`automation-${Date.now()}`} />;
+      case 'admin/support':
+        return <SupportMessagesPage key={`admin-support-${Date.now()}`} />;
       default:
         DEBUG && console.warn('⚠️ [APP-LAYOUT] Route non reconnue:', path);
         return <NeuroDashboard key={`fallback-${Date.now()}`} />;
