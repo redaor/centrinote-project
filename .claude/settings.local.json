@@ -35,7 +35,9 @@
       "Bash(git log:*)",
       "Bash(deno check:*)",
       "Bash(docker:*)",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(git revert:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []
