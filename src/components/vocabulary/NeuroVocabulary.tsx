@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useId, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
@@ -24,7 +25,8 @@ import {
   ArrowLeft,
   Clock,
   Edit2,
-  Trash2
+  Trash2,
+  CreditCard
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useNeuroFeedback } from '../../hooks/useNeuroFeedback';
@@ -34,6 +36,7 @@ import { VocabularyEntry } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AIContentHelper } from '../ai/AIContentHelper';
+import { FlashcardMode } from './FlashcardMode';
 
 interface VocabularyStats {
   mastered: number;
@@ -72,10 +75,17 @@ export function NeuroVocabulary() {
   const [quizScore, setQuizScore] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<Array<{wordId: string, word: string, correct: boolean, userAnswer: string, correctAnswer: string}>>([]);
   const [showQuizResults, setShowQuizResults] = useState(false);
+  const [isFlashcardMode, setIsFlashcardMode] = useState(false);
 
   // États pour l'édition et la suppression
   const [editingWord, setEditingWord] = useState<VocabularyEntry | null>(null);
   const [wordToDelete, setWordToDelete] = useState<VocabularyEntry | null>(null);
+
+  // ✅ Mémoïser le vocabulaire pour le mode révision pour éviter les re-renders non désirés
+  const [flashcardVocabulary, setFlashcardVocabulary] = useState<VocabularyEntry[]>([]);
+
+  // 🔄 État pour accumuler les mises à jour de maîtrise en batch
+  const [pendingMasteryUpdates, setPendingMasteryUpdates] = useState<Map<string, { word: VocabularyEntry, newMastery: number }>>(new Map());
 
   const normalizeExamples = useCallback((entry: VocabularyEntry): VocabularyEntry => {
     const examples = Array.isArray(entry.examples)
@@ -466,6 +476,62 @@ export function NeuroVocabulary() {
       triggerReward('Erreur lors de la suppression ❌', { type: 'error' });
     }
   }, [wordToDelete, deleteVocabularyEntry, triggerReward]);
+
+  // ✅ Callbacks pour le mode flashcard (toujours déclarés, jamais conditionnellement)
+  const handleFlashcardClose = useCallback(async () => {
+    console.log('🚪 [NeuroVocabulary] Fermeture du mode flashcard demandée');
+
+    // 🔄 BATCH MODE: Envoyer toutes les mises à jour accumulées en une seule fois
+    if (pendingMasteryUpdates.size > 0) {
+      console.log('📤 [NeuroVocabulary] Envoi des mises à jour en batch:', pendingMasteryUpdates.size, 'mots');
+
+      try {
+        // Convertir la Map en array pour itérer
+        const updates = Array.from(pendingMasteryUpdates.values());
+
+        // Envoyer toutes les mises à jour en parallèle
+        const updatePromises = updates.map(({ word, newMastery }) => {
+          const updated = { ...word, mastery: newMastery };
+          console.log('📝 [NeuroVocabulary] Mise à jour batch:', word.word, '→', newMastery);
+          return updateVocabularyEntry(updated);
+        });
+
+        await Promise.all(updatePromises);
+
+        console.log('✅ [NeuroVocabulary] Toutes les mises à jour batch envoyées avec succès');
+        triggerReward('Progrès sauvegardés! 💾', { type: 'success', sound: true });
+
+        // Réinitialiser les mises à jour en attente
+        setPendingMasteryUpdates(new Map());
+      } catch (error) {
+        console.error('❌ [NeuroVocabulary] Erreur lors de l\'envoi des mises à jour batch:', error);
+        triggerReward('Erreur lors de la sauvegarde ❌', { type: 'error' });
+        // Ne pas réinitialiser pendingMasteryUpdates en cas d'erreur pour permettre un réessai
+        return; // Ne pas fermer le modal en cas d'erreur
+      }
+    } else {
+      console.log('ℹ️ [NeuroVocabulary] Aucune mise à jour en attente');
+    }
+
+    setIsFlashcardMode(false);
+  }, [pendingMasteryUpdates, updateVocabularyEntry, triggerReward]);
+
+  const handleFlashcardUpdateMastery = useCallback((word: VocabularyEntry, newMastery: number) => {
+    console.log('📝 [NeuroVocabulary] onUpdateMastery appelé - ACCUMULATION EN BATCH:', {
+      word: word.word,
+      oldMastery: word.mastery,
+      newMastery
+    });
+
+    // ✅ BATCH MODE: Accumuler la mise à jour au lieu d'appeler Supabase immédiatement
+    // Cela évite les problèmes de rate-limiting quand l'utilisateur clique rapidement
+    setPendingMasteryUpdates(prev => {
+      const updated = new Map(prev);
+      updated.set(word.id, { word, newMastery });
+      console.log('📦 [NeuroVocabulary] Mise à jour ajoutée au batch, total:', updated.size);
+      return updated;
+    });
+  }, []);
 
   // Quiz functionality
   const startQuiz = () => {
@@ -899,6 +965,27 @@ export function NeuroVocabulary() {
           >
             <Zap className="w-5 h-5 inline mr-2" />
             Quiz rapide
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => {
+              if (vocabulary.length < 3) {
+                triggerReward('Ajoutez plus de mots pour les flashcards!', { type: 'warning' });
+                return;
+              }
+              // ✅ Créer un snapshot du vocabulaire au moment de l'ouverture
+              setFlashcardVocabulary([...vocabulary]);
+              // 🔄 Réinitialiser les mises à jour en attente pour une nouvelle session
+              setPendingMasteryUpdates(new Map());
+              setIsFlashcardMode(true);
+            }}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
+          >
+            <CreditCard className="w-5 h-5 inline mr-2" />
+            Mode révision
           </motion.button>
 
           <motion.button
@@ -1725,6 +1812,17 @@ export function NeuroVocabulary() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Flashcard Mode - Rendu via Portal pour éviter les unmounts */}
+        {isFlashcardMode && ReactDOM.createPortal(
+          <FlashcardMode
+            vocabulary={flashcardVocabulary.length > 0 ? flashcardVocabulary : vocabulary}
+            darkMode={darkMode}
+            onClose={handleFlashcardClose}
+            onUpdateMastery={handleFlashcardUpdateMastery}
+          />,
+          document.body
+        )}
       </div>
     </div>
   );
