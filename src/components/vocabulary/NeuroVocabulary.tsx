@@ -612,23 +612,6 @@ export function NeuroVocabulary() {
             >
               Modifier
             </Button>
-            <AIContentHelper
-              content={selectedWord.definition || ''}
-              title={selectedWord.word}
-              contentType="vocabulaire"
-              onApply={(improvedContent) => {
-                // Mettre à jour directement le mot avec la définition améliorée
-                const updatedWord = { ...selectedWord, definition: improvedContent };
-                // Sauvegarder immédiatement
-                updateVocabularyEntry(updatedWord).then((success) => {
-                  if (success) {
-                    setSelectedWord(updatedWord);
-                    triggerReward('Définition améliorée et sauvegardée avec l\'IA ✨', { type: 'success', sound: true });
-                  }
-                });
-              }}
-              darkMode={darkMode}
-            />
             <Button
               variant="danger"
               onClick={() => handleDeleteWord(selectedWord)}

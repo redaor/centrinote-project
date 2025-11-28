@@ -77,6 +77,5 @@
   function = "daily-webhook-test"
 
 # Scheduled Functions - Auto-end meetings after duration
-[[functions]]
-  [functions."check-meetings-duration"]
-    schedule = "*/5 * * * *"  # Toutes les 5 minutes
+[functions."check-meetings-duration"]
+  schedule = "*/5 * * * *"  # Toutes les 5 minutes
