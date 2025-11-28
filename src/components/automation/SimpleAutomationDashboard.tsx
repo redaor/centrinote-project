@@ -22,7 +22,6 @@ import { useApp } from '../../contexts/AppContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../ui/Toast';
 import { AutomationSettingsModal } from './AutomationSettingsModal';
-import { AutomationSandboxV2 } from './AutomationSandboxV2';
 import { automationService } from '../../services/automationService';
 import { supabase } from '../../lib/supabase';
 import { calculateNextExecution, triggerConfigToScheduleConfig } from '../../utils/automationHelpers';
@@ -227,7 +226,6 @@ export function SimpleAutomationDashboard() {
   const [selectedAutomation, setSelectedAutomation] = useState<SimpleAutomation | null>(null);
   const [tempSettings, setTempSettings] = useState<AutomationSettings>({});
   const [loading, setLoading] = useState(true);
-  const [sandboxOpen, setSandboxOpen] = useState(false);
 
   // ✅ OPTIMISATION : Fonction de nettoyage optimisée (sans async inutile)
   const cleanDuplicatePauseAutomations = async (items: Automation[]): Promise<Automation[]> => {
@@ -772,23 +770,6 @@ export function SimpleAutomationDashboard() {
           <p className={`text-sm mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
             Cliquez sur une carte pour l'activer instantanément
           </p>
-
-          {/* Bouton Mode Bac à Sable */}
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setSandboxOpen(true)}
-            className="mt-4 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-          >
-            <PlayCircle className="w-5 h-5" />
-            🧪 Mode Bac à Sable
-          </motion.button>
-          <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-            Testez vos automatisations sans toucher aux données réelles
-          </p>
         </div>
 
         {/* Filtres par catégorie - Style boutons pilules */}
@@ -984,11 +965,6 @@ export function SimpleAutomationDashboard() {
         onSave={saveSettings}
         onClose={() => setSettingsModalOpen(false)}
       />
-
-      {/* Modal de Bac à Sable */}
-      {sandboxOpen && (
-        <AutomationSandboxV2 onClose={() => setSandboxOpen(false)} />
-      )}
 
       {/* Toast Container pour les notifications */}
       <ToastContainer toasts={toasts} />
