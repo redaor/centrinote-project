@@ -28,7 +28,7 @@ exports.handler = async (event, context) => {
     // 1. Récupérer toutes les réunions actives
     const { data: activeMeetings, error: fetchError } = await supabase
       .from('meetings')
-      .select('id, title, started_at, duration_minutes, room_name')
+      .select('id, title, started_at, duration_minutes, room_name, recording_url, recording_id')
       .eq('status', 'active');
 
     if (fetchError) {
@@ -105,11 +105,16 @@ exports.handler = async (event, context) => {
 
     for (const meeting of meetingsToEnd) {
       try {
-        // Marquer comme terminée
+        // Vérifier si un enregistrement est déjà disponible
+        const hasRecording = meeting.recording_url && meeting.recording_id;
+
+        // Marquer comme terminée (utiliser 'ended' si recording disponible pour cohérence avec webhook)
+        const finalStatus = hasRecording ? 'ended' : 'completed';
+
         const { data: updated, error: updateError } = await supabase
           .from('meetings')
           .update({
-            status: 'completed',
+            status: finalStatus,
             ended_at: new Date().toISOString()
           })
           .eq('id', meeting.id)
@@ -123,12 +128,48 @@ exports.handler = async (event, context) => {
             error: updateError.message
           });
         } else {
-          console.log(`✅ [CHECK-DURATION] Meeting ${meeting.id} terminé automatiquement`);
+          console.log(`✅ [CHECK-DURATION] Meeting ${meeting.id} terminé automatiquement (${finalStatus})`);
           endedMeetings.push({
             id: meeting.id,
             title: meeting.title,
-            duration_minutes: meeting.duration_minutes
+            duration_minutes: meeting.duration_minutes,
+            had_recording: hasRecording
           });
+
+          // Si enregistrement disponible, vérifier si résumé IA demandé
+          if (hasRecording) {
+            console.log(`🎥 [CHECK-DURATION] Enregistrement disponible pour ${meeting.id}`);
+
+            // Vérifier si résumé IA demandé (invitation ai@centrinote.fr)
+            const { data: iaInvite } = await supabase
+              .from('meeting_invitations')
+              .select('do_not_record')
+              .eq('meeting_id', meeting.id)
+              .eq('email', 'ai@centrinote.fr')
+              .maybeSingle();
+
+            if (iaInvite && !iaInvite.do_not_record) {
+              console.log(`🤖 [CHECK-DURATION] Déclenchement résumé IA pour ${meeting.id}`);
+
+              // Appeler generate-summary (non bloquant)
+              const netlifyUrl = process.env.NETLIFY_URL || process.env.DEPLOY_PRIME_URL || 'https://centrinote.fr';
+              fetch(`${netlifyUrl}/.netlify/functions/generate-summary`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  meetingId: meeting.id,
+                  recordingUrl: meeting.recording_url
+                })
+              })
+                .then(response => response.json())
+                .then(result => {
+                  console.log(`✅ [CHECK-DURATION] Résumé lancé pour ${meeting.id}:`, result);
+                })
+                .catch(err => {
+                  console.error(`❌ [CHECK-DURATION] Erreur génération résumé pour ${meeting.id}:`, err);
+                });
+            }
+          }
 
           // Optionnel : Supprimer la room Daily.co
           if (meeting.room_name) {
