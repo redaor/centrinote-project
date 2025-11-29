@@ -26,17 +26,28 @@ export function PlanPage() {
       // Si un plan est spécifié dans l'URL, lancer le checkout automatiquement
       const { user } = state;
       if (user?.id && user?.email) {
-        // Importer dynamiquement pour éviter les dépendances circulaires
-        import('../services/planCheckoutService').then(({ planCheckoutService }) => {
-          planCheckoutService.checkoutPlanSync(
-            planParam as 'starter' | 'pro' | 'teams',
-            user.email || user.id
-          ).then(result => {
-            if (result.success && result.url) {
-              window.location.href = result.url;
-            } else {
-              console.error('❌ Erreur checkout:', result.error);
-            }
+        // Récupérer le token JWT de la session
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+          if (error || !session) {
+            console.error('❌ Erreur récupération session:', error);
+            return;
+          }
+
+          const userToken = session.access_token;
+
+          // Importer dynamiquement pour éviter les dépendances circulaires
+          import('../services/planCheckoutService').then(({ planCheckoutService }) => {
+            planCheckoutService.checkoutPlanSync(
+              planParam as 'starter' | 'pro' | 'teams',
+              user.email || user.id,
+              userToken
+            ).then(result => {
+              if (result.success && result.url) {
+                window.location.href = result.url;
+              } else {
+                console.error('❌ Erreur checkout:', result.error);
+              }
+            });
           });
         });
       }
