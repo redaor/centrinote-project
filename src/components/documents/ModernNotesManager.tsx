@@ -964,33 +964,38 @@ export function ModernNotesManager() {
         }}
       >
         {/* Card principale */}
-        <Card 
+        <div 
           className={`
-            p-6 transition-all duration-300 relative overflow-hidden border
+            px-5 py-4 transition-all duration-150 ease-in-out relative overflow-hidden
             ${isActive 
-              ? 'shadow-xl border-blue-400/70 dark:border-blue-700/70 bg-blue-50/60 dark:bg-blue-950/20' 
-              : 'shadow-md border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-slate-900/60'
+              ? 'shadow-lg border-[#5B9DFF]/40 dark:border-[#5B9DFF]/40 bg-[#FAFBFC] dark:bg-gray-800' 
+              : 'shadow-sm border-[#E5E9F2] dark:border-gray-700 bg-[#FAFBFC] dark:bg-gray-800'
             }
-            ${note.is_pinned ? 'bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-blue-950/30 dark:via-slate-900/70 dark:to-indigo-950/30' : ''}
+            ${note.is_pinned ? 'bg-gradient-to-br from-blue-50 via-[#FAFBFC] to-indigo-50 dark:from-blue-950/30 dark:via-gray-800 dark:to-indigo-950/30' : ''}
+            hover:shadow-[0_2px_6px_rgba(0,0,0,0.05)] hover:-translate-y-0.5
           `}
-          style={{ minHeight: `${cardHeight}px` }}
-          hover={false}
+          style={{ 
+            minHeight: `${cardHeight}px`,
+            borderRadius: '8px',
+            borderWidth: '1px',
+            borderStyle: 'solid'
+          }}
         >
           {/* Header avec status indicators */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex flex-col space-y-2">
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${categoryMeta.badgeClass}`}>
-                <CategoryIcon className="w-3.5 h-3.5" />
+                <CategoryIcon className="w-3 h-3 stroke-[1px]" />
                 {categoryMeta.label}
               </span>
-              <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex items-center space-x-2 text-xs" style={{ color: '#8492A6' }}>
                 <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#3DC07A] animate-pulse"></div>
                   <span>{formatDate(note.updated_at)}</span>
                 </div>
                 {note.is_pinned && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-300">
-                    <Pin className="w-3 h-3" />
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#5B9DFF]/10 text-[#5B9DFF] dark:text-[#5B9DFF]">
+                    <Pin className="w-3 h-3 stroke-[1px]" />
                     Épinglée
                   </span>
                 )}
@@ -1001,31 +1006,24 @@ export function ModernNotesManager() {
               {note.is_pinned && (
                 <button
                   type="button"
-                  className="p-1.5 rounded-full border border-blue-100 bg-white/70 dark:bg-slate-900/70 dark:border-blue-900/60 text-blue-600 dark:text-blue-300"
+                  className="p-1.5 rounded-full border border-[#E5E9F2] bg-white/70 dark:bg-slate-900/70 dark:border-gray-700 text-[#5B9DFF] dark:text-[#5B9DFF]"
                   onClick={(event) => {
                     event.stopPropagation();
                     handleTogglePin(note);
                   }}
                   aria-label="Basculer épingle"
                 >
-                  <Pin className="w-4 h-4" />
+                  <Pin className="w-3 h-3 stroke-[1px]" />
                 </button>
               )}
             </div>
           </div>
 
-          {/* Titre avec gradient border selon mastery */}
+          {/* Titre */}
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-2 mb-2">
+            <h3 className="text-sm font-medium line-clamp-2 mb-2 dark:text-gray-100" style={{ color: '#1F2D3D' }}>
               {note.title}
             </h3>
-            <div className={`
-              h-1 w-full rounded-full bg-gradient-to-r
-              ${note.is_pinned
-                ? 'from-blue-500 to-purple-500'
-                : 'from-gray-200 to-blue-200 dark:from-gray-700 dark:to-blue-700'
-              }
-            `}></div>
           </div>
 
           {/* Tags chips colorés */}
@@ -1036,9 +1034,9 @@ export function ModernNotesManager() {
                   key={tag.id}
                   className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer"
                   style={{ 
-                    backgroundColor: `${tag.color}15`, 
-                    color: tag.color,
-                    border: `1px solid ${tag.color}30`
+                    backgroundColor: '#5B9DFF15', 
+                    color: '#5B9DFF',
+                    border: '1px solid #5B9DFF30'
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1046,12 +1044,12 @@ export function ModernNotesManager() {
                     setQuickFilter('all');
                   }}
                 >
-                  <TagIcon className="w-3 h-3" />
+                  <TagIcon className="w-3 h-3 stroke-[1px]" />
                   <span>{tag.name}</span>
                 </span>
               ))}
               {note.tags.length > 3 && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1">
+                <span className="text-xs px-2 py-1" style={{ color: '#8492A6' }}>
                   +{note.tags.length - 3} autres
                 </span>
               )}
@@ -1059,47 +1057,56 @@ export function ModernNotesManager() {
           )}
 
           <div className="space-y-3 mb-4">
-            <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed line-clamp-3">
+            <p className="text-sm leading-relaxed line-clamp-3 dark:text-gray-300" style={{ color: '#1F2D3D' }}>
               {previewContent || 'Aucun contenu pour cette note.'}
             </p>
             {hasMoreContent && (
               <button
                 type="button"
-                className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-300 hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs font-medium hover:underline transition-all duration-150"
+                style={{ color: '#5B9DFF' }}
                 onClick={(event) => {
                   event.stopPropagation();
                   handleSelectNote(note, { edit: false });
                 }}
               >
-                <Eye className="w-3.5 h-3.5" />
-                Lire la suite
+                <span>Lire la suite</span>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
               </button>
             )}
           </div>
 
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center justify-between text-xs dark:text-gray-400" style={{ color: '#8492A6' }}>
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-1">
-                <Clock className="w-3 h-3" />
+                <Clock className="w-3 h-3 stroke-[1px]" />
                 <span>{formatDate(note.updated_at)}</span>
               </div>
               {note.has_attachment && (
                 <div className="flex items-center space-x-1">
-                  <Paperclip className="w-3 h-3" />
+                  <Paperclip className="w-3 h-3 stroke-[1px]" />
                   <span>Fichiers</span>
                 </div>
               )}
             </div>
-            <span className="text-[11px] text-gray-400 dark:text-gray-500">
+            <span 
+              className="text-[11px] px-2 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300"
+              style={{ 
+                backgroundColor: '#F0F4F8',
+                color: '#5A677D'
+              }}
+            >
               {note.content?.length || 0} caractères
             </span>
           </div>
 
           {/* Hover overlay effect */}
           {isActive && (
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 rounded-lg pointer-events-none"></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-[#5B9DFF]/5 to-[#5B9DFF]/5 rounded-lg pointer-events-none" style={{ borderRadius: '8px' }}></div>
           )}
-        </Card>
+        </div>
       </div>
     );
   }, (prevProps, nextProps) => {
@@ -1115,8 +1122,8 @@ export function ModernNotesManager() {
   // Masonry CSS Grid Layout
   const MasonryGrid = ({ children }: { children: React.ReactNode[] }) => (
     <div 
-      className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6"
-      style={{ columnFill: 'balance' }}
+      className="columns-1 md:columns-2 lg:columns-3 xl:columns-4"
+      style={{ columnFill: 'balance', gap: '12px' }}
     >
       {children}
     </div>
@@ -1140,7 +1147,7 @@ export function ModernNotesManager() {
 
     if (viewMode === 'grid') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" style={{ gap: '12px' }}>
           {filteredNotes.map((note, index) => (
             <ModernNoteCard
               key={note.id}
