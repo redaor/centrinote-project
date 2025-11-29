@@ -26,13 +26,12 @@ interface LandingPageProps {
 export function LandingPage({ onGetStarted }: LandingPageProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Fonction pour gérer les clics sur les plans (landing page = redirection vers connexion)
-  const handlePlanClick = (planType: 'gratuit' | 'pro' | 'enterprise') => {
-    console.log(`🔄 Clic sur plan ${planType} depuis la landing page`);
-    console.log('👤 Utilisateur non connecté → redirection vers connexion');
+  // Fonction pour gérer les clics sur les plans (landing page = redirection vers inscription avec plan)
+  const handlePlanClick = (planKey: 'free' | 'starter' | 'pro' | 'teams') => {
+    console.log(`🔄 Clic sur plan ${planKey} depuis la landing page`);
     
-    // Depuis la landing page, tous les plans redirigent vers la connexion
-    onGetStarted();
+    // Rediriger vers /register?plan=... pour pré-sélectionner le plan
+    window.location.href = `/register?plan=${planKey}`;
   };
 
   const features = [
@@ -337,135 +336,191 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             </p>
           </div>
 
-          {/* 3 Plans côte à côte */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-            {/* Plan GRATUIT */}
+          {/* 4 Plans côte à côte */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+            {/* Plan FREE */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0 }}
               viewport={{ once: true }}
-              className="bg-white border-2 border-gray-200 rounded-2xl p-8 hover:shadow-xl transition-all duration-300"
+              className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-xl transition-all duration-300"
             >
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-gray-500 to-gray-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <BookOpen className="w-8 h-8 text-white" />
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 bg-gradient-to-br from-gray-500 to-gray-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+                  <BookOpen className="w-7 h-7 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Gratuit</h3>
-                <p className="text-gray-600 mb-4">Parfait pour commencer</p>
-                <div className="text-5xl font-bold text-gray-900 mb-2">0€</div>
-                <div className="text-gray-600">/mois</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-1">Free</h3>
+                <p className="text-sm text-gray-600 mb-3">Pour démarrer</p>
+                <div className="text-4xl font-bold text-gray-900 mb-1">0€</div>
+                <div className="text-sm text-gray-600">/mois</div>
               </div>
               
-              <div className="space-y-4 mb-8">
+              <div className="space-y-3 mb-6">
                 {[
-                  'Jusqu\'à 100 notes',
-                  'Flashcards basiques',
-                  'Stockage 1 GB',
-                  'Support communautaire'
+                  'Notes illimitées (texte brut)',
+                  '50 mots vocabulaire',
+                  '1 réunion 45 min + résumé IA',
+                  '1 automation',
+                  '3 participants max'
                 ].map((feature, index) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                    <span className="text-gray-700">{feature}</span>
+                  <div key={index} className="flex items-start space-x-2">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">{feature}</span>
                   </div>
                 ))}
               </div>
               
               <button
-                onClick={() => handlePlanClick('gratuit')}
-                className="w-full py-3 px-6 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:border-gray-400 hover:bg-gray-50 transition-all duration-200"
+                onClick={() => handlePlanClick('free')}
+                className="w-full py-2.5 px-4 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 text-sm"
               >
                 Commencer gratuitement
               </button>
             </motion.div>
 
-            {/* Plan PRO - Populaire */}
+            {/* Plan STARTER - Populaire */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
               viewport={{ once: true }}
-              className="bg-white border-2 border-blue-500 rounded-2xl p-8 hover:shadow-xl transition-all duration-300 relative transform scale-105"
+              className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-500 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 relative transform scale-105"
             >
               {/* Badge Populaire */}
-              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center space-x-1">
-                  <Star className="w-4 h-4 fill-current" />
-                  <span>Populaire</span>
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center space-x-1">
+                  <Star className="w-3 h-3 fill-current" />
+                  <span>POPULAIRE</span>
                 </div>
               </div>
               
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Brain className="w-8 h-8 text-white" />
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+                  <Zap className="w-7 h-7 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
-                <p className="text-gray-600 mb-4">Pour les utilisateurs avancés</p>
-                <div className="text-5xl font-bold text-gray-900 mb-2">9€</div>
-                <div className="text-gray-600">/mois</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-1">Starter</h3>
+                <p className="text-xs text-indigo-600 font-medium mb-3">⭐ POPULAIRE</p>
+                <div className="flex items-baseline justify-center gap-2 mb-1">
+                  <div className="text-4xl font-bold text-indigo-600">9,99€</div>
+                  <div className="text-lg text-gray-400 line-through">12,99€</div>
+                </div>
+                <div className="text-xs text-indigo-600 font-medium">/mois • Économisez 23%</div>
               </div>
               
-              <div className="space-y-4 mb-8">
+              <div className="space-y-3 mb-6">
                 {[
-                  'Notes illimitées',
-                  'IA & Assistant GPT-4o',
-                  'Collaboration vidéo',
-                  'Stockage 50 GB',
-                  'Support prioritaire'
+                  '150k tokens IA',
+                  '10 réunions 45 min',
+                  '8 participants max',
+                  '5 résumés IA',
+                  '100 mots vocabulaire',
+                  '5 automations'
                 ].map((feature, index) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                    <span className="text-gray-700">{feature}</span>
+                  <div key={index} className="flex items-start space-x-2">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">{feature}</span>
+                  </div>
+                ))}
+              </div>
+              
+              <button
+                onClick={() => handlePlanClick('starter')}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-xl hover:scale-105 transition-all duration-300 text-sm"
+              >
+                Profiter de la promo 🔥
+              </button>
+            </motion.div>
+
+            {/* Plan PRO */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="bg-white border-2 border-purple-500 rounded-2xl p-6 hover:shadow-xl transition-all duration-300"
+            >
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+                  <Brain className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-1">Pro</h3>
+                <p className="text-sm text-gray-600 mb-3">Pour aller plus loin</p>
+                <div className="flex items-baseline justify-center gap-2 mb-1">
+                  <div className="text-4xl font-bold text-purple-600">19,99€</div>
+                  <div className="text-lg text-gray-400 line-through">29,99€</div>
+                </div>
+                <div className="text-xs text-purple-600 font-medium">/mois • Économisez 33%</div>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                {[
+                  '600k tokens IA',
+                  '20 réunions 60 min',
+                  '15 participants max',
+                  'Résumés IA illimités',
+                  '500 mots vocabulaire',
+                  'Automations illimitées'
+                ].map((feature, index) => (
+                  <div key={index} className="flex items-start space-x-2">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">{feature}</span>
                   </div>
                 ))}
               </div>
               
               <button
                 onClick={() => handlePlanClick('pro')}
-                className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-xl hover:scale-105 transition-all duration-300"
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:shadow-xl hover:scale-105 transition-all duration-300 text-sm"
               >
                 Choisir Pro
               </button>
             </motion.div>
 
-            {/* Plan ENTERPRISE */}
+            {/* Plan TEAMS */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
               viewport={{ once: true }}
-              className="bg-white border-2 border-gray-200 rounded-2xl p-8 hover:shadow-xl transition-all duration-300"
+              className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-xl transition-all duration-300"
             >
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <TrendingUp className="w-8 h-8 text-white" />
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+                  <Users className="w-7 h-7 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Enterprise</h3>
-                <p className="text-gray-600 mb-4">Pour les équipes et organisations</p>
-                <div className="text-5xl font-bold text-gray-900 mb-2">29€</div>
-                <div className="text-gray-600">/mois</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-1">Teams</h3>
+                <p className="text-sm text-gray-600 mb-3">Équipe & scale</p>
+                <div className="flex items-baseline justify-center gap-2 mb-1">
+                  <div className="text-4xl font-bold text-gray-900">39,99€</div>
+                  <div className="text-lg text-gray-400 line-through">49,99€</div>
+                </div>
+                <div className="text-xs text-gray-600">/mois • Économisez 20%</div>
               </div>
               
-              <div className="space-y-4 mb-8">
+              <div className="space-y-3 mb-6">
                 {[
-                  'Tout de Pro +',
-                  'Équipes illimitées',
-                  'Analytics avancés',
-                  'Stockage 500 GB',
-                  'Support dédié 24/7'
+                  'Tokens IA illimités',
+                  '60 réunions 60 min',
+                  'Participants illimités',
+                  'Résumés IA illimités',
+                  'Vocabulaire illimité',
+                  'Automations illimitées',
+                  'Admin dashboard',
+                  'Support prioritaire'
                 ].map((feature, index) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
-                    <span className="text-gray-700">{feature}</span>
+                  <div key={index} className="flex items-start space-x-2">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">{feature}</span>
                   </div>
                 ))}
               </div>
               
               <button
-                onClick={() => handlePlanClick('enterprise')}
-                className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-xl hover:scale-105 transition-all duration-300"
+                onClick={() => handlePlanClick('teams')}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-semibold hover:shadow-xl hover:scale-105 transition-all duration-300 text-sm"
               >
-                Choisir Enterprise
+                Choisir Teams
               </button>
             </motion.div>
           </div>
