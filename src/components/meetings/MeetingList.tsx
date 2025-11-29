@@ -904,79 +904,82 @@ const MeetingCard = React.memo(({
 
 
       {/* Action */}
-      <div className="flex justify-end">
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            console.log('🎯 [BUTTON-START] === CLIC BOUTON DÉMARRER ===');
-            console.log('📊 [BUTTON-START] État actuel:', {
-              timestamp: new Date().toISOString(),
-              meetingId: meeting.id,
-              title: meeting.title,
-              status: meeting.status,
-              roomUrl: meeting.room_url,
-              hasRoomUrl: !!meeting.room_url,
-              participants: meeting.participants?.length || 0,
-              currentPath: window.location.pathname,
-              targetPath: `/meeting/${meeting.id}`
-            });
-            
-            // Vérification basique - seulement l'ID est requis
-            if (!meeting.id) {
-              console.error('❌ [BUTTON-START] ID manquant, impossible de continuer');
-              alert('❌ Erreur: ID de réunion manquant');
-              return;
+      {/* ✅ Masquer le bouton "Démarrer" si la réunion est terminée et résumée */}
+      {!(isOver && summary) && (
+        <div className="flex justify-end">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              console.log('🎯 [BUTTON-START] === CLIC BOUTON DÉMARRER ===');
+              console.log('📊 [BUTTON-START] État actuel:', {
+                timestamp: new Date().toISOString(),
+                meetingId: meeting.id,
+                title: meeting.title,
+                status: meeting.status,
+                roomUrl: meeting.room_url,
+                hasRoomUrl: !!meeting.room_url,
+                participants: meeting.participants?.length || 0,
+                currentPath: window.location.pathname,
+                targetPath: `/meeting/${meeting.id}`
+              });
+              
+              // Vérification basique - seulement l'ID est requis
+              if (!meeting.id) {
+                console.error('❌ [BUTTON-START] ID manquant, impossible de continuer');
+                alert('❌ Erreur: ID de réunion manquant');
+                return;
+              }
+              
+              // Marquer comme en cours de navigation
+              setIsNavigating(true);
+              
+              // NAVIGATION FORCÉE - Toujours utiliser window.location pour garantir le changement
+              const targetUrl = `/meeting/${meeting.id}`;
+              console.log('🚀 [BUTTON-START] Navigation FORCÉE vers:', targetUrl);
+              
+              // Force la navigation avec window.location.href (plus fiable)
+              window.location.href = targetUrl;
+              
+              // Log pour confirmer
+              console.log('✅ [BUTTON-START] Navigation déclenchée avec window.location.href');
+              
+              // Reset après un délai (au cas où la navigation échoue)
+              setTimeout(() => setIsNavigating(false), 3000);
+            }}
+            disabled={isNavigating} // Désactiver pendant la navigation
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+              isNavigating
+                ? 'bg-gray-500 cursor-wait opacity-75'
+                : meeting.status === 'active'
+                  ? 'bg-green-600 hover:bg-green-700 hover:scale-105 active:scale-95 text-white cursor-pointer'
+                  : 'bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 text-white cursor-pointer'
+            } shadow-md hover:shadow-lg`}
+            title={
+              isNavigating
+                ? 'Chargement...'
+                : meeting.status === 'active' 
+                  ? 'Rejoindre la réunion en cours' 
+                  : 'Démarrer la réunion'
             }
-            
-            // Marquer comme en cours de navigation
-            setIsNavigating(true);
-            
-            // NAVIGATION FORCÉE - Toujours utiliser window.location pour garantir le changement
-            const targetUrl = `/meeting/${meeting.id}`;
-            console.log('🚀 [BUTTON-START] Navigation FORCÉE vers:', targetUrl);
-            
-            // Force la navigation avec window.location.href (plus fiable)
-            window.location.href = targetUrl;
-            
-            // Log pour confirmer
-            console.log('✅ [BUTTON-START] Navigation déclenchée avec window.location.href');
-            
-            // Reset après un délai (au cas où la navigation échoue)
-            setTimeout(() => setIsNavigating(false), 3000);
-          }}
-          disabled={isNavigating} // Désactiver pendant la navigation
-          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-            isNavigating
-              ? 'bg-gray-500 cursor-wait opacity-75'
-              : meeting.status === 'active'
-                ? 'bg-green-600 hover:bg-green-700 hover:scale-105 active:scale-95 text-white cursor-pointer'
-                : 'bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 text-white cursor-pointer'
-          } shadow-md hover:shadow-lg`}
-          title={
-            isNavigating
-              ? 'Chargement...'
-              : meeting.status === 'active' 
-                ? 'Rejoindre la réunion en cours' 
-                : 'Démarrer la réunion'
-          }
-        >
-          {isNavigating ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Chargement...</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4" />
-              <span>
-                {meeting.status === 'active' ? 'Rejoindre' : 'Démarrer'}
-              </span>
-            </>
-          )}
-        </button>
-      </div>
+          >
+            {isNavigating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Chargement...</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                <span>
+                  {meeting.status === 'active' ? 'Rejoindre' : 'Démarrer'}
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 });
