@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { PlanOverview } from '../components/plan/PlanOverview';
 import { PlanPlans } from '../components/plan/PlanPlans';
@@ -14,6 +15,33 @@ import { supabase } from '../lib/supabase';
 
 export function PlanPage() {
   const { state } = useApp();
+  const location = useLocation();
+  
+  // Vérifier si un plan est passé en paramètre URL
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const planParam = searchParams.get('plan');
+    
+    if (planParam && ['starter', 'pro', 'teams'].includes(planParam)) {
+      // Si un plan est spécifié dans l'URL, lancer le checkout automatiquement
+      const { user } = state;
+      if (user?.id && user?.email) {
+        // Importer dynamiquement pour éviter les dépendances circulaires
+        import('../services/planCheckoutService').then(({ planCheckoutService }) => {
+          planCheckoutService.checkoutPlanSync(
+            planParam as 'starter' | 'pro' | 'teams',
+            user.email || user.id
+          ).then(result => {
+            if (result.success && result.url) {
+              window.location.href = result.url;
+            } else {
+              console.error('❌ Erreur checkout:', result.error);
+            }
+          });
+        });
+      }
+    }
+  }, [location.search, state.user]);
   const { user } = state;
   const [showPlans, setShowPlans] = useState(false);
   const [loading, setLoading] = useState(false);

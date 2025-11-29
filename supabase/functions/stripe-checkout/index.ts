@@ -77,6 +77,25 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Déterminer le plan name depuis le price_id via stripe_price_mapping
+    let planName = 'free'; // Fallback par défaut
+    
+    // Chercher dans la table de mapping
+    const { data: mappingData } = await supabase
+      .from('stripe_price_mapping')
+      .select('plan_name')
+      .eq('price_id', priceId)
+      .single();
+
+    if (mappingData) {
+      planName = mappingData.plan_name;
+      console.info(`📋 Plan name from mapping: ${planName} for price_id: ${priceId}`);
+    } else {
+      // Si pas de mapping, essayer de deviner (fallback)
+      console.warn(`⚠️ Price ID ${priceId} not found in stripe_price_mapping, using free as fallback`);
+      // TODO: Ajouter le price_id dans stripe_price_mapping
+    }
+
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       mode,
@@ -87,8 +106,18 @@ Deno.serve(async (req) => {
       allow_promotion_codes: true,
       billing_address_collection: 'auto',
       metadata: {
-        user_id: user.id
-      }
+        user_id: user.id,
+        userId: user.id, // Pour compatibilité
+        planName: planName,
+        priceId: priceId,
+      },
+      subscription_data: {
+        metadata: {
+          userId: user.id,
+          planName: planName,
+          priceId: priceId,
+        },
+      },
     })
 
     return new Response(JSON.stringify({ id: session.id, url: session.url }), {

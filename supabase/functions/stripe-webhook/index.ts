@@ -184,6 +184,129 @@ async function syncCustomerFromStripe(customerId: string) {
       throw new Error('Failed to sync subscription in database');
     }
     console.info(`Successfully synced subscription for customer: ${customerId}`);
+
+    // ========================================
+    // NOUVEAU: Connecter user_subscriptions après paiement
+    // ========================================
+    if (subscription.status === 'active' || subscription.status === 'trialing') {
+      const priceId = subscription.items.data[0].price.id;
+      
+        // ========================================
+        // Mapping price_id → plan via stripe_price_mapping
+        // ========================================
+        try {
+          // Chercher dans stripe_customers pour obtenir user_id
+          const { data: customerData, error: customerError } = await supabase
+            .from('stripe_customers')
+            .select('user_id')
+            .eq('customer_id', customerId)
+            .single();
+
+          if (customerError || !customerData) {
+            console.warn(`⚠️ Customer not found in stripe_customers for ${customerId}, skipping user_subscriptions update`);
+            return;
+          }
+
+          const userId = customerData.user_id;
+
+          // Chercher le plan via metadata de la subscription, stripe_price_mapping, ou STRIPE_PRICES
+          let planName = 'free'; // Fallback par défaut
+          
+          // Option 1: Utiliser metadata de la subscription si disponible
+          if (subscription.metadata && subscription.metadata.planName) {
+            planName = subscription.metadata.planName;
+            console.info(`📋 Plan name from subscription metadata: ${planName}`);
+          } else {
+            // Option 2: Chercher via stripe_price_mapping
+            const { data: mappingData, error: mappingError } = await supabase
+              .from('stripe_price_mapping')
+              .select('plan_name')
+              .eq('price_id', priceId)
+              .single();
+
+            if (!mappingError && mappingData) {
+              planName = mappingData.plan_name;
+              console.info(`📋 Plan name from mapping table: ${planName}`);
+            } else {
+              // Option 3: Chercher via STRIPE_PRICES (variables d'environnement)
+              const STRIPE_PRICES = {
+                starter: {
+                  normal: Deno.env.get('VITE_PRICE_ID_starter_normal') || '',
+                  promo: Deno.env.get('VITE_PRICE_ID_starter_promo') || '',
+                },
+                pro: {
+                  normal: Deno.env.get('VITE_PRICE_ID_PRO_normal') || '',
+                  promo: Deno.env.get('VITE_PRICE_ID_pro_promo') || '',
+                },
+                teams: {
+                  normal: Deno.env.get('VITE_PRICE_ID_teams_normal') || '',
+                  promo: Deno.env.get('VITE_PRICE_ID_teams_promo') || '',
+                },
+              };
+
+              // Chercher dans STRIPE_PRICES (méthode stylisée)
+              const foundPlan = Object.entries(STRIPE_PRICES)
+                .find(([, prices]) => 
+                  Object.values(prices).includes(priceId)
+                )?.[0];
+
+              if (foundPlan) {
+                planName = foundPlan;
+                console.info(`📋 Plan name from STRIPE_PRICES: ${planName}`);
+              }
+
+              if (planName === 'free') {
+                console.warn(`⚠️ Price ID ${priceId} not found in metadata, mapping, or STRIPE_PRICES, using free as fallback`);
+              }
+            }
+          }
+
+          // Récupérer le plan depuis subscription_plans
+          const { data: planData, error: planError } = await supabase
+            .from('subscription_plans')
+            .select('id, name')
+            .eq('name', planName)
+            .single();
+
+          if (planError || !planData) {
+            console.warn(`⚠️ Plan "${planName}" not found, using free as fallback`);
+            const { data: freePlan } = await supabase
+              .from('subscription_plans')
+              .select('id')
+              .eq('name', 'free')
+              .single();
+            
+            if (freePlan) {
+              await supabase.from('user_subscriptions').upsert({
+                user_id: userId,
+                plan_id: freePlan.id,
+                status: 'active',
+                started_at: new Date(subscription.current_period_start * 1000).toISOString(),
+                expires_at: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
+              }, { onConflict: 'user_id' });
+            }
+            return;
+          }
+
+          // Mettre à jour ou créer user_subscriptions
+          const { error: userSubError } = await supabase.from('user_subscriptions').upsert({
+            user_id: userId,
+            plan_id: planData.id,
+            status: subscription.status === 'active' ? 'active' : subscription.status === 'trialing' ? 'trialing' : 'active',
+            started_at: new Date(subscription.current_period_start * 1000).toISOString(),
+            expires_at: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
+          }, { onConflict: 'user_id' });
+
+          if (userSubError) {
+            console.error('❌ Error updating user_subscriptions:', userSubError);
+          } else {
+            console.info(`✅ Successfully updated user_subscriptions for user ${userId} with plan ${planData.name}`);
+          }
+        } catch (linkError) {
+          console.error('❌ Error linking user_subscriptions:', linkError);
+          // Ne pas faire échouer le webhook si la liaison échoue
+        }
+    }
   } catch (error) {
     console.error(`Failed to sync subscription for customer ${customerId}:`, error);
     throw error;

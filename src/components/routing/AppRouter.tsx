@@ -45,6 +45,28 @@ import { ForumPostDetailPage } from '../../pages/ForumPostDetailPage';
 import { GuidePage } from '../../pages/GuidePage';
 import { LaunchPage } from '../../pages/LaunchPage';
 
+// Composant pour rediriger /register vers /auth avec le paramètre plan
+// Si l'utilisateur est déjà connecté, rediriger vers /plan avec le plan
+function RegisterRedirect() {
+  const location = useLocation();
+  const { user } = useAuth();
+  const searchParams = new URLSearchParams(location.search);
+  const plan = searchParams.get('plan') || '';
+  
+  React.useEffect(() => {
+    // Si l'utilisateur est connecté et qu'un plan est spécifié, rediriger vers /plan
+    if (user && plan && ['starter', 'pro', 'teams'].includes(plan)) {
+      // Rediriger vers /plan avec le plan en paramètre
+      // Le composant PlanPage gérera le checkout
+      window.location.href = `/plan?plan=${plan}`;
+    }
+  }, [user, plan]);
+  
+  // Rediriger vers /auth avec le paramètre plan
+  const authUrl = plan ? `/auth?plan=${plan}` : '/auth';
+  return <Navigate to={authUrl} replace />;
+}
+
 export function AppRouter() {
   const { user, loading } = useAuth();
   const [showAuthForm, setShowAuthForm] = React.useState(false);
@@ -113,6 +135,14 @@ export function AppRouter() {
           } 
         />
         
+        {/* Route /register - Redirige vers /auth avec le paramètre plan */}
+        <Route 
+          path="/register" 
+          element={
+            <RegisterRedirect />
+          } 
+        />
+        
         {/* Pages de vérification email et bienvenue */}
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/confirm-email" element={<ConfirmEmailPage />} />
@@ -133,8 +163,7 @@ export function AppRouter() {
         {/* Guide utilisateur - Page publique */}
         <Route path="/guide" element={<GuidePage />} />
 
-        {/* Page de lancement CentriNote - Page publique */}
-        <Route path="/launch" element={<LaunchPage />} />
+        {/* Page de lancement CentriNote - Gérée par Netlify redirect vers /launch.html */}
 
         {/* Route de diagnostic Settings + IA - DEV ONLY */}
         <Route path="/debug/settings-ia" element={<SettingsIADiagnostic />} />
