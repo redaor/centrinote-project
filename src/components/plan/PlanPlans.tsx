@@ -36,8 +36,9 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
       return;
     }
 
-    // Pour les plans payants (starter, pro), utiliser le nouveau système
-    if (planKey === 'starter' || planKey === 'pro' || planKey === 'teams') {
+    // Pour les plans payants (starter, pro uniquement), utiliser le nouveau système
+    // Teams est géré séparément (redirection vers support)
+    if (planKey === 'starter' || planKey === 'pro') {
       try {
         // Récupérer le token JWT
         const { data: { session } } = await supabase.auth.getSession();
@@ -48,7 +49,7 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
 
         // Utiliser planCheckoutService pour lancer le checkout
         const result = await planCheckoutService.checkoutPlanSync(
-          planKey as 'starter' | 'pro' | 'teams',
+          planKey as 'starter' | 'pro',
           session.user.email || session.user.id,
           session.access_token
         );
