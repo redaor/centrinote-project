@@ -93,7 +93,7 @@ export const PLANS = [
     features: [
       'Tokens IA illimités',
       '60 réunions 60 min',
-      'Participants illimités',
+      '20 participants',
       'Résumés IA illimités',
       'Vocabulaire illimité',
       'Automations illimitées',
