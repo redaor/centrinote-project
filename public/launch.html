@@ -2,204 +2,642 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>CentriNote – Lancement officiel</title>
+  <title>CentriNote – Lancement officiel 🚀</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="CentriNote - Notes intelligentes, réunions clarifiées, vocabulaire engrangé. Tout-en-un.">
+  <meta name="description" content="CentriNote - Notes intelligentes, réunions clarifiées, vocabulaire engrangé. Tout-en-un. Promo de lancement -20% pendant 30 jours !">
+
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- AOS Animations -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+
+  <!-- Alpine.js -->
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
   <style>
-    .countdown{font-size:1.5rem;font-weight:700;color:#f59e0b}
-    .price-old{text-decoration:line-through;color:#9ca3af}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+    * {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .floating {
+      animation: floating 3s ease-in-out infinite;
+    }
+
+    @keyframes floating {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+
+    .pulse-slow {
+      animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .shimmer {
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      background-size: 200% 100%;
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .card-hover {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .card-hover:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+    }
+
+    .countdown-digit {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      color: #f59e0b;
+    }
   </style>
 </head>
-<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 overflow-x-hidden">
 
-<!-- HERO -->
-<section class="min-h-screen flex items-center justify-center px-6 text-center">
-  <div>
-    <h1 class="text-5xl md:text-7xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
+<!-- HERO Section -->
+<section class="min-h-screen flex items-center justify-center px-6 text-center relative overflow-hidden">
+  <!-- Animated background circles -->
+  <div class="absolute top-20 left-10 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
+  <div class="absolute top-40 right-10 w-72 h-72 bg-indigo-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
+  <div class="absolute -bottom-8 left-20 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
+
+  <div class="relative z-10" data-aos="fade-up" data-aos-duration="1000">
+    <!-- Badge promo -->
+    <div class="inline-flex items-center gap-2 bg-gradient-to-r from-orange-100 to-yellow-100 border-2 border-orange-200 px-4 py-2 rounded-full mb-6 shadow-lg" data-aos="zoom-in" data-aos-delay="200">
+      <span class="relative flex h-3 w-3">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
+      </span>
+      <span class="text-sm font-semibold text-orange-800">
+        🔥 Promo de lancement •
+        <span id="countdown" class="countdown-digit"></span> restants
+      </span>
+    </div>
+
+    <h1 class="text-5xl md:text-7xl lg:text-8xl font-black mb-6 gradient-text" data-aos="fade-up" data-aos-delay="300">
       CentriNote Launch
     </h1>
-    <p class="mt-6 text-xl md:text-2xl text-gray-600">
-      Notes intelligentes, réunions clarifiées, vocabulaire engrangé.<br>
-      <span class="font-semibold text-indigo-600">Tout-en-un.</span>
+
+    <p class="mt-6 text-xl md:text-2xl lg:text-3xl text-gray-700 max-w-3xl mx-auto" data-aos="fade-up" data-aos-delay="400">
+      Notes intelligentes, réunions clarifiées, vocabulaire engrangé.
+      <br>
+      <span class="font-bold text-indigo-600">Tout-en-un.</span>
     </p>
-    <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-      <a href="#pricing" class="px-8 py-4 rounded-lg bg-indigo-600 text-white font-semibold text-lg shadow-lg hover:bg-indigo-700 transition transform hover:scale-105">
-        Choisir mon plan
+
+    <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center" data-aos="fade-up" data-aos-delay="500">
+      <a href="#pricing" class="group px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-lg shadow-2xl hover:shadow-indigo-500/50 transition-all duration-300 transform hover:scale-105 relative overflow-hidden">
+        <span class="relative z-10">Choisir mon plan</span>
+        <div class="shimmer absolute inset-0"></div>
       </a>
-      <a href="https://centrinote.fr" class="px-8 py-4 rounded-lg border-2 border-indigo-600 text-indigo-600 font-semibold text-lg shadow hover:bg-indigo-50 transition">
+      <a href="https://centrinote.fr" class="px-8 py-4 rounded-xl border-2 border-indigo-600 text-indigo-600 font-semibold text-lg shadow-lg hover:bg-indigo-50 transition-all duration-300 transform hover:scale-105">
         Essayer gratuitement
       </a>
     </div>
-    <p class="mt-6 text-sm text-gray-500">Promo de lancement : –20 % pendant 30 jours</p>
+
+    <!-- Social proof -->
+    <div class="mt-12 flex items-center justify-center gap-8 text-sm text-gray-600" data-aos="fade-up" data-aos-delay="600">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+        </svg>
+        <span>Sans engagement</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+        </svg>
+        <span>Données sécurisées</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+        </svg>
+        <span>Support réactif</span>
+      </div>
+    </div>
   </div>
 </section>
 
-<!-- PRICING -->
-<section id="pricing" class="py-20 px-6">
-  <div class="max-w-6xl mx-auto">
-    <h2 class="text-4xl font-extrabold text-center mb-12">Choisissez ce qui vous fait avancer</h2>
-    <div class="grid md:grid-cols-3 gap-8">
+<!-- PRICING Section -->
+<section id="pricing" class="py-20 px-6 bg-white">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <h2 class="text-4xl md:text-5xl font-extrabold mb-4">
+        Choisissez ce qui vous fait avancer
+      </h2>
+      <p class="text-xl text-gray-600">
+        Prix de lancement • Économisez jusqu'à 33% pendant 30 jours 🎉
+      </p>
+    </div>
 
-      <!-- Free -->
-      <div class="rounded-2xl border-2 border-gray-200 bg-white shadow hover:shadow-xl transition">
-        <div class="p-6">
+    <div class="grid md:grid-cols-3 gap-8 lg:gap-10">
+      <!-- Free Plan -->
+      <div class="rounded-2xl border-2 border-gray-200 bg-white shadow-lg card-hover p-8" data-aos="fade-up" data-aos-delay="100">
+        <div class="flex items-center justify-between mb-6">
           <h3 class="text-2xl font-bold">Free</h3>
-          <div class="mt-4 text-4xl font-extrabold">0 €</div>
-          <div class="text-sm text-gray-500">/ mois</div>
-          <ul class="mt-6 space-y-3 text-sm">
-            <li>✅ Notes illimitées (texte brut)</li>
-            <li>✅ 50 mots vocabulaire</li>
-            <li>✅ 1 réunion 45 min + résumé IA</li>
-            <li>✅ 1 automation</li>
-          </ul>
-          <a href="https://centrinote.fr" class="mt-6 w-full block text-center py-3 rounded-lg bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300 transition">Commencer</a>
-        </div>
-      </div>
-
-      <!-- Starter -->
-      <div class="rounded-2xl border-2 border-indigo-500 bg-white shadow-xl relative">
-        <span class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-full">POPULAIRE</span>
-        <div class="p-6">
-          <h3 class="text-2xl font-bold">Starter</h3>
-          <div class="mt-4 text-4xl font-extrabold text-indigo-600">
-            9,99 €
-            <span class="text-sm price-old ml-2">12,99 €</span>
+          <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+            <span class="text-2xl">🎓</span>
           </div>
-          <div class="text-sm text-gray-500">/ mois</div>
-          <ul class="mt-6 space-y-3 text-sm">
-            <li>✅ 150 k tokens IA</li>
-            <li>✅ 10 réunions 45 min</li>
-            <li>✅ Résumé IA (5-8 max)</li>
-            <li>✅ 100 mots vocabulaire</li>
-            <li>✅ 5 automations</li>
-          </ul>
-          <a href="https://centrinote.fr" class="mt-6 w-full block text-center py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition">Essai promo</a>
-          <p class="text-xs text-center text-gray-400 mt-2">Promo -23 %, 30 jours</p>
         </div>
+
+        <div class="mb-6">
+          <div class="text-5xl font-black">0 €</div>
+          <div class="text-gray-500 mt-1">/ mois</div>
+        </div>
+
+        <ul class="space-y-4 mb-8">
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-700">Notes illimitées (texte brut)</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-700"><strong>50 mots</strong> vocabulaire</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-700"><strong>1 réunion</strong> 45 min + résumé IA</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-700"><strong>1 automation</strong></span>
+          </li>
+        </ul>
+
+        <a href="https://centrinote.fr" class="block w-full py-3 px-6 text-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold transition-colors duration-300">
+          Commencer gratuitement
+        </a>
       </div>
 
-      <!-- Pro -->
-      <div class="rounded-2xl border-2 border-purple-500 bg-white shadow hover:shadow-xl transition">
-        <div class="p-6">
-          <h3 class="text-2xl font-bold">Pro</h3>
-          <div class="mt-4 text-4xl font-extrabold text-purple-600">
-            19,99 €
-            <span class="text-sm price-old ml-2">29,99 €</span>
+      <!-- Starter Plan (Popular) -->
+      <div class="rounded-2xl border-2 border-indigo-500 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-2xl card-hover p-8 relative overflow-hidden" data-aos="fade-up" data-aos-delay="200">
+        <div class="absolute -top-1 -right-1 w-32 h-32 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full filter blur-3xl opacity-30"></div>
+
+        <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 z-20">
+          <span class="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
+            ⭐ POPULAIRE
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between mb-6 relative z-10">
+          <h3 class="text-2xl font-bold text-indigo-900">Starter</h3>
+          <div class="w-12 h-12 bg-indigo-200 rounded-full flex items-center justify-center">
+            <span class="text-2xl">🚀</span>
           </div>
-          <div class="text-sm text-gray-500">/ mois</div>
-          <ul class="mt-6 space-y-3 text-sm">
-            <li>✅ 600 k tokens IA</li>
-            <li>✅ 20 réunions 60 min</li>
-            <li>✅ Résumé IA illimité</li>
-            <li>✅ 500 mots vocabulaire</li>
-            <li>✅ Automations illimitées</li>
-          </ul>
-          <a href="https://centrinote.fr" class="mt-6 w-full block text-center py-3 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-700 transition">Essai promo</a>
-          <p class="text-xs text-center text-gray-400 mt-2">Promo -33 %, 30 jours</p>
         </div>
+
+        <div class="mb-6 relative z-10">
+          <div class="flex items-baseline gap-3">
+            <div class="text-5xl font-black text-indigo-600">9,99 €</div>
+            <div class="text-2xl text-gray-400 line-through">12,99 €</div>
+          </div>
+          <div class="text-indigo-600 mt-1 font-medium">/ mois • Économisez 23%</div>
+        </div>
+
+        <ul class="space-y-4 mb-8 relative z-10">
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>150k tokens</strong> IA</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>10 réunions</strong> 45 min</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>5-8 résumés</strong> IA</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>100 mots</strong> vocabulaire</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>5 automations</strong></span>
+          </li>
+        </ul>
+
+        <a href="https://centrinote.fr" class="block w-full py-4 px-6 text-center rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold transition-all duration-300 transform hover:scale-105 shadow-xl relative z-10">
+          Profiter de la promo 🔥
+        </a>
+        <p class="text-xs text-center text-indigo-600 mt-3 font-medium relative z-10">
+          Offre limitée • 30 jours seulement
+        </p>
       </div>
 
+      <!-- Pro Plan -->
+      <div class="rounded-2xl border-2 border-purple-300 bg-white shadow-lg card-hover p-8" data-aos="fade-up" data-aos-delay="300">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-2xl font-bold text-purple-900">Pro</h3>
+          <div class="w-12 h-12 bg-purple-200 rounded-full flex items-center justify-center">
+            <span class="text-2xl">💎</span>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <div class="flex items-baseline gap-3">
+            <div class="text-5xl font-black text-purple-600">19,99 €</div>
+            <div class="text-2xl text-gray-400 line-through">29,99 €</div>
+          </div>
+          <div class="text-purple-600 mt-1 font-medium">/ mois • Économisez 33%</div>
+        </div>
+
+        <ul class="space-y-4 mb-8">
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>600k tokens</strong> IA</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>20 réunions</strong> 60 min</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>Résumés IA illimités</strong></span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>500 mots</strong> vocabulaire</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span class="text-gray-800"><strong>Automations illimitées</strong></span>
+          </li>
+        </ul>
+
+        <a href="https://centrinote.fr" class="block w-full py-4 px-6 text-center rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all duration-300 transform hover:scale-105 shadow-xl">
+          Choisir Pro
+        </a>
+        <p class="text-xs text-center text-purple-600 mt-3 font-medium">
+          Parfait pour freelances & créateurs
+        </p>
+      </div>
     </div>
 
     <!-- Teams call-out -->
-    <div class="mt-12 text-center">
-      <p class="text-gray-600">Vous êtes une équipe ?</p>
-      <a href="#teams" class="inline-flex items-center gap-2 text-indigo-600 font-semibold hover:underline">
-        Voir le plan Teams (60 réunions, tout illimité) →
-      </a>
+    <div class="mt-16 text-center" data-aos="fade-up" data-aos-delay="400">
+      <div class="inline-block p-8 rounded-2xl bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200">
+        <p class="text-lg text-gray-700 mb-2">💼 Vous êtes une équipe de 5-20 personnes ?</p>
+        <a href="#teams" class="inline-flex items-center gap-2 text-indigo-600 font-bold text-xl hover:text-indigo-700 transition-colors">
+          Découvrir le plan Teams →
+        </a>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- TEAMS -->
-<section id="teams" class="py-20 px-6 bg-gray-50">
+<!-- TEAMS Section -->
+<section id="teams" class="py-20 px-6 bg-gradient-to-br from-indigo-900 to-purple-900 text-white">
   <div class="max-w-4xl mx-auto text-center">
-    <h2 class="text-3xl font-extrabold">Teams</h2>
-    <p class="mt-2 text-lg text-gray-600">5 à 20 personnes • 60 réunions • tout illimité</p>
-    <div class="mt-6 text-5xl font-extrabold text-indigo-600">
-      39,99 €
-      <span class="text-xl text-gray-400 line-through ml-3">49,99 €</span>
+    <div data-aos="fade-up">
+      <div class="inline-block px-4 py-2 bg-white/20 rounded-full mb-6">
+        <span class="text-sm font-semibold">💼 Plan Entreprise</span>
+      </div>
+
+      <h2 class="text-4xl md:text-5xl font-extrabold mb-4">Teams</h2>
+      <p class="text-xl text-indigo-200 mb-8">
+        5 à 20 personnes • 60 réunions/mois • Tout illimité
+      </p>
+
+      <div class="mb-6">
+        <div class="flex items-baseline justify-center gap-4">
+          <div class="text-6xl font-black">39,99 €</div>
+          <div class="text-3xl text-indigo-300 line-through">49,99 €</div>
+        </div>
+        <div class="text-indigo-200 mt-2">/ mois • Économisez 20%</div>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-6 mt-12 text-left max-w-2xl mx-auto">
+        <div class="flex items-start gap-3">
+          <svg class="w-6 h-6 text-indigo-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          <span>Tokens IA illimités</span>
+        </div>
+        <div class="flex items-start gap-3">
+          <svg class="w-6 h-6 text-indigo-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          <span>60 réunions 60 min</span>
+        </div>
+        <div class="flex items-start gap-3">
+          <svg class="w-6 h-6 text-indigo-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          <span>Vocabulaire illimité</span>
+        </div>
+        <div class="flex items-start gap-3">
+          <svg class="w-6 h-6 text-indigo-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          <span>Admin dashboard</span>
+        </div>
+        <div class="flex items-start gap-3">
+          <svg class="w-6 h-6 text-indigo-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          <span>Support prioritaire</span>
+        </div>
+        <div class="flex items-start gap-3">
+          <svg class="w-6 h-6 text-indigo-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          <span>Facturation centralisée</span>
+        </div>
+      </div>
+
+      <a href="mailto:contact@centrinote.fr?subject=Demande plan Teams" class="inline-block mt-10 px-10 py-4 rounded-xl bg-white text-indigo-900 font-bold text-lg shadow-2xl hover:shadow-white/50 transition-all duration-300 transform hover:scale-105">
+        Contactez-nous
+      </a>
+      <p class="text-sm text-indigo-200 mt-4">
+        Réponse sous 24h • Démo personnalisée offerte
+      </p>
     </div>
-    <div class="mt-4 text-gray-600">
-      Tokens IA illimités • Réunions 60 min • Vocab illimité • Automations illimitées • Admin dashboard
-    </div>
-    <a href="mailto:contact@centrinote.fr?subject=Demande plan Teams" class="mt-6 inline-block px-8 py-4 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition">
-      Contactez-nous
-    </a>
-    <p class="text-xs text-gray-400 mt-2">Promo -20 %, 30 jours</p>
   </div>
 </section>
 
-<!-- PERSONAS -->
+<!-- PERSONAS Section -->
 <section class="py-20 px-6 bg-white">
-  <div class="max-w-5xl mx-auto text-center">
-    <h2 class="text-3xl font-extrabold">À qui s'adresse CentriNote ?</h2>
-    <div class="mt-10 grid md:grid-cols-3 gap-8 text-left">
-      <div class="p-6 rounded-xl border border-gray-200">
-        <h3 class="font-bold text-indigo-600">Étudiants & autodidactes</h3>
-        <p class="mt-2 text-sm text-gray-600">Free ou Starter : cours, révisions, langues, 1-2 calls par mois.</p>
+  <div class="max-w-6xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <h2 class="text-4xl md:text-5xl font-extrabold mb-4">
+        À qui s'adresse CentriNote ?
+      </h2>
+      <p class="text-xl text-gray-600">
+        Une solution adaptée à chaque profil
+      </p>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-8">
+      <div class="p-8 rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white card-hover" data-aos="fade-up" data-aos-delay="100">
+        <div class="w-16 h-16 bg-indigo-200 rounded-2xl flex items-center justify-center mb-6">
+          <span class="text-3xl">🎓</span>
+        </div>
+        <h3 class="text-xl font-bold text-indigo-900 mb-3">
+          Étudiants & Autodidactes
+        </h3>
+        <p class="text-gray-600 mb-4">
+          Free ou Starter : cours, révisions, langues, 1-2 calls par mois.
+        </p>
+        <div class="text-sm text-indigo-600 font-semibold">
+          → Plan recommandé : <strong>Starter</strong>
+        </div>
       </div>
-      <div class="p-6 rounded-xl border border-gray-200">
-        <h3 class="font-bold text-purple-600">Créateurs & freelances</h3>
-        <p class="mt-2 text-sm text-gray-600">Pro : clients, contenu, brainstorming, jusqu'à 20 h de réunions.</p>
+
+      <div class="p-8 rounded-2xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-white card-hover" data-aos="fade-up" data-aos-delay="200">
+        <div class="w-16 h-16 bg-purple-200 rounded-2xl flex items-center justify-center mb-6">
+          <span class="text-3xl">💼</span>
+        </div>
+        <h3 class="text-xl font-bold text-purple-900 mb-3">
+          Créateurs & Freelances
+        </h3>
+        <p class="text-gray-600 mb-4">
+          Pro : clients, contenu, brainstorming, jusqu'à 20h de réunions.
+        </p>
+        <div class="text-sm text-purple-600 font-semibold">
+          → Plan recommandé : <strong>Pro</strong>
+        </div>
       </div>
-      <div class="p-6 rounded-xl border border-gray-200">
-        <h3 class="font-bold text-indigo-600">Petites équipes</h3>
-        <p class="mt-2 text-sm text-gray-600">Teams : 5-20 personnes, 60 réunions, admin dashboard, prix par tête.</p>
+
+      <div class="p-8 rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white card-hover" data-aos="fade-up" data-aos-delay="300">
+        <div class="w-16 h-16 bg-indigo-200 rounded-2xl flex items-center justify-center mb-6">
+          <span class="text-3xl">🏢</span>
+        </div>
+        <h3 class="text-xl font-bold text-indigo-900 mb-3">
+          Petites Équipes
+        </h3>
+        <p class="text-gray-600 mb-4">
+          Teams : 5-20 personnes, 60 réunions, admin dashboard, prix par siège.
+        </p>
+        <div class="text-sm text-indigo-600 font-semibold">
+          → Plan recommandé : <strong>Teams</strong>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- FEATURES -->
+<!-- FEATURES Section -->
 <section class="py-20 px-6 bg-gradient-to-br from-indigo-50 to-purple-50">
-  <div class="max-w-5xl mx-auto">
-    <h2 class="text-3xl font-extrabold text-center mb-12">Ce qui rend CentriNote unique</h2>
+  <div class="max-w-6xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <h2 class="text-4xl md:text-5xl font-extrabold mb-4">
+        Ce qui rend CentriNote unique
+      </h2>
+    </div>
+
     <div class="grid md:grid-cols-2 gap-8">
-      <div class="p-6 bg-white rounded-xl shadow">
-        <h3 class="font-bold text-lg text-indigo-600">📝 Notes intelligentes</h3>
-        <p class="mt-2 text-sm text-gray-600">Éditeur markdown, tags, recherche IA contextuelle, export PDF/Markdown</p>
+      <div class="p-8 bg-white rounded-2xl shadow-lg" data-aos="fade-right">
+        <div class="text-4xl mb-4">📝</div>
+        <h3 class="text-2xl font-bold mb-3">Notes intelligentes</h3>
+        <p class="text-gray-600">
+          Éditeur markdown, tags, recherche IA contextuelle, export PDF/Markdown
+        </p>
       </div>
-      <div class="p-6 bg-white rounded-xl shadow">
-        <h3 class="font-bold text-lg text-purple-600">🎥 Réunions + Résumés IA</h3>
-        <p class="mt-2 text-sm text-gray-600">Visio intégrée, transcription automatique, résumé intelligent avec points clés</p>
+
+      <div class="p-8 bg-white rounded-2xl shadow-lg" data-aos="fade-left">
+        <div class="text-4xl mb-4">🎥</div>
+        <h3 class="text-2xl font-bold mb-3">Réunions + Résumés IA</h3>
+        <p class="text-gray-600">
+          Visio intégrée, transcription automatique, résumé intelligent avec points clés
+        </p>
       </div>
-      <div class="p-6 bg-white rounded-xl shadow">
-        <h3 class="font-bold text-lg text-indigo-600">📚 Vocabulaire gamifié</h3>
-        <p class="mt-2 text-sm text-gray-600">Flashcards SRS, modes révision, statistiques de progression</p>
+
+      <div class="p-8 bg-white rounded-2xl shadow-lg" data-aos="fade-right">
+        <div class="text-4xl mb-4">📚</div>
+        <h3 class="text-2xl font-bold mb-3">Vocabulaire gamifié</h3>
+        <p class="text-gray-600">
+          Flashcards SRS, modes révision, statistiques de progression
+        </p>
       </div>
-      <div class="p-6 bg-white rounded-xl shadow">
-        <h3 class="font-bold text-lg text-purple-600">🤖 Automations</h3>
-        <p class="mt-2 text-sm text-gray-600">Rappels intelligents, citations motivantes, résumés hebdomadaires</p>
+
+      <div class="p-8 bg-white rounded-2xl shadow-lg" data-aos="fade-left">
+        <div class="text-4xl mb-4">🤖</div>
+        <h3 class="text-2xl font-bold mb-3">Automations</h3>
+        <p class="text-gray-600">
+          Rappels intelligents, citations motivantes, résumés hebdomadaires
+        </p>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-20 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+  <div class="max-w-4xl mx-auto text-center" data-aos="zoom-in">
+    <h2 class="text-4xl md:text-5xl font-extrabold mb-6">
+      Prêt à transformer votre apprentissage ?
+    </h2>
+    <p class="text-xl mb-10 text-indigo-100">
+      Rejoignez CentriNote aujourd'hui et profitez de la promo de lancement
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="#pricing" class="px-10 py-4 rounded-xl bg-white text-indigo-600 font-bold text-lg shadow-2xl hover:shadow-white/50 transition-all duration-300 transform hover:scale-105">
+        Voir les tarifs
+      </a>
+      <a href="https://centrinote.fr" class="px-10 py-4 rounded-xl border-2 border-white text-white font-bold text-lg hover:bg-white/10 transition-all duration-300">
+        Commencer gratuitement
+      </a>
     </div>
   </div>
 </section>
 
 <!-- FOOTER -->
-<footer class="py-10 px-6 bg-gray-900 text-white text-center text-sm">
-  <div class="mb-4">
-    <a href="https://centrinote.fr" class="text-2xl font-bold">CentriNote</a>
-  </div>
-  <p>© 2024 CentriNote – Tous droits réservés</p>
-  <div class="mt-4 space-x-4">
-    <a href="https://centrinote.fr/privacy" class="underline hover:text-indigo-400">Politique de confidentialité</a>
-    <a href="https://centrinote.fr/terms" class="underline hover:text-indigo-400">CGU</a>
-    <a href="mailto:contact@centrinote.fr" class="underline hover:text-indigo-400">Contact</a>
+<footer class="py-12 px-6 bg-gray-900 text-white">
+  <div class="max-w-6xl mx-auto">
+    <div class="grid md:grid-cols-4 gap-8 mb-8">
+      <div>
+        <div class="text-2xl font-bold mb-4 gradient-text">CentriNote</div>
+        <p class="text-gray-400 text-sm">
+          La plateforme tout-en-un pour vos notes, réunions et apprentissage.
+        </p>
+      </div>
+
+      <div>
+        <h4 class="font-semibold mb-4">Produit</h4>
+        <ul class="space-y-2 text-sm text-gray-400">
+          <li><a href="#pricing" class="hover:text-white transition-colors">Tarifs</a></li>
+          <li><a href="https://centrinote.fr" class="hover:text-white transition-colors">Démo</a></li>
+          <li><a href="#teams" class="hover:text-white transition-colors">Teams</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="font-semibold mb-4">Légal</h4>
+        <ul class="space-y-2 text-sm text-gray-400">
+          <li><a href="https://centrinote.fr/privacy-policy" class="hover:text-white transition-colors">Confidentialité</a></li>
+          <li><a href="https://centrinote.fr/terms-of-service" class="hover:text-white transition-colors">CGU</a></li>
+          <li><a href="https://centrinote.fr/legal-mentions" class="hover:text-white transition-colors">Mentions légales</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="font-semibold mb-4">Contact</h4>
+        <ul class="space-y-2 text-sm text-gray-400">
+          <li><a href="mailto:contact@centrinote.fr" class="hover:text-white transition-colors">contact@centrinote.fr</a></li>
+          <li><a href="https://centrinote.fr/support" class="hover:text-white transition-colors">Support</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="pt-8 border-t border-gray-800 text-center text-sm text-gray-400">
+      <p>© 2024 CentriNote – Tous droits réservés</p>
+    </div>
   </div>
 </footer>
 
+<!-- Scripts -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
 <script>
-  // Smooth scroll
+  // Initialize AOS animations
+  AOS.init({
+    duration: 800,
+    once: true,
+    offset: 100
+  });
+
+  // Countdown timer (30 days from now)
+  const promoEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  function updateCountdown() {
+    const now = new Date();
+    const timeRemaining = promoEndDate - now;
+
+    if (timeRemaining <= 0) {
+      document.getElementById('countdown').textContent = 'Promo terminée';
+      return;
+    }
+
+    const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+
+    document.getElementById('countdown').textContent = `${days}j ${hours}h ${minutes}min`;
+  }
+
+  // Update countdown every minute
+  updateCountdown();
+  setInterval(updateCountdown, 60000);
+
+  // Smooth scroll for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
       e.preventDefault();
       const target = document.querySelector(this.getAttribute('href'));
       if (target) {
-        target.scrollIntoView({ behavior: 'smooth' });
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
       }
     });
   });
+
+  // Animate blob shapes
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes blob {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(20px, -50px) scale(1.1); }
+      50% { transform: translate(-20px, 20px) scale(0.9); }
+      75% { transform: translate(50px, 50px) scale(1.05); }
+    }
+    .animate-blob {
+      animation: blob 7s infinite;
+    }
+    .animation-delay-2000 {
+      animation-delay: 2s;
+    }
+    .animation-delay-4000 {
+      animation-delay: 4s;
+    }
+  `;
+  document.head.appendChild(style);
 </script>
+</body>
 </html>
