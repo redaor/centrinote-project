@@ -24,33 +24,32 @@ export function PlanPage() {
     
     if (planParam && ['starter', 'pro', 'teams'].includes(planParam)) {
       // Pour starter, pro et teams, lancer le checkout automatiquement
-        const { user } = state;
-        if (user?.id && user?.email) {
-          // Récupérer le token JWT de la session
-          supabase.auth.getSession().then(({ data: { session }, error }) => {
-            if (error || !session) {
-              console.error('❌ Erreur récupération session:', error);
-              return;
-            }
+      const { user } = state;
+      if (user?.id && user?.email) {
+        // Récupérer le token JWT de la session
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+          if (error || !session) {
+            console.error('❌ Erreur récupération session:', error);
+            return;
+          }
 
-            const userToken = session.access_token;
+          const userToken = session.access_token;
 
-            // Importer dynamiquement pour éviter les dépendances circulaires
-            import('../services/planCheckoutService').then(({ planCheckoutService }) => {
-              planCheckoutService.checkoutPlanSync(
-                planParam as 'starter' | 'pro' | 'teams',
-                user.email || user.id,
-                userToken
-              ).then(result => {
-                if (result.success && result.url) {
-                  window.location.href = result.url;
-                } else {
-                  console.error('❌ Erreur checkout:', result.error);
-                }
-              });
+          // Importer dynamiquement pour éviter les dépendances circulaires
+          import('../services/planCheckoutService').then(({ planCheckoutService }) => {
+            planCheckoutService.checkoutPlanSync(
+              planParam as 'starter' | 'pro' | 'teams',
+              user.email || user.id,
+              userToken
+            ).then(result => {
+              if (result.success && result.url) {
+                window.location.href = result.url;
+              } else {
+                console.error('❌ Erreur checkout:', result.error);
+              }
             });
           });
-        }
+        });
       }
     }
   }, [location.search, state.user]);
