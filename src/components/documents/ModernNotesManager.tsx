@@ -930,9 +930,6 @@ export function ModernNotesManager() {
 
   // Note Card moderne avec interactions doubles (mémoïsé pour optimiser les performances)
   const ModernNoteCard = React.memo(({ note, index, isActive }: { note: Note; index: number; isActive: boolean }) => {
-    const cardHeight = note.content
-      ? Math.min(Math.max(200, note.content.length / 3), 350)
-      : 200;
     const categoryMeta = getNoteCategoryMeta(note);
     const CategoryIcon = categoryMeta.icon;
     const rawContent = note.content?.trim() ?? '';
@@ -943,8 +940,8 @@ export function ModernNotesManager() {
     return (
       <div 
         className={`
-          relative mb-6 break-inside-avoid cursor-pointer
-          transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 rounded-xl
+          relative h-full cursor-pointer
+          transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
           ${isActive ? 'scale-[1.01] z-10' : 'hover:scale-[1.01]'}
         `}
         style={{ animationDelay: `${index * 50}ms` }}
@@ -966,7 +963,7 @@ export function ModernNotesManager() {
         {/* Card principale */}
         <div 
           className={`
-            px-5 py-4 transition-all duration-150 ease-in-out relative overflow-hidden
+            h-full flex flex-col px-5 py-4 transition-all duration-150 ease-in-out relative overflow-hidden
             ${isActive 
               ? 'shadow-lg border-[#5B9DFF]/40 dark:border-[#5B9DFF]/40 bg-[#FAFBFC] dark:bg-gray-800' 
               : 'shadow-sm border-[#E5E9F2] dark:border-gray-700 bg-[#FAFBFC] dark:bg-gray-800'
@@ -975,14 +972,13 @@ export function ModernNotesManager() {
             hover:shadow-[0_2px_6px_rgba(0,0,0,0.05)] hover:-translate-y-0.5
           `}
           style={{ 
-            minHeight: `${cardHeight}px`,
             borderRadius: '8px',
             borderWidth: '1px',
             borderStyle: 'solid'
           }}
         >
           {/* Header avec status indicators */}
-          <div className="flex items-start justify-between mb-3">
+          <div className="flex items-start justify-between mb-3 flex-shrink-0">
             <div className="flex flex-col space-y-2">
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${categoryMeta.badgeClass}`}>
                 <CategoryIcon className="w-3 h-3 stroke-[1px]" />
@@ -1002,7 +998,7 @@ export function ModernNotesManager() {
               </div>
             </div>
             
-            <div className="flex items-center space-x-1">
+            <div className="flex items-center space-x-1 flex-shrink-0">
               {note.is_pinned && (
                 <button
                   type="button"
@@ -1020,15 +1016,15 @@ export function ModernNotesManager() {
           </div>
 
           {/* Titre */}
-          <div className="mb-4">
-            <h3 className="text-sm font-medium line-clamp-2 mb-2 dark:text-gray-100" style={{ color: '#1F2D3D' }}>
+          <div className="mb-3 flex-shrink-0">
+            <h3 className="text-sm font-medium line-clamp-2 dark:text-gray-100" style={{ color: '#1F2D3D' }}>
               {note.title}
             </h3>
           </div>
 
           {/* Tags chips colorés */}
           {note.tags && note.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
+            <div className="flex flex-wrap gap-2 mb-3 flex-shrink-0">
               {note.tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag.id}
@@ -1056,14 +1052,15 @@ export function ModernNotesManager() {
             </div>
           )}
 
-          <div className="space-y-3 mb-4">
-            <p className="text-sm leading-relaxed line-clamp-3 dark:text-gray-300" style={{ color: '#1F2D3D' }}>
+          {/* Contenu avec flex-grow pour occuper l'espace disponible */}
+          <div className="flex-grow flex flex-col space-y-3 mb-4 min-h-0">
+            <p className="text-sm leading-relaxed line-clamp-3 dark:text-gray-300 flex-shrink-0" style={{ color: '#1F2D3D' }}>
               {previewContent || 'Aucun contenu pour cette note.'}
             </p>
             {hasMoreContent && (
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 text-xs font-medium hover:underline transition-all duration-150"
+                className="inline-flex items-center gap-1.5 text-xs font-medium hover:underline transition-all duration-150 flex-shrink-0"
                 style={{ color: '#5B9DFF' }}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -1078,7 +1075,8 @@ export function ModernNotesManager() {
             )}
           </div>
 
-          <div className="flex items-center justify-between text-xs dark:text-gray-400" style={{ color: '#8492A6' }}>
+          {/* Footer fixe en bas */}
+          <div className="flex items-center justify-between text-xs dark:text-gray-400 flex-shrink-0 mt-auto" style={{ color: '#8492A6' }}>
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-1">
                 <Clock className="w-3 h-3 stroke-[1px]" />
@@ -1119,20 +1117,20 @@ export function ModernNotesManager() {
   });
 
 
-  // Masonry CSS Grid Layout
-  const MasonryGrid = ({ children }: { children: React.ReactNode[] }) => (
+  // Grid Layout uniforme (remplace Masonry pour uniformiser les hauteurs)
+  const UniformGrid = ({ children }: { children: React.ReactNode[] }) => (
     <div 
-      className="columns-1 md:columns-2 lg:columns-3 xl:columns-4"
-      style={{ columnFill: 'balance', gap: '12px' }}
+      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-stretch"
+      style={{ gap: '12px' }}
     >
       {children}
     </div>
   );
 
   const renderNotesCollection = () => {
-    if (viewMode === 'masonry') {
+    if (viewMode === 'masonry' || viewMode === 'grid') {
       return (
-        <MasonryGrid>
+        <UniformGrid>
           {filteredNotes.map((note, index) => (
             <ModernNoteCard
               key={note.id}
@@ -1141,22 +1139,7 @@ export function ModernNotesManager() {
               isActive={activeNoteId === note.id}
             />
           ))}
-        </MasonryGrid>
-      );
-    }
-
-    if (viewMode === 'grid') {
-      return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" style={{ gap: '12px' }}>
-          {filteredNotes.map((note, index) => (
-            <ModernNoteCard
-              key={note.id}
-              note={note}
-              index={index}
-              isActive={activeNoteId === note.id}
-            />
-          ))}
-        </div>
+        </UniformGrid>
       );
     }
 
