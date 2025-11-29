@@ -39,6 +39,12 @@
   [functions."test-smtp"]
     included_files = ["utils/**"]
 
+# Redirection spécifique pour /launch (doit être avant le catch-all)
+[[redirects]]
+  from = "/launch"
+  to = "/launch.html"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -49,7 +55,19 @@
   port = 5173
   publish = "dist"
 
-# Headers pour la sécurité
+# Exception CSP pour /launch.html (DOIT être AVANT la règle globale)
+# Autorise tous les CDN nécessaires pour la landing page
+[[headers]]
+  for = "/launch.html"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://cdn.tailwindcss.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.tailwindcss.com; img-src 'self' data: blob: https:; connect-src 'self' https:; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self';"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), display-capture=()"
+
+# Headers pour la sécurité (pour toutes les autres pages)
 [[headers]]
   for = "/*"
   [headers.values]
@@ -57,8 +75,8 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    # Content Security Policy pour autoriser images base64, Supabase, Daily.co et scripts inline
-    Content-Security-Policy = "default-src 'self'; img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.daily.co; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.daily.co; style-src 'self' 'unsafe-inline' https://*.daily.co; connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.openai.com https://*.daily.co wss://*.supabase.co wss://*.supabase.in wss://*.daily.co; font-src 'self' data: https://*.daily.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' https://*.daily.co;"
+    # Content Security Policy pour autoriser images base64, Supabase, Daily.co, CDN externes (launch page) et scripts inline
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.daily.co; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.daily.co https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://*.daily.co https://unpkg.com https://fonts.googleapis.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.openai.com https://*.daily.co wss://*.supabase.co wss://*.supabase.in wss://*.daily.co; font-src 'self' data: https://*.daily.co https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' https://*.daily.co;"
     Permissions-Policy = "camera=(self \"https://*.daily.co\"), microphone=(self \"https://*.daily.co\"), geolocation=(), display-capture=(self \"https://*.daily.co\")"
 
 # Cache pour les assets statiques
