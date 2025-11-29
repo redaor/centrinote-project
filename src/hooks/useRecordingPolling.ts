@@ -114,7 +114,12 @@ export function useRecordingPolling({
                     console.error('[POLLING] ⚠️ Erreur transcription (non bloquant):', errorData);
                   }
                 } catch (transcribeError) {
-                  console.error('[POLLING] ⚠️ Erreur appel transcription (non bloquant):', transcribeError);
+                  // Ignorer les erreurs de navigation (Failed to fetch est normal si la page se démonte)
+                  if (transcribeError instanceof TypeError && transcribeError.message?.includes('Failed to fetch')) {
+                    console.log('[POLLING] ℹ️ Transcription annulée par navigation (normal, webhook Daily.co s\'en chargera)');
+                  } else {
+                    console.error('[POLLING] ⚠️ Erreur appel transcription (non bloquant):', transcribeError);
+                  }
                 }
               }
             } catch (dbError) {

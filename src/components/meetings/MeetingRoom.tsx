@@ -368,10 +368,16 @@ export function MeetingRoom() {
       }
       
       // 2. Laisser le temps à React de finir son cycle de nettoyage (IMPORTANT pour éviter erreur React)
-      await new Promise(res => setTimeout(res, 150));
+      // Utiliser requestAnimationFrame pour synchroniser avec le cycle de rendu React
+      await new Promise(res => {
+        requestAnimationFrame(() => {
+          setTimeout(res, 100); // Réduit à 100ms car requestAnimationFrame ajoute déjà un délai
+        });
+      });
       console.log('✅ [ROOM] Délai de nettoyage React terminé');
       
       // 2. Marquer la réunion comme terminée via end-meeting (en arrière-plan, non bloquant)
+      // Note: Cette requête peut être annulée par la navigation, c'est normal et non bloquant
       if (meeting && meeting.status === 'active') {
         console.log('✏️ [ROOM] Mise à jour statut réunion via end-meeting...');
         fetch(`/.netlify/functions/end-meeting`, {
@@ -388,7 +394,12 @@ export function MeetingRoom() {
           }
         })
         .catch(err => {
-          console.error('❌ [ROOM] Erreur lors de la mise à jour:', err);
+          // Ignorer les erreurs de navigation (Failed to fetch est normal lors de window.location.href)
+          if (err.message?.includes('Failed to fetch') || err.name === 'TypeError') {
+            console.log('ℹ️ [ROOM] Requête annulée par navigation (normal)');
+          } else {
+            console.error('❌ [ROOM] Erreur lors de la mise à jour:', err);
+          }
         });
       }
       
