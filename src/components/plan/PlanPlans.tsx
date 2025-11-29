@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Check, Zap, Crown, Star, Rocket } from 'lucide-react';
+import { Check, Zap, Crown, Star, Sparkles } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { PLANS } from '../../config/planPrices';
 import { getPriceIdAuto, isPromoActiveSync } from '../../config/stripePrices';
@@ -67,7 +67,7 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
   const getPlanIcon = (planId: string) => {
     switch (planId) {
       case 'free': return Check;
-      case 'starter': return Rocket;
+      case 'starter': return Sparkles;
       case 'pro': return Zap;
       case 'teams': return Crown;
       default: return Check;
@@ -102,7 +102,7 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {PLANS.map((plan) => {
           const PlanIcon = getPlanIcon(plan.key);
           const isCurrentPlan = plan.key === currentPlanId;
