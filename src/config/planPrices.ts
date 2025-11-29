@@ -1,5 +1,6 @@
 /**
- * 🎯 Configuration des prix LIVE Stripe
+ * 🎯 Configuration des prix LIVE Stripe (LEGACY - pour compatibilité)
+ * ⚠️ DÉPRÉCIÉ: Utiliser stripePrices.ts pour les nouveaux plans
  */
 
 export const PRICES = {
@@ -25,27 +26,79 @@ export function getPriceIdOrThrow(tier: 'free' | 'pro' | 'focus'): string {
   return id;
 }
 
-// Configuration des plans pour l'UI
+// Configuration des plans pour l'UI (NOUVEAUX PLANS: Free, Starter, Pro, Teams)
 export const PLANS = [
   { 
     key: 'free', 
     label: 'Free', 
     desc: 'Pour démarrer', 
     cta: 'Rester sur Free',
-    features: ['Jusqu\'à 5 notes', 'Vocabulaire de base', 'Support communautaire']
+    price: 0,
+    pricePromo: null,
+    priceNormal: null,
+    features: [
+      'Notes illimitées (texte brut)',
+      '50 mots vocabulaire',
+      '1 réunion 45 min + résumé IA',
+      '1 automation',
+      '3 participants max par réunion'
+    ]
+  },
+  { 
+    key: 'starter', 
+    label: 'Starter', 
+    desc: '⭐ POPULAIRE', 
+    cta: 'Profiter de la promo 🔥',
+    price: 9.99,
+    pricePromo: 9.99,
+    priceNormal: 12.99,
+    discount: 23,
+    isPopular: true,
+    features: [
+      '150k tokens IA',
+      '10 réunions 45 min',
+      '8 participants max par réunion',
+      '5 résumés IA',
+      '100 mots vocabulaire',
+      '5 automations'
+    ]
   },
   { 
     key: 'pro', 
     label: 'Pro', 
     desc: 'Pour aller plus loin', 
     cta: 'Choisir Pro',
-    features: ['Notes illimitées', 'Vocabulaire avancé', 'IA intégrée', 'Support prioritaire']
+    price: 19.99,
+    pricePromo: 19.99,
+    priceNormal: 29.99,
+    discount: 33,
+    features: [
+      '600k tokens IA',
+      '20 réunions 60 min',
+      '15 participants max par réunion',
+      'Résumés IA illimités',
+      '500 mots vocabulaire',
+      'Automations illimitées'
+    ]
   },
   { 
-    key: 'focus', 
-    label: 'Focus', 
+    key: 'teams', 
+    label: 'Teams', 
     desc: 'Équipe & scale', 
-    cta: 'Choisir Focus',
-    features: ['Tout du Plan Pro', 'Collaboration équipe', 'Analytics avancées', 'Support dédié']
+    cta: 'Contactez-nous',
+    price: 39.99,
+    pricePromo: 39.99,
+    priceNormal: 49.99,
+    discount: 20,
+    features: [
+      'Tokens IA illimités',
+      '60 réunions 60 min',
+      'Participants illimités',
+      'Résumés IA illimités',
+      'Vocabulaire illimité',
+      'Automations illimitées',
+      'Admin dashboard',
+      'Support prioritaire'
+    ]
   },
 ];

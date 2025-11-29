@@ -2,10 +2,13 @@
  * 🎯 Composant PlanPlans - Sélection de plans
  */
 
-import React, { useState } from 'react';
-import { Check, Zap, Crown, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Check, Zap, Crown, Star, Rocket } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { PLANS, getPriceIdOrThrow } from '../../config/planPrices';
+import { PLANS } from '../../config/planPrices';
+import { getPriceIdAuto, isPromoActiveSync } from '../../config/stripePrices';
+import { planCheckoutService } from '../../services/planCheckoutService';
+import { supabase } from '../../lib/supabase';
 
 interface PlanPlansProps {
   currentPlanId?: string;
@@ -16,31 +19,57 @@ interface PlanPlansProps {
 export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = false }: PlanPlansProps) {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
-  const handleSelectPlan = (planKey: string) => {
+  const handleSelectPlan = async (planKey: string) => {
     if (planKey === currentPlanId) return;
     
     setSelectedPlan(planKey);
     
-    // Pour les plans payants, utiliser les prix LIVE
-    if (planKey === 'pro' || planKey === 'focus') {
+    // Pour le plan gratuit
+    if (planKey === 'free') {
+      onSelectPlan?.(planKey);
+      return;
+    }
+
+    // Pour Teams, rediriger vers contact
+    if (planKey === 'teams') {
+      window.open('https://centrinote.fr/support', '_blank');
+      return;
+    }
+
+    // Pour les plans payants (starter, pro), utiliser le nouveau système
+    if (planKey === 'starter' || planKey === 'pro' || planKey === 'teams') {
       try {
-        const priceId = getPriceIdOrThrow(planKey as 'pro'|'focus');
-        onSelectPlan?.(priceId); // Envoyer le vrai price_id LIVE
+        // Récupérer le token JWT
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.error('❌ Pas de session utilisateur');
+          return;
+        }
+
+        // Utiliser planCheckoutService pour lancer le checkout
+        const result = await planCheckoutService.checkoutPlanSync(
+          planKey as 'starter' | 'pro' | 'teams',
+          session.user.email || session.user.id,
+          session.access_token
+        );
+
+        if (result.success && result.url) {
+          window.location.href = result.url;
+        } else {
+          console.error('❌ Erreur checkout:', result.error);
+        }
       } catch (error) {
         console.error('❌ Error getting price ID:', error);
-        return;
       }
-    } else {
-      // Pour le plan gratuit
-      onSelectPlan?.(planKey);
     }
   };
 
   const getPlanIcon = (planId: string) => {
     switch (planId) {
       case 'free': return Check;
+      case 'starter': return Rocket;
       case 'pro': return Zap;
-      case 'focus': return Crown;
+      case 'teams': return Crown;
       default: return Check;
     }
   };
@@ -48,15 +77,16 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
   const getPlanColor = (planId: string) => {
     switch (planId) {
       case 'free': return 'border-gray-200 dark:border-gray-700';
-      case 'pro': return 'border-blue-500 dark:border-blue-400';
-      case 'focus': return 'border-purple-500 dark:border-purple-400';
+      case 'starter': return 'border-indigo-500 dark:border-indigo-400';
+      case 'pro': return 'border-purple-500 dark:border-purple-400';
+      case 'teams': return 'border-blue-500 dark:border-blue-400';
       default: return 'border-gray-200 dark:border-gray-700';
     }
   };
 
   const getPlanButtonVariant = (planId: string) => {
     if (planId === currentPlanId) return 'secondary';
-    if (planId === 'pro') return 'default';
+    if (planId === 'starter') return 'default'; // Starter est populaire
     return 'secondary';
   };
 
@@ -72,12 +102,16 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {PLANS.map((plan) => {
           const PlanIcon = getPlanIcon(plan.key);
           const isCurrentPlan = plan.key === currentPlanId;
           const isSelected = selectedPlan === plan.key;
-          const isPopular = plan.key === 'pro'; // Pro est populaire
+          const isPopular = (plan as any).isPopular || plan.key === 'starter'; // Starter est populaire
+          const hasPromo = (plan as any).pricePromo && (plan as any).priceNormal && isPromoActiveSync(plan.key as any);
+          const displayPrice = hasPromo ? (plan as any).pricePromo : (plan as any).price || 0;
+          const normalPrice = (plan as any).priceNormal;
+          const discount = (plan as any).discount;
 
           return (
             <div
@@ -129,13 +163,31 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
 
               {/* Price */}
               <div className="text-center mb-6">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {plan.key === 'free' ? 'Gratuit' : plan.key === 'pro' ? '9,99€' : '29,99€'}
-                </div>
-                {plan.key !== 'free' && (
-                  <div className="text-gray-600 dark:text-gray-400 text-sm">
-                    par mois
+                {plan.key === 'free' ? (
+                  <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                    Gratuit
                   </div>
+                ) : (
+                  <>
+                    <div className="flex items-baseline justify-center gap-2">
+                      <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                        {displayPrice.toFixed(2).replace('.', ',')}€
+                      </div>
+                      {hasPromo && normalPrice && (
+                        <div className="text-lg text-gray-400 line-through">
+                          {normalPrice.toFixed(2).replace('.', ',')}€
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+                      par mois
+                      {hasPromo && discount && (
+                        <span className="text-orange-600 font-semibold ml-2">
+                          • Économisez {discount}%
+                        </span>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 
