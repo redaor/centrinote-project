@@ -311,6 +311,7 @@ ${transcription}
         generated_at: new Date().toISOString(),
       };
 
+      // Sauvegarder dans meeting_summaries (pour historique)
       const { data: savedSummary, error: saveError } = await supabase
         .from('meeting_summaries')
         .upsert(summaryData, { onConflict: 'meeting_id' })
@@ -318,7 +319,31 @@ ${transcription}
         .single();
 
       if (saveError) {
-        throw new Error(`Erreur sauvegarde résumé: ${saveError.message}`);
+        console.error('⚠️ [GENERATE-SUMMARY-AUTO] Erreur sauvegarde meeting_summaries:', saveError);
+        // Ne pas échouer si meeting_summaries échoue, on continue avec meetings
+      } else {
+        console.log('✅ [GENERATE-SUMMARY-AUTO] Résumé sauvegardé dans meeting_summaries');
+      }
+
+      // ✅ CRITIQUE: Mettre à jour meetings.ai_summary pour l'affichage dans l'UI
+      const { error: updateError } = await supabase
+        .from('meetings')
+        .update({
+          ai_summary: summary,
+          transcript: JSON.stringify({
+            text: transcription,
+            transcribed_at: new Date().toISOString(),
+            words_count: transcription.split(/\s+/).length,
+            duration: meeting.duration_minutes || 0
+          })
+        })
+        .eq('id', meetingId);
+
+      if (updateError) {
+        console.error('❌ [GENERATE-SUMMARY-AUTO] Erreur mise à jour meetings.ai_summary:', updateError);
+        throw new Error(`Erreur mise à jour meetings.ai_summary: ${updateError.message}`);
+      } else {
+        console.log('✅ [GENERATE-SUMMARY-AUTO] meetings.ai_summary mis à jour avec succès');
       }
 
       // Nettoyer le fichier temporaire
