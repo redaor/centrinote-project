@@ -43,6 +43,7 @@ import ConfirmEmailPage from '../../pages/ConfirmEmailPage';
 import { ForumPage } from '../../pages/ForumPage';
 import { ForumPostDetailPage } from '../../pages/ForumPostDetailPage';
 import { GuidePage } from '../../pages/GuidePage';
+import { LaunchPage } from '../../pages/LaunchPage';
 
 export function AppRouter() {
   const { user, loading } = useAuth();
@@ -131,6 +132,9 @@ export function AppRouter() {
 
         {/* Guide utilisateur - Page publique */}
         <Route path="/guide" element={<GuidePage />} />
+
+        {/* Page de lancement CentriNote - Page publique */}
+        <Route path="/launch" element={<LaunchPage />} />
 
         {/* Route de diagnostic Settings + IA - DEV ONLY */}
         <Route path="/debug/settings-ia" element={<SettingsIADiagnostic />} />
