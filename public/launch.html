@@ -2,9 +2,28 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>CentriNote – Lancement officiel 🚀</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="CentriNote - Notes intelligentes, réunions clarifiées, vocabulaire engrangé. Tout-en-un. Promo de lancement -20% pendant 30 jours !">
+
+  <!-- SEO -->
+  <title>CentriNote – Lancement officiel | Notes + Réunions + Vocabulaire IA</title>
+  <meta name="description" content="CentriNote remplace 4 outils : notes IA, réunions 45-60 min, vocabulaire auto, automations. Prix launch -20%.">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://centrinote.fr/launch">
+  <meta property="og:title" content="CentriNote – Lancement officiel">
+  <meta property="og:description" content="Notes IA, réunions + résumé, vocabulaire auto, automations. -20% pendant 30 jours.">
+  <meta property="og:image" content="https://centrinote.fr/og-launch.jpg">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://centrinote.fr/launch">
+  <meta name="twitter:title" content="CentriNote – Lancement officiel">
+  <meta name="twitter:description" content="Notes IA, réunions + résumé, vocabulaire auto, automations. -20% pendant 30 jours.">
+  <meta name="twitter:image" content="https://centrinote.fr/og-launch.jpg">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -14,6 +33,10 @@
 
   <!-- Alpine.js -->
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- GSAP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -27,19 +50,6 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-    }
-
-    .floating {
-      animation: floating 3s ease-in-out infinite;
-    }
-
-    @keyframes floating {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-20px); }
-    }
-
-    .pulse-slow {
-      animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
 
     .shimmer {
@@ -65,54 +75,77 @@
     .countdown-digit {
       font-variant-numeric: tabular-nums;
       font-weight: 700;
-      color: #f59e0b;
+    }
+
+    @keyframes blob {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(20px, -50px) scale(1.1); }
+      50% { transform: translate(-20px, 20px) scale(0.9); }
+      75% { transform: translate(50px, 50px) scale(1.05); }
+    }
+
+    .animate-blob {
+      animation: blob 7s infinite;
+    }
+
+    .animation-delay-2000 {
+      animation-delay: 2s;
+    }
+
+    .animation-delay-4000 {
+      animation-delay: 4s;
+    }
+
+    /* Sticky countdown banner */
+    .countdown-banner {
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
   </style>
 </head>
 <body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 overflow-x-hidden">
 
+<!-- Countdown Banner (Sticky Top) -->
+<div id="countdown-banner" class="fixed top-0 left-0 right-0 bg-gradient-to-r from-orange-400 to-yellow-400 text-gray-900 text-center py-3 px-4 text-sm font-bold z-50 countdown-banner">
+  <div class="flex items-center justify-center gap-3">
+    <span class="relative flex h-3 w-3">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+      <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+    </span>
+    <span>🔥 PROMO DE LANCEMENT : -20% • <span id="countdown" class="countdown-digit"></span> restants</span>
+  </div>
+</div>
+
 <!-- HERO Section -->
-<section class="min-h-screen flex items-center justify-center px-6 text-center relative overflow-hidden">
+<section id="hero" class="min-h-screen flex items-center justify-center px-6 text-center relative overflow-hidden pt-20">
   <!-- Animated background circles -->
   <div class="absolute top-20 left-10 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
   <div class="absolute top-40 right-10 w-72 h-72 bg-indigo-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
   <div class="absolute -bottom-8 left-20 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
 
-  <div class="relative z-10" data-aos="fade-up" data-aos-duration="1000">
-    <!-- Badge promo -->
-    <div class="inline-flex items-center gap-2 bg-gradient-to-r from-orange-100 to-yellow-100 border-2 border-orange-200 px-4 py-2 rounded-full mb-6 shadow-lg" data-aos="zoom-in" data-aos-delay="200">
-      <span class="relative flex h-3 w-3">
-        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-        <span class="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
-      </span>
-      <span class="text-sm font-semibold text-orange-800">
-        🔥 Promo de lancement •
-        <span id="countdown" class="countdown-digit"></span> restants
-      </span>
-    </div>
-
-    <h1 class="text-5xl md:text-7xl lg:text-8xl font-black mb-6 gradient-text" data-aos="fade-up" data-aos-delay="300">
+  <div class="relative z-10 max-w-5xl mx-auto">
+    <h1 class="text-5xl md:text-7xl lg:text-8xl font-black mb-6 gradient-text hero-title">
       CentriNote Launch
     </h1>
 
-    <p class="mt-6 text-xl md:text-2xl lg:text-3xl text-gray-700 max-w-3xl mx-auto" data-aos="fade-up" data-aos-delay="400">
+    <p class="mt-6 text-xl md:text-2xl lg:text-3xl text-gray-700 hero-subtitle">
       Notes intelligentes, réunions clarifiées, vocabulaire engrangé.
       <br>
       <span class="font-bold text-indigo-600">Tout-en-un.</span>
     </p>
 
-    <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center" data-aos="fade-up" data-aos-delay="500">
-      <a href="#pricing" class="group px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-lg shadow-2xl hover:shadow-indigo-500/50 transition-all duration-300 transform hover:scale-105 relative overflow-hidden">
+    <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center hero-cta">
+      <a href="https://centrinote.fr/auth" class="group px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-lg shadow-2xl hover:shadow-indigo-500/50 transition-all duration-300 transform hover:scale-105 relative overflow-hidden">
         <span class="relative z-10">Choisir mon plan</span>
         <div class="shimmer absolute inset-0"></div>
       </a>
-      <a href="https://centrinote.fr" class="px-8 py-4 rounded-xl border-2 border-indigo-600 text-indigo-600 font-semibold text-lg shadow-lg hover:bg-indigo-50 transition-all duration-300 transform hover:scale-105">
+      <a href="https://centrinote.fr/auth" class="px-8 py-4 rounded-xl border-2 border-indigo-600 text-indigo-600 font-semibold text-lg shadow-lg hover:bg-indigo-50 transition-all duration-300 transform hover:scale-105">
         Essayer gratuitement
       </a>
     </div>
 
     <!-- Social proof -->
-    <div class="mt-12 flex items-center justify-center gap-8 text-sm text-gray-600" data-aos="fade-up" data-aos-delay="600">
+    <div class="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600">
       <div class="flex items-center gap-2">
         <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
@@ -123,7 +156,7 @@
         <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
         </svg>
-        <span>Données sécurisées</span>
+        <span>Données sécurisées RGPD</span>
       </div>
       <div class="flex items-center gap-2">
         <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
@@ -189,7 +222,18 @@
           </li>
         </ul>
 
-        <a href="https://centrinote.fr" class="block w-full py-3 px-6 text-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold transition-colors duration-300">
+        <!-- Quota Progress Bar -->
+        <div x-data="{ percentage: 0 }" class="mb-4">
+          <div class="flex justify-between text-xs text-gray-600 mb-1">
+            <span>Utilisation</span>
+            <span x-text="`${percentage}%`"></span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-gray-400 h-2 rounded-full transition-all duration-500" :style="`width: ${percentage}%`"></div>
+          </div>
+        </div>
+
+        <a href="https://centrinote.fr/auth?plan=free" class="block w-full py-3 px-6 text-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold transition-colors duration-300">
           Commencer gratuitement
         </a>
       </div>
@@ -252,7 +296,18 @@
           </li>
         </ul>
 
-        <a href="https://centrinote.fr" class="block w-full py-4 px-6 text-center rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold transition-all duration-300 transform hover:scale-105 shadow-xl relative z-10">
+        <!-- Quota Progress Bar -->
+        <div x-data="{ percentage: 45 }" class="mb-4 relative z-10">
+          <div class="flex justify-between text-xs text-indigo-700 mb-1">
+            <span>Utilisation moyenne</span>
+            <span x-text="`${percentage}%`"></span>
+          </div>
+          <div class="w-full bg-indigo-200 rounded-full h-2">
+            <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500" :style="`width: ${percentage}%`"></div>
+          </div>
+        </div>
+
+        <a href="https://centrinote.fr/auth?plan=starter" class="block w-full py-4 px-6 text-center rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold transition-all duration-300 transform hover:scale-105 shadow-xl relative z-10">
           Profiter de la promo 🔥
         </a>
         <p class="text-xs text-center text-indigo-600 mt-3 font-medium relative z-10">
@@ -310,7 +365,19 @@
           </li>
         </ul>
 
-        <a href="https://centrinote.fr" class="block w-full py-4 px-6 text-center rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all duration-300 transform hover:scale-105 shadow-xl">
+        <!-- Quota Progress Bar -->
+        <div x-data="{ percentage: 80 }" class="mb-4">
+          <div class="flex justify-between text-xs text-purple-700 mb-1">
+            <span>Utilisation moyenne</span>
+            <span x-text="`${percentage}%`"></span>
+          </div>
+          <div class="w-full bg-purple-200 rounded-full h-2">
+            <div class="bg-purple-600 h-2 rounded-full transition-all duration-500" :style="`width: ${percentage}%`"></div>
+          </div>
+          <p class="text-xs text-purple-600 mt-1">Capacité premium pour créateurs</p>
+        </div>
+
+        <a href="https://centrinote.fr/auth?plan=pro" class="block w-full py-4 px-6 text-center rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all duration-300 transform hover:scale-105 shadow-xl">
           Choisir Pro
         </a>
         <p class="text-xs text-center text-purple-600 mt-3 font-medium">
@@ -520,7 +587,7 @@
       <a href="#pricing" class="px-10 py-4 rounded-xl bg-white text-indigo-600 font-bold text-lg shadow-2xl hover:shadow-white/50 transition-all duration-300 transform hover:scale-105">
         Voir les tarifs
       </a>
-      <a href="https://centrinote.fr" class="px-10 py-4 rounded-xl border-2 border-white text-white font-bold text-lg hover:bg-white/10 transition-all duration-300">
+      <a href="https://centrinote.fr/auth" class="px-10 py-4 rounded-xl border-2 border-white text-white font-bold text-lg hover:bg-white/10 transition-all duration-300">
         Commencer gratuitement
       </a>
     </div>
@@ -581,6 +648,35 @@
     offset: 100
   });
 
+  // GSAP Hero Animations
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Hero animations on load
+  window.addEventListener('load', () => {
+    gsap.from('.hero-title', {
+      duration: 1.2,
+      y: 50,
+      opacity: 0,
+      ease: 'power2.out'
+    });
+
+    gsap.from('.hero-subtitle', {
+      duration: 1.2,
+      y: 30,
+      opacity: 0,
+      ease: 'power2.out',
+      delay: 0.2
+    });
+
+    gsap.from('.hero-cta', {
+      duration: 1,
+      y: 20,
+      opacity: 0,
+      ease: 'power2.out',
+      delay: 0.4
+    });
+  });
+
   // Countdown timer (30 days from now)
   const promoEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
@@ -590,6 +686,7 @@
 
     if (timeRemaining <= 0) {
       document.getElementById('countdown').textContent = 'Promo terminée';
+      document.getElementById('countdown-banner').style.display = 'none';
       return;
     }
 
@@ -600,9 +697,9 @@
     document.getElementById('countdown').textContent = `${days}j ${hours}h ${minutes}min`;
   }
 
-  // Update countdown every minute
+  // Update countdown every second for accuracy
   updateCountdown();
-  setInterval(updateCountdown, 60000);
+  setInterval(updateCountdown, 1000);
 
   // Smooth scroll for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -610,34 +707,14 @@
       e.preventDefault();
       const target = document.querySelector(this.getAttribute('href'));
       if (target) {
-        target.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
+        const offsetTop = target.offsetTop - 60; // Account for sticky banner
+        window.scrollTo({
+          top: offsetTop,
+          behavior: 'smooth'
         });
       }
     });
   });
-
-  // Animate blob shapes
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes blob {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      25% { transform: translate(20px, -50px) scale(1.1); }
-      50% { transform: translate(-20px, 20px) scale(0.9); }
-      75% { transform: translate(50px, 50px) scale(1.05); }
-    }
-    .animate-blob {
-      animation: blob 7s infinite;
-    }
-    .animation-delay-2000 {
-      animation-delay: 2s;
-    }
-    .animation-delay-4000 {
-      animation-delay: 4s;
-    }
-  `;
-  document.head.appendChild(style);
 </script>
 </body>
 </html>
