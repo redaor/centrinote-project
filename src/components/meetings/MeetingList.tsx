@@ -303,15 +303,25 @@ export function MeetingList() {
   const getStatusColor = (status: Meeting['status']) => {
     switch (status) {
       case 'scheduled':
-        return darkMode ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-800';
+        return darkMode 
+          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
+          : 'bg-amber-50 text-amber-700 border border-amber-200/60';
       case 'active':
-        return darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-800';
+        return darkMode 
+          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+          : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60';
       case 'completed':
-        return darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-800';
+        return darkMode 
+          ? 'bg-slate-500/20 text-slate-300 border border-slate-500/30' 
+          : 'bg-slate-50 text-slate-700 border border-slate-200/60';
       case 'cancelled':
-        return darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-800';
+        return darkMode 
+          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' 
+          : 'bg-rose-50 text-rose-700 border border-rose-200/60';
       default:
-        return darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-800';
+        return darkMode 
+          ? 'bg-slate-500/20 text-slate-300 border border-slate-500/30' 
+          : 'bg-slate-50 text-slate-700 border border-slate-200/60';
     }
   };
 
@@ -670,7 +680,7 @@ export function MeetingList() {
 
         {/* Liste des réunions */}
         {(filteredMeetings.length > 0 || forceShowMeetings) ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {(forceShowMeetings ? meetings : filteredMeetings).map(meeting => (
               <MeetingCard
                 key={meeting.id}
@@ -759,17 +769,27 @@ const MeetingCard = React.memo(({
   );
 
   return (
-    <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-6 hover:shadow-md transition-all duration-200`}>
+    <div className={`
+      ${darkMode 
+        ? 'bg-gradient-to-br from-gray-800/50 to-gray-800 border-gray-700/50' 
+        : 'bg-gradient-to-br from-white to-gray-50/50 border-gray-200/60'
+      } 
+      border rounded-2xl p-5 
+      hover:shadow-lg hover:shadow-blue-500/10 
+      transition-all duration-300 
+      hover:border-blue-300/40 dark:hover:border-blue-600/30
+      hover:-translate-y-0.5
+    `}>
       {/* Bandeau "Réunion terminée" avec état génération */}
       {isOver && !summary && (
-        <div className={`mb-4 p-3 rounded-lg border ${
+        <div className={`mb-4 p-3 rounded-xl border backdrop-blur-sm ${
           darkMode 
-            ? 'bg-yellow-900/20 border-yellow-800' 
-            : 'bg-yellow-50 border-yellow-200'
+            ? 'bg-amber-500/10 border-amber-500/30' 
+            : 'bg-amber-50/80 border-amber-200/60'
         }`}>
-          <div className="flex items-center space-x-2">
-            <Loader2 className={`w-4 h-4 animate-spin ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
-            <span className={`text-sm font-medium ${darkMode ? 'text-yellow-300' : 'text-yellow-800'}`}>
+          <div className="flex items-center space-x-2.5">
+            <Loader2 className={`w-3.5 h-3.5 animate-spin ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+            <span className={`text-sm font-medium ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>
               Réunion terminée – génération du résumé en cours…
             </span>
           </div>
@@ -778,27 +798,27 @@ const MeetingCard = React.memo(({
       
       {/* Bandeau "Réunion terminée" avec bouton résumé */}
       {isOver && summary && (
-        <div className={`mb-4 p-4 rounded-lg border ${
+        <div className={`mb-4 p-3.5 rounded-xl border backdrop-blur-sm ${
           darkMode 
-            ? 'bg-green-900/20 border-green-800' 
-            : 'bg-green-50 border-green-200'
+            ? 'bg-emerald-500/10 border-emerald-500/30' 
+            : 'bg-emerald-50/80 border-emerald-200/60'
         }`}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className={`w-5 h-5 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-              <span className={`font-medium ${darkMode ? 'text-green-300' : 'text-green-800'}`}>
+            <div className="flex items-center space-x-2.5">
+              <CheckCircle className={`w-4 h-4 ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
+              <span className={`text-sm font-medium ${darkMode ? 'text-emerald-300' : 'text-emerald-800'}`}>
                 Réunion terminée
               </span>
             </div>
             <Link
               to={`/meetings/${meeting.id}/summary`}
-              className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              className={`inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
                 darkMode
-                  ? 'bg-green-700 hover:bg-green-600 text-white'
-                  : 'bg-green-600 hover:bg-green-700 text-white'
+                  ? 'bg-emerald-600/80 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                  : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
               } hover:scale-105 active:scale-95`}
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5" />
               <span>Voir le résumé</span>
             </Link>
           </div>
@@ -806,44 +826,50 @@ const MeetingCard = React.memo(({
       )}
       
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <h3 className={`font-semibold text-lg mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+      <div className="flex items-start justify-between mb-5">
+        <div className="flex-1 pr-3">
+          <h3 className={`font-semibold text-base mb-1.5 leading-tight ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
             {meeting.title}
           </h3>
           {meeting.description && (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} line-clamp-2`}>
+            <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-400' : 'text-gray-600'} line-clamp-2`}>
               {meeting.description}
             </p>
           )}
         </div>
         
         {/* Menu */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className={`p-2 rounded-lg transition-colors ${
-              darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+            className={`p-1.5 rounded-lg transition-all ${
+              darkMode 
+                ? 'hover:bg-gray-700/60 text-gray-400 hover:text-gray-300' 
+                : 'hover:bg-gray-100/80 text-gray-500 hover:text-gray-700'
             }`}
           >
-            <MoreVertical className="w-4 h-4" />
+            <MoreVertical className="w-3.5 h-3.5" />
           </button>
           
           {showMenu && (
-            <div className={`absolute right-0 top-10 z-10 w-48 rounded-lg shadow-lg border ${
-              darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
+            <div className={`absolute right-0 top-10 z-10 w-48 rounded-xl shadow-xl border backdrop-blur-sm ${
+              darkMode 
+                ? 'bg-gray-800/95 border-gray-600/50 shadow-gray-900/50' 
+                : 'bg-white/95 border-gray-200/60 shadow-gray-900/10'
             }`}>
               <button
                 onClick={() => {
                   onCopyUrl(meeting.room_url);
                   setShowMenu(false);
                 }}
-                className={`w-full flex items-center space-x-2 px-4 py-2 text-left transition-colors ${
-                  darkMode ? 'hover:bg-gray-600 text-gray-300' : 'hover:bg-gray-50 text-gray-700'
+                className={`w-full flex items-center space-x-2.5 px-4 py-2.5 text-left transition-colors rounded-lg ${
+                  darkMode 
+                    ? 'hover:bg-gray-700/60 text-gray-300' 
+                    : 'hover:bg-blue-50/80 text-gray-700'
                 }`}
               >
-                <Copy className="w-4 h-4" />
-                <span>Copier le lien</span>
+                <Copy className="w-3.5 h-3.5" />
+                <span className="text-sm">Copier le lien</span>
               </button>
               {/* Bouton envoi invitations */}
               <button
@@ -851,12 +877,14 @@ const MeetingCard = React.memo(({
                   onSendInvites(meeting);
                   setShowMenu(false);
                 }}
-                className={`w-full flex items-center space-x-2 px-4 py-2 text-left transition-colors ${
-                  darkMode ? 'hover:bg-gray-600 text-gray-300' : 'hover:bg-gray-50 text-gray-700'
+                className={`w-full flex items-center space-x-2.5 px-4 py-2.5 text-left transition-colors rounded-lg ${
+                  darkMode 
+                    ? 'hover:bg-gray-700/60 text-gray-300' 
+                    : 'hover:bg-blue-50/80 text-gray-700'
                 }`}
               >
-                <Mail className="w-4 h-4" />
-                <span>Envoyer invitations ({meeting.participants?.filter((p: any) => p.role !== 'organizer').length || 0})</span>
+                <Mail className="w-3.5 h-3.5" />
+                <span className="text-sm">Envoyer invitations ({meeting.participants?.filter((p: any) => p.role !== 'organizer').length || 0})</span>
               </button>
               <button
                 onClick={() => {
@@ -864,14 +892,14 @@ const MeetingCard = React.memo(({
                   setShowMenu(false);
                 }}
                 disabled={deleteLoading}
-                className="w-full flex items-center space-x-2 px-4 py-2 text-left text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                className="w-full flex items-center space-x-2.5 px-4 py-2.5 text-left text-red-500 hover:bg-red-50/80 dark:hover:bg-red-900/20 transition-colors rounded-lg disabled:opacity-50"
               >
                 {deleteLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 )}
-                <span>Supprimer</span>
+                <span className="text-sm">Supprimer</span>
               </button>
             </div>
           )}
@@ -880,12 +908,14 @@ const MeetingCard = React.memo(({
 
       {/* Statut et info */}
       <div className="flex items-center justify-between mb-4">
-        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(meeting.status)}`}>
+        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(meeting.status)}`}>
           {getStatusLabel(meeting.status)}
         </span>
         
         {meeting.participants.length > 0 && (
-          <div className="flex items-center space-x-1 text-xs text-gray-500">
+          <div className={`flex items-center space-x-1.5 text-xs ${
+            darkMode ? 'text-gray-400' : 'text-gray-500'
+          }`}>
             <Users className="w-3 h-3" />
             <span>{meeting.participants.length}</span>
           </div>
@@ -895,9 +925,9 @@ const MeetingCard = React.memo(({
       {/* Date */}
       {meeting.scheduled_at && (
         <div className={`flex items-center space-x-2 text-sm mb-4 ${
-          darkMode ? 'text-gray-400' : 'text-gray-600'
+          darkMode ? 'text-gray-400' : 'text-gray-500'
         }`}>
-          <Calendar className="w-4 h-4" />
+          <Calendar className="w-3.5 h-3.5" />
           <span>{formatDate(meeting.scheduled_at)}</span>
         </div>
       )}
@@ -949,13 +979,13 @@ const MeetingCard = React.memo(({
               setTimeout(() => setIsNavigating(false), 3000);
             }}
             disabled={isNavigating} // Désactiver pendant la navigation
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+            className={`flex items-center space-x-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
               isNavigating
-                ? 'bg-gray-500 cursor-wait opacity-75'
+                ? 'bg-gray-400 cursor-wait opacity-75'
                 : meeting.status === 'active'
-                  ? 'bg-green-600 hover:bg-green-700 hover:scale-105 active:scale-95 text-white cursor-pointer'
-                  : 'bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 text-white cursor-pointer'
-            } shadow-md hover:shadow-lg`}
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white cursor-pointer shadow-lg shadow-emerald-500/30'
+                  : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white cursor-pointer shadow-lg shadow-blue-500/30'
+            } hover:scale-105 active:scale-95 hover:shadow-xl`}
             title={
               isNavigating
                 ? 'Chargement...'
@@ -964,19 +994,19 @@ const MeetingCard = React.memo(({
                   : 'Démarrer la réunion'
             }
           >
-            {isNavigating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Chargement...</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>
-                  {meeting.status === 'active' ? 'Rejoindre' : 'Démarrer'}
-                </span>
-              </>
-            )}
+          {isNavigating ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Chargement...</span>
+            </>
+          ) : (
+            <>
+              <Play className="w-3.5 h-3.5" />
+              <span>
+                {meeting.status === 'active' ? 'Rejoindre' : 'Démarrer'}
+              </span>
+            </>
+          )}
           </button>
         </div>
       )}
