@@ -85,7 +85,7 @@ export const PLANS = [
     key: 'teams', 
     label: 'Teams', 
     desc: 'Équipe & scale', 
-    cta: 'Contactez-nous',
+    cta: 'Choisir Teams',
     price: 39.99,
     pricePromo: 39.99,
     priceNormal: 49.99,

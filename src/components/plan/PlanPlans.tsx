@@ -30,15 +30,8 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
       return;
     }
 
-    // Pour Teams, rediriger vers contact
-    if (planKey === 'teams') {
-      window.open('https://centrinote.fr/support', '_blank');
-      return;
-    }
-
-    // Pour les plans payants (starter, pro uniquement), utiliser le nouveau système
-    // Teams est géré séparément (redirection vers support)
-    if (planKey === 'starter' || planKey === 'pro') {
+    // Pour les plans payants (starter, pro, teams), utiliser le nouveau système
+    if (planKey === 'starter' || planKey === 'pro' || planKey === 'teams') {
       try {
         // Récupérer le token JWT
         const { data: { session } } = await supabase.auth.getSession();
@@ -49,7 +42,7 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
 
         // Utiliser planCheckoutService pour lancer le checkout
         const result = await planCheckoutService.checkoutPlanSync(
-          planKey as 'starter' | 'pro',
+          planKey as 'starter' | 'pro' | 'teams',
           session.user.email || session.user.id,
           session.access_token
         );

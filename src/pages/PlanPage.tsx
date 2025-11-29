@@ -22,15 +22,8 @@ export function PlanPage() {
     const searchParams = new URLSearchParams(location.search);
     const planParam = searchParams.get('plan');
     
-    if (planParam) {
-      // Pour Teams, rediriger vers le support
-      if (planParam === 'teams') {
-        window.open('https://centrinote.fr/support', '_blank');
-        return;
-      }
-
-      // Pour starter et pro, lancer le checkout automatiquement
-      if (['starter', 'pro'].includes(planParam)) {
+    if (planParam && ['starter', 'pro', 'teams'].includes(planParam)) {
+      // Pour starter, pro et teams, lancer le checkout automatiquement
         const { user } = state;
         if (user?.id && user?.email) {
           // Récupérer le token JWT de la session
@@ -45,7 +38,7 @@ export function PlanPage() {
             // Importer dynamiquement pour éviter les dépendances circulaires
             import('../services/planCheckoutService').then(({ planCheckoutService }) => {
               planCheckoutService.checkoutPlanSync(
-                planParam as 'starter' | 'pro',
+                planParam as 'starter' | 'pro' | 'teams',
                 user.email || user.id,
                 userToken
               ).then(result => {
