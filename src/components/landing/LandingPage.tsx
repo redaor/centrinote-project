@@ -27,6 +27,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Fonction pour gérer les clics sur les plans (landing page = redirection vers inscription avec plan)
+  // ✅ Mis à jour le 2024-11-30 : Nouveaux plans (Free, Starter, Pro, Teams) avec prix promo
   const handlePlanClick = (planKey: 'free' | 'starter' | 'pro' | 'teams') => {
     console.log(`🔄 Clic sur plan ${planKey} depuis la landing page`);
     
