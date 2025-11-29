@@ -235,10 +235,10 @@ export function MeetingSummary() {
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600 dark:text-red-400">{error}</p>
           <Link 
-            to={`/meeting/${id}`}
+            to="/meetings"
             className="mt-4 inline-block text-blue-500 hover:underline"
           >
-            ← Retour à la réunion
+            ← Retour aux réunions
           </Link>
         </div>
       </div>
@@ -254,10 +254,10 @@ export function MeetingSummary() {
             Aucun résumé disponible pour cette réunion
           </p>
           <Link 
-            to={`/meeting/${id}`}
+            to="/meetings"
             className="mt-4 inline-block text-blue-500 hover:underline"
           >
-            ← Retour à la réunion
+            ← Retour aux réunions
           </Link>
         </div>
       </div>
@@ -277,11 +277,11 @@ export function MeetingSummary() {
         {/* Header */}
         <div className="mb-6">
           <Link 
-            to={`/meeting/${id}`}
+            to="/meetings"
             className="inline-flex items-center text-blue-500 hover:underline mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Retour à la réunion
+            Retour aux réunions
           </Link>
           
           <div className="flex items-center justify-between">
