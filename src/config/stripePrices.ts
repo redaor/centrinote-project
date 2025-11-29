@@ -50,11 +50,7 @@ export function getPriceId(plan: 'starter' | 'pro' | 'teams', usePromo: boolean 
 export async function isPromoActive(planName?: 'starter' | 'pro' | 'teams'): Promise<boolean> {
   try {
     // Import dynamique pour éviter les dépendances circulaires
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      import.meta.env.VITE_SUPABASE_URL,
-      import.meta.env.VITE_SUPABASE_ANON_KEY
-    );
+    const { supabase } = await import('../lib/supabase');
 
     // Si un plan spécifique est demandé, vérifier uniquement celui-ci
     if (planName) {
