@@ -96,21 +96,50 @@ export function SupportMessagesPage() {
     }
 
     try {
-      const { error: deleteError } = await supabase
+      // Vérifier que le message existe avant de le supprimer
+      const { data: existingMessage, error: checkError } = await supabase
+        .from('support_messages')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (checkError || !existingMessage) {
+        throw new Error('Message introuvable');
+      }
+
+      // Supprimer le message avec une clause WHERE (requis par PostgREST)
+      const { data, error: deleteError } = await supabase
         .from('support_messages')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select(); // Retourner les données supprimées pour vérification
 
       if (deleteError) {
-        throw deleteError;
+        logger.error('Erreur DELETE support_messages', new Error(deleteError.message), {
+          code: deleteError.code,
+          details: deleteError.details,
+          hint: deleteError.hint,
+          messageId: id,
+        });
+        throw new Error(deleteError.message || 'Erreur lors de la suppression');
+      }
+
+      // Vérifier que la suppression a bien fonctionné
+      if (!data || data.length === 0) {
+        logger.warn('Aucun message supprimé', { messageId: id });
+        alert('Le message n\'a pas pu être supprimé. Vérifiez vos permissions.');
+        return;
       }
 
       // Mettre à jour localement
       setMessages(prev => prev.filter(msg => msg.id !== id));
-      logger.info('Message de support supprimé', { messageId: id });
+      logger.info('Message de support supprimé avec succès', { messageId: id });
     } catch (err) {
-      logger.error('Erreur lors de la suppression du message', err instanceof Error ? err : new Error(String(err)));
-      alert('Erreur lors de la suppression du message');
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
+      logger.error('Erreur lors de la suppression du message', err instanceof Error ? err : new Error(String(err)), {
+        messageId: id,
+      });
+      alert(`Erreur lors de la suppression du message: ${errorMessage}`);
     }
   };
 
