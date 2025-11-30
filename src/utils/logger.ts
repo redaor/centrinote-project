@@ -210,12 +210,10 @@ class SecureLogger {
   }
 
   /**
-   * Log debug (uniquement en dev)
+   * Log debug (silencieux - toujours envoyé à l'Edge Function)
    */
   debug(message: string, meta?: Record<string, any>): void {
-    if (this.isDev) {
-      this.log(message, { level: 'debug', meta });
-    }
+    this.log(message, { level: 'debug', meta });
   }
 }
 
