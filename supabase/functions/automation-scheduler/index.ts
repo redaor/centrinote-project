@@ -65,6 +65,31 @@ serve(async (req) => {
     const now = new Date();
     const schedulerRunId = crypto.randomUUID();
 
+    // ➜ LOG BRUT : Récupérer les infos de l'appelant
+    const callerIp = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "unknown";
+    const userAgent = req.headers.get("user-agent") ?? "unknown";
+
+    // ➜ LOG BRUT : chaque fois qu'une instance démarre
+    try {
+      await supabase.from("scheduler_run_log").insert({
+        scheduler_run_id: schedulerRunId,
+        caller_ip: callerIp,
+        user_agent: userAgent,
+        automation_name: null, // on remplira plus tard pour chaque automation
+        automation_id: null,
+        execution_time: now.toISOString(),
+      });
+      console.log(`📝 Logged scheduler entry: ${schedulerRunId} from ${callerIp}`);
+    } catch (logError) {
+      // Si la table n'existe pas encore, on continue quand même
+      console.warn(`⚠️ Could not log scheduler entry (table may not exist):`, logError);
+    }
+
+    console.log(`📅 Scheduler Run ID: ${schedulerRunId}`);
+    console.log(`⏰ Current time: ${now.toISOString()}`);
+    console.log(`🌐 Caller IP: ${callerIp}`);
+    console.log(`🔍 User-Agent: ${userAgent}`);
+
     // ✅ VERROU GLOBAL : Empêcher les exécutions multiples simultanées du scheduler
     try {
       const { data: globalLockResult, error: globalLockError } = await supabase.rpc('try_lock_scheduler', {
