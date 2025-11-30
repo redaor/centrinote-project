@@ -38,7 +38,7 @@ const formatTime = (dateString: string) => {
     if (days < 7) return `Il y a ${days}j`;
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   } catch (error) {
-    console.error('Erreur formatTime:', error);
+    logger.error('Erreur formatTime', error instanceof Error ? error : new Error(String(error)));
     return 'Date inconnue';
   }
 };
@@ -134,7 +134,7 @@ export function AppHeader() {
       // Redirection
       navigate('/login');
     } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+      logger.error('Erreur lors de la déconnexion', error instanceof Error ? error : new Error(String(error)));
       // En cas d'erreur, rediriger quand même
       navigate('/login');
     } finally {
@@ -146,7 +146,7 @@ export function AppHeader() {
   const handleSettingsClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('🔄 Navigation vers les paramètres...');
+    logger.debug('Navigation vers les paramètres');
     
     setShowUserMenu(false);
     dispatch({ type: 'SET_CURRENT_VIEW', payload: 'settings' });
@@ -157,7 +157,7 @@ export function AppHeader() {
   const handleHelpClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('🔄 Navigation vers l\'aide...');
+    logger.debug('Navigation vers l\'aide');
 
     setShowUserMenu(false);
     dispatch({ type: 'SET_CURRENT_VIEW', payload: 'help' });
@@ -168,7 +168,7 @@ export function AppHeader() {
   const handleAdminClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('🔄 Navigation vers l\'admin...');
+    logger.debug('Navigation vers l\'admin');
 
     setShowUserMenu(false);
     dispatch({ type: 'SET_CURRENT_VIEW', payload: 'admin' });
