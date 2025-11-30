@@ -163,6 +163,23 @@ serve(async (req) => {
 
         console.log(`✅ Automation ${automation.name} should execute NOW`);
 
+        // ➜ LOG BRUT : chaque automation traitée
+        try {
+          await supabase.from("scheduler_run_log").insert({
+            scheduler_run_id: schedulerRunId,
+            caller_ip: callerIp,
+            user_agent: userAgent,
+            automation_name: automation.name,
+            automation_id: automation.id,
+            execution_time: now.toISOString(),
+          }).catch(() => {
+            // Ignore les erreurs de contrainte unique (déjà loggé)
+          });
+        } catch (logError) {
+          // Si la table n'existe pas encore, on continue quand même
+          console.warn(`⚠️ Could not log automation entry:`, logError);
+        }
+
         // ✅ PROTECTION ATOMIQUE : Verrou + mise à jour last_executed_at dans la même transaction
         let lockAcquired = false;
         try {
