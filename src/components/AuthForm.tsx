@@ -46,27 +46,46 @@ export default function AuthForm() {
           console.error('❌ Code erreur:', error.status);
           console.error('❌ Message:', error.message);
           
-          // Détecter si c'est un compte inexistant
+          // Détecter si c'est un compte inexistant (seulement si vraiment sûr)
           if (error.status === 400 && error.message.includes('Invalid login credentials')) {
             // Vérifier si l'email existe dans la table profiles
+            // Note: On ne peut pas vérifier auth.users directement, donc on vérifie profiles
+            // Si le profil n'existe pas ET qu'il n'y a pas d'erreur de requête, c'est probablement un compte inexistant
             try {
               const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('id')
-                .eq('email', email)
+                .eq('email', email.toLowerCase().trim())
                 .maybeSingle();
               
-              // Si aucun profil n'existe, c'est probablement un compte inexistant
+              // Seulement déclencher "compte inexistant" si :
+              // 1. Aucun profil trouvé
+              // 2. Aucune erreur de requête (sinon c'est peut-être un problème de permissions/RLS)
+              // 3. La requête s'est bien terminée (pas d'erreur réseau)
               if (!profile && !profileError) {
-                setAccountNotFound(true);
-                throw new Error('ACCOUNT_NOT_FOUND');
+                // Double vérification : essayer aussi avec l'email tel quel (au cas où)
+                const { data: profileAlt } = await supabase
+                  .from('profiles')
+                  .select('id')
+                  .eq('email', email)
+                  .maybeSingle();
+                
+                // Si toujours rien, c'est probablement un compte inexistant
+                if (!profileAlt) {
+                  console.log('🔍 Aucun profil trouvé pour cet email, compte probablement inexistant');
+                  setAccountNotFound(true);
+                  throw new Error('ACCOUNT_NOT_FOUND');
+                }
               }
             } catch (checkError) {
-              // Si la vérification échoue, on assume que c'est un compte inexistant
+              // Si la vérification échoue avec notre erreur personnalisée, on la propage
               if (checkError instanceof Error && checkError.message === 'ACCOUNT_NOT_FOUND') {
                 setAccountNotFound(true);
                 throw checkError;
               }
+              // Sinon, on ignore l'erreur et on affiche le message d'erreur standard
+              // (cela peut être une erreur de permissions RLS, etc.)
+              console.warn('⚠️ Erreur lors de la vérification du profil, on assume un mauvais mot de passe');
             }
           }
           
