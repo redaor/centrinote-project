@@ -105,16 +105,13 @@ export function useVocabulary() {
         userId: user.id
       };
 
-      logger.debug("📤 Données complètes envoyées au service:", entryWithUserId);
-      console.log("📤 [useVocabulary] Données complètes envoyées au service:", entryWithUserId);
+      logger.debug("Données vocabulaire envoyées au service");
 
       // Ajouter à Supabase
       logger.debug("Appel vocabularyService.addVocabularyEntry");
       const newEntry = await vocabularyService.addVocabularyEntry(entryWithUserId);
 
-      logger.debug("Résultat vocabulaire reçu");
-      logger.debug("✅ Vocabulaire ajouté avec succès:", newEntry.id);
-      logger.debug("📊 Entrée complète:", newEntry);
+      logger.debug("Vocabulaire ajouté avec succès");
 
       // Mettre à jour le contexte global
       dispatch({ type: 'ADD_VOCABULARY', payload: newEntry });
@@ -122,23 +119,6 @@ export function useVocabulary() {
       return newEntry;
     } catch (err) {
       logger.error("ERREUR CRITIQUE lors de l'ajout du mot", err instanceof Error ? err : new Error(String(err)));
-      logger.error("❌ ERREUR CRITIQUE lors de l'ajout du mot:", err);
-      logger.error("📊 Détails de l'erreur:", {
-        error: err,
-        message: err instanceof Error ? err.message : 'Erreur inconnue',
-        stack: err instanceof Error ? err.stack : undefined,
-        userId: user?.id,
-        word: entry.word,
-        category: entry.category
-      });
-      
-      // Afficher aussi dans la console pour le debug
-      if (err instanceof Error) {
-        logger.error("Message d'erreur vocabulaire", err instanceof Error ? err : new Error(String(err)));
-        console.error("❌ [useVocabulary] Stack trace:", err.stack);
-      } else {
-        console.error("❌ [useVocabulary] Erreur inconnue (pas une Error):", err);
-      }
       
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue lors de l\'ajout du mot';
       setError(errorMessage);
@@ -150,7 +130,7 @@ export function useVocabulary() {
     } finally {
       // S'assurer que le loading est toujours réinitialisé, même si une exception a été levée
       setLoading(false);
-      console.log("🔄 [useVocabulary] Chargement terminé (finally), vocabularyLoading = false");
+      logger.debug("Chargement vocabulaire terminé");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
