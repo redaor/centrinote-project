@@ -40,6 +40,7 @@ import VerifyEmailPage from '../../pages/VerifyEmailPage';
 import EmailSentPage from '../../pages/EmailSentPage';
 import WelcomePage from '../../pages/WelcomePage';
 import ConfirmEmailPage from '../../pages/ConfirmEmailPage';
+import ResetPasswordPage from '../../pages/ResetPasswordPage';
 import { ForumPage } from '../../pages/ForumPage';
 import { ForumPostDetailPage } from '../../pages/ForumPostDetailPage';
 import { GuidePage } from '../../pages/GuidePage';
@@ -148,6 +149,9 @@ export function AppRouter() {
         <Route path="/confirm-email" element={<ConfirmEmailPage />} />
         <Route path="/email-sent" element={<EmailSentPage />} />
         <Route path="/welcome" element={<WelcomePage />} />
+        
+        {/* Page de réinitialisation du mot de passe */}
+        <Route path="/auth/reset-mot-de-passe" element={<ResetPasswordPage />} />
         
         {/* Pages légales publiques */}
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />

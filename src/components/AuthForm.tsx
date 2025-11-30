@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { signUpWithRobustEmail } from '../services/authService';
 import { AlertCircle, Mail, Lock, Eye, EyeOff, Loader, ArrowRight, User } from 'lucide-react';
+import { ForgotPasswordModal } from './auth/ForgotPasswordModal';
 
 export default function AuthForm() {
   const navigate = useNavigate();
@@ -15,6 +16,8 @@ export default function AuthForm() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [accountNotFound, setAccountNotFound] = useState(false);
 
   // Fonction pour retourner à la landing page
   const handleBackToLanding = () => {
@@ -42,6 +45,31 @@ export default function AuthForm() {
           console.error('❌ Erreur de connexion:', error);
           console.error('❌ Code erreur:', error.status);
           console.error('❌ Message:', error.message);
+          
+          // Détecter si c'est un compte inexistant
+          if (error.status === 400 && error.message.includes('Invalid login credentials')) {
+            // Vérifier si l'email existe dans la table profiles
+            try {
+              const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('email', email)
+                .maybeSingle();
+              
+              // Si aucun profil n'existe, c'est probablement un compte inexistant
+              if (!profile && !profileError) {
+                setAccountNotFound(true);
+                throw new Error('ACCOUNT_NOT_FOUND');
+              }
+            } catch (checkError) {
+              // Si la vérification échoue, on assume que c'est un compte inexistant
+              if (checkError instanceof Error && checkError.message === 'ACCOUNT_NOT_FOUND') {
+                setAccountNotFound(true);
+                throw checkError;
+              }
+            }
+          }
+          
           throw error;
         }
 
@@ -115,14 +143,17 @@ export default function AuthForm() {
     } catch (err) {
       console.error('❌ Erreur d\'authentification:', err);
 
-      // Gérer les erreurs spécifiques
+      // Gérer les erreurs spécifiques avec messages en français
       let errorMessage = 'Erreur d\'authentification';
 
       if (err instanceof Error) {
-        if (err.message.includes('User already registered')) {
+        const errorMsg = err.message.toLowerCase();
+        
+        // Compte déjà enregistré
+        if (errorMsg.includes('user already registered') || errorMsg.includes('already registered')) {
           errorMessage = mode === 'signup'
             ? '⚠️ Cet email est déjà utilisé. Voulez-vous vous connecter ?'
-            : err.message;
+            : 'Cet email est déjà enregistré.';
 
           // Proposer de passer en mode login
           if (mode === 'signup') {
@@ -130,12 +161,22 @@ export default function AuthForm() {
               if (window.confirm('Cet email est déjà enregistré. Voulez-vous vous connecter à la place ?')) {
                 setMode('login');
                 setError(null);
+                setAccountNotFound(false);
               }
             }, 100);
           }
-        } else if (err.message.includes('Invalid login credentials')) {
+        } 
+        // Compte inexistant
+        else if (err.message === 'ACCOUNT_NOT_FOUND') {
+          errorMessage = 'Aucun compte trouvé avec cette adresse.';
+          setAccountNotFound(true);
+        } 
+        // Identifiants invalides
+        else if (errorMsg.includes('invalid login credentials') || errorMsg.includes('invalid credentials')) {
           errorMessage = '❌ Email ou mot de passe incorrect';
-        } else if (err.message.includes('Email not confirmed')) {
+        } 
+        // Email non confirmé
+        else if (errorMsg.includes('email not confirmed') || errorMsg.includes('not confirmed')) {
           errorMessage = '⚠️ Veuillez confirmer votre email avant de vous connecter. Vérifiez votre boîte de réception.';
 
           // Proposer de renvoyer l'email
@@ -148,10 +189,39 @@ export default function AuthForm() {
               });
             }
           }, 100);
-        } else if (err.message.includes('Email rate limit exceeded')) {
+        } 
+        // Limite de taux dépassée
+        else if (errorMsg.includes('rate limit') || errorMsg.includes('too many requests')) {
           errorMessage = '⚠️ Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.';
-        } else {
-          errorMessage = err.message;
+        } 
+        // Mot de passe trop faible
+        else if (errorMsg.includes('password') && (errorMsg.includes('weak') || errorMsg.includes('short'))) {
+          errorMessage = '⚠️ Le mot de passe est trop faible. Utilisez au moins 6 caractères.';
+        } 
+        // Email invalide
+        else if (errorMsg.includes('invalid email') || errorMsg.includes('email format')) {
+          errorMessage = '⚠️ Adresse email invalide.';
+        } 
+        // Erreur réseau
+        else if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
+          errorMessage = '⚠️ Erreur de connexion. Vérifiez votre connexion internet.';
+        } 
+        // Erreur générique Supabase
+        else if (errorMsg.includes('supabase') || errorMsg.includes('database')) {
+          errorMessage = '⚠️ Erreur serveur. Veuillez réessayer plus tard.';
+        } 
+        // Message par défaut
+        else {
+          // Essayer de traduire les messages Supabase courants
+          const translations: Record<string, string> = {
+            'signup_disabled': 'Les inscriptions sont temporairement désactivées.',
+            'email_provider_disabled': 'La connexion par email est temporairement désactivée.',
+            'captcha_failed': 'La vérification CAPTCHA a échoué. Veuillez réessayer.',
+            'session_not_found': 'Session expirée. Veuillez vous reconnecter.',
+          };
+          
+          const translated = Object.entries(translations).find(([key]) => errorMsg.includes(key));
+          errorMessage = translated ? translated[1] : err.message;
         }
       }
 
@@ -192,9 +262,31 @@ export default function AuthForm() {
         {/* Formulaire */}
         <div className="mt-8 bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {error && (
-            <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start">
-              <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400 mr-3 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+            <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <div className="flex items-start">
+                <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400 mr-3 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                  {accountNotFound && (
+                    <div className="mt-3">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Créer un compte avec cette adresse ?
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('signup');
+                          setAccountNotFound(false);
+                          setError(null);
+                        }}
+                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300"
+                      >
+                        S'inscrire →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -311,6 +403,17 @@ export default function AuthForm() {
                   Minimum 6 caractères
                 </p>
               )}
+              {mode === 'login' && (
+                <div className="mt-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300"
+                  >
+                    Mot de passe oublié ?
+                  </button>
+                </div>
+              )}
             </div>
 
             <div>
@@ -374,6 +477,16 @@ export default function AuthForm() {
           </p>
         </div>
       </div>
+
+      {/* Modale Mot de passe oublié */}
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => {
+          setShowForgotPassword(false);
+          setError(null);
+        }}
+        initialEmail={email}
+      />
     </div>
   );
 }
