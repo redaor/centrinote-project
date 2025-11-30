@@ -143,15 +143,9 @@ export default function AuthForm() {
               if (window.confirm('Cet email est déjà enregistré. Voulez-vous vous connecter à la place ?')) {
                 setMode('login');
                 setError(null);
-                setAccountNotFound(false);
               }
             }, 100);
           }
-        } 
-        // Compte inexistant
-        else if (err.message === 'ACCOUNT_NOT_FOUND') {
-          errorMessage = 'Aucun compte trouvé avec cette adresse.';
-          setAccountNotFound(true);
         } 
         // Identifiants invalides
         else if (errorMsg.includes('invalid login credentials') || errorMsg.includes('invalid credentials')) {
