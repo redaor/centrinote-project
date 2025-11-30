@@ -169,24 +169,28 @@ export function useErrorLogs(options: UseErrorLogsOptions = {}): UseErrorLogsRet
                      profile?.email === 'contact@centrinote.fr' || 
                      profile?.email === 'reda_sahraoui@outlook.fr';
 
+      // Construire la requête de suppression
       let deleteQuery = supabase.from('error_logs').delete();
 
       // Si admin, supprimer tous les logs, sinon seulement ceux de l'utilisateur
-      if (isAdmin) {
-        // Admin peut supprimer tous les logs
-        // Pas de filtre, supprime tout
-      } else {
+      if (!isAdmin) {
         // Utilisateur normal : supprimer uniquement ses logs
         deleteQuery = deleteQuery.eq('user_id', user.id);
       }
+      // Si admin, pas de filtre = supprime tout (géré par la politique RLS)
 
-      const { error: deleteError } = await deleteQuery;
+      const { data, error: deleteError } = await deleteQuery;
 
       if (deleteError) {
-        throw deleteError;
+        logger.error('Delete error details', new Error(deleteError.message), {
+          code: deleteError.code,
+          details: deleteError.details,
+          hint: deleteError.hint,
+        });
+        throw new Error(deleteError.message || 'Failed to delete logs');
       }
 
-      logger.info('Logs cleared', { isAdmin, userId: user.id });
+      logger.info('Logs cleared successfully', { isAdmin, userId: user.id, deletedCount: data?.length || 0 });
 
       // Rafraîchir la liste
       await fetchLogs();
