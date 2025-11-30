@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.200.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { franc } from "https://esm.sh/franc@6.1.0";
 
 const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
 const BRAVE_KEY = Deno.env.get("BRAVE_API_KEY");
@@ -123,6 +124,8 @@ serve(async (req) => {
 
     // MEM-FIX: Charger l'historique depuis la BDD si session_id existe
     let dbHistory: Array<{ role: string; content: string }> = [];
+    let chatMemory: { summary?: string; key_topics?: string[]; language?: string; mood?: string } | null = null;
+    
     if (authHeader && authHeader.startsWith("Bearer ")) {
       try {
         const token = authHeader.replace("Bearer ", "");
@@ -131,6 +134,21 @@ serve(async (req) => {
         if (!userError && user) {
           userId = user.id; // MEM-FIX: Stocker userId pour la sauvegarde ultérieure
           console.log("✅ User ID récupéré:", userId.substring(0, 8) + "...");
+
+          // Charger la mémoire persistante
+          const { data: memoryData, error: memoryError } = await supabase
+            .from('chat_memory')
+            .select('summary, key_topics, language, mood')
+            .eq('user_id', user.id)
+            .eq('session_id', sessionId)
+            .single();
+
+          if (!memoryError && memoryData) {
+            chatMemory = memoryData;
+            console.log(`🧠 Mémoire chargée: ${memoryData.summary?.substring(0, 50)}...`);
+          } else {
+            console.log(`ℹ️ Aucune mémoire trouvée pour cette session`);
+          }
 
           console.log(`🔍 [DEBUG] Tentative chargement historique pour session_id: ${sessionId.substring(0, 8)}...`);
 
@@ -199,6 +217,13 @@ serve(async (req) => {
     if (fileProcessed) {
       console.log("📄 Avec fichier:", fileText.slice(0, 100) + "...");
     }
+
+    // Détecter la langue de la question
+    const detectedLang = franc(effectiveQuestion);
+    const isArabic = detectedLang === 'ara';
+    const userLanguage = chatMemory?.language || detectedLang || 'fr';
+    
+    console.log(`🌐 Langue détectée: ${detectedLang}, Langue mémoire: ${chatMemory?.language || 'N/A'}, Utilisation: ${userLanguage}`);
 
     const now = new Date().toLocaleString("fr-FR", { timeZone: "Europe/Paris" });
 
@@ -340,22 +365,47 @@ serve(async (req) => {
 
           console.log(`✅ ${results.length} résultats Brave trouvés`);
 
-          // Construire le prompt système avec recherche web + notes/vocabulaire
-          let systemContent = `Tu es Centrinote AI, l'assistant intelligent de Centrinote. Il est ${now} (heure française).
+          // Construire le prompt système avec recherche web + notes/vocabulaire + mémoire
+          const memoryContext = chatMemory?.summary 
+            ? `\n\nMémoire persistante de la conversation :\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
+            : '';
 
-IMPORTANT : Cette conversation est continue. Tu as accès à l'historique complet de la discussion. Utilise les messages précédents pour fournir des réponses contextuelles et cohérentes.
+          const languageInstruction = isArabic || userLanguage === 'ara'
+            ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
+            : userLanguage !== 'fr'
+            ? `\n\n⚠️ IMPORTANT : Réponds dans la langue détectée : ${userLanguage}`
+            : '';
 
-Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ces informations pour répondre de manière précise et concise à la question de l'utilisateur. Cite tes sources si pertinent.`;
+          let systemContent = `Tu es Centrinote AI, l'assistant personnel intelligent de l'application Centrinote.
+
+Ton rôle est d'aider l'utilisateur à :
+- Comprendre, résumer et retrouver ses notes
+- Enrichir son vocabulaire (traduction, définition, exemples)
+- Effectuer des recherches web lorsque ses notes ne suffisent pas
+- Te souvenir de ses préférences et du contexte de ses conversations (via mémoire persistante)
+
+Règles :
+- Réponds toujours dans la langue détectée (français, arabe, anglais, etc.)
+- Sois concis, bienveillant et précis
+- Cite tes sources (notes, vocabulaire, web) de manière claire
+- N'invente jamais d'informations non présentes dans les notes
+- Si tu utilises la recherche web, indique "Source : Web"
+- Si tu utilises une note, indique "Source : Note <titre>"
+- Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
+
+Il est ${now} (heure française).${memoryContext}${languageInstruction}
+
+Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ces informations pour répondre de manière précise et concise à la question de l'utilisateur.`;
 
           if (userNotes || userVocabulary) {
-            systemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;
+            systemContent += `\n\nContexte utilisateur :\n`;
             if (userNotes) {
-              systemContent += `\n<NOTES>\n${userNotes}\n</NOTES>\n`;
+              systemContent += `\n{notes}\n${userNotes}\n`;
             }
             if (userVocabulary) {
-              systemContent += `\n<VOCABULAIRE>\n${userVocabulary}\n</VOCABULAIRE>\n`;
+              systemContent += `\n{vocabulaire}\n${userVocabulary}\n`;
             }
-            systemContent += `\nUtilise ces informations personnelles de manière naturelle et contextuelle. Ne cite JAMAIS ces balises <NOTES> ou <VOCABULAIRE> dans ta réponse.`;
+            systemContent += `\nUtilise ces informations personnelles de manière naturelle et contextuelle.`;
           }
 
           const finalPayload = {
@@ -410,19 +460,44 @@ Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ce
 
       // Si pas de recherche web ET pas de réponse générée, générer une réponse avec notes/vocabulaire si disponibles
       if (!searched && !finalReply && (userNotes || userVocabulary)) {
-        let directSystemContent = `Tu es Centrinote AI, l'assistant intelligent de Centrinote. Il est ${now} (heure française).
+        const memoryContext = chatMemory?.summary 
+          ? `\n\nMémoire persistante de la conversation :\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
+          : '';
 
-IMPORTANT : Cette conversation est continue. Tu as accès à l'historique complet de la discussion. Utilise les messages précédents pour fournir des réponses contextuelles et cohérentes.`;
+        const languageInstruction = isArabic || userLanguage === 'ara'
+          ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
+          : userLanguage !== 'fr'
+          ? `\n\n⚠️ IMPORTANT : Réponds dans la langue détectée : ${userLanguage}`
+          : '';
+
+        let directSystemContent = `Tu es Centrinote AI, l'assistant personnel intelligent de l'application Centrinote.
+
+Ton rôle est d'aider l'utilisateur à :
+- Comprendre, résumer et retrouver ses notes
+- Enrichir son vocabulaire (traduction, définition, exemples)
+- Effectuer des recherches web lorsque ses notes ne suffisent pas
+- Te souvenir de ses préférences et du contexte de ses conversations (via mémoire persistante)
+
+Règles :
+- Réponds toujours dans la langue détectée (français, arabe, anglais, etc.)
+- Sois concis, bienveillant et précis
+- Cite tes sources (notes, vocabulaire, web) de manière claire
+- N'invente jamais d'informations non présentes dans les notes
+- Si tu utilises la recherche web, indique "Source : Web"
+- Si tu utilises une note, indique "Source : Note <titre>"
+- Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
+
+Il est ${now} (heure française).${memoryContext}${languageInstruction}`;
         
         if (userNotes || userVocabulary) {
-          directSystemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;
+          directSystemContent += `\n\nContexte utilisateur :\n`;
           if (userNotes) {
-            directSystemContent += `\n<NOTES>\n${userNotes}\n</NOTES>\n`;
+            directSystemContent += `\n{notes}\n${userNotes}\n`;
           }
           if (userVocabulary) {
-            directSystemContent += `\n<VOCABULAIRE>\n${userVocabulary}\n</VOCABULAIRE>\n`;
+            directSystemContent += `\n{vocabulaire}\n${userVocabulary}\n`;
           }
-          directSystemContent += `\nUtilise ces informations de manière naturelle et contextuelle. Ne cite JAMAIS ces balises <NOTES> ou <VOCABULAIRE> dans ta réponse.`;
+          directSystemContent += `\nUtilise ces informations personnelles de manière naturelle et contextuelle.`;
         }
 
         const directPayload = {
@@ -481,22 +556,47 @@ IMPORTANT : Cette conversation est continue. Tu as accès à l'historique comple
         ? `\n\n=== DOCUMENT FOURNI ===\n${fileText}\n=== FIN DU DOCUMENT ===\n\nRéponds à la question en te basant principalement sur ce document. Il est actuellement ${now}.`
         : "";
 
-      // Construire le prompt système pour analyse de document + notes/vocabulaire
-      let fileSystemContent = `Tu es Centrinote AI, l'assistant intelligent de l'application d'apprentissage Centrinote. Il est ${now} (heure française).
+      const memoryContext = chatMemory?.summary 
+        ? `\n\nMémoire persistante de la conversation :\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
+        : '';
 
-IMPORTANT : Cette conversation est continue. Tu as accès à l'historique complet de la discussion. Utilise les messages précédents pour fournir des réponses contextuelles et cohérentes.
+      const languageInstruction = isArabic || userLanguage === 'ara'
+        ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
+        : userLanguage !== 'fr'
+        ? `\n\n⚠️ IMPORTANT : Réponds dans la langue détectée : ${userLanguage}`
+        : '';
+
+      // Construire le prompt système pour analyse de document + notes/vocabulaire
+      let fileSystemContent = `Tu es Centrinote AI, l'assistant personnel intelligent de l'application Centrinote.
+
+Ton rôle est d'aider l'utilisateur à :
+- Comprendre, résumer et retrouver ses notes
+- Enrichir son vocabulaire (traduction, définition, exemples)
+- Effectuer des recherches web lorsque ses notes ne suffisent pas
+- Te souvenir de ses préférences et du contexte de ses conversations (via mémoire persistante)
+
+Règles :
+- Réponds toujours dans la langue détectée (français, arabe, anglais, etc.)
+- Sois concis, bienveillant et précis
+- Cite tes sources (notes, vocabulaire, web) de manière claire
+- N'invente jamais d'informations non présentes dans les notes
+- Si tu utilises la recherche web, indique "Source : Web"
+- Si tu utilises une note, indique "Source : Note <titre>"
+- Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
+
+Il est ${now} (heure française).${memoryContext}${languageInstruction}
 
 L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, amicale et professionnelle en te basant sur le contenu du document.`;
 
       if (userNotes || userVocabulary) {
-        fileSystemContent += `\n\nDonnées personnelles de l'utilisateur (non visibles dans ta réponse) :\n`;
+        fileSystemContent += `\n\nContexte utilisateur :\n`;
         if (userNotes) {
-          fileSystemContent += `\n<NOTES>\n${userNotes}\n</NOTES>\n`;
+          fileSystemContent += `\n{notes}\n${userNotes}\n`;
         }
         if (userVocabulary) {
-          fileSystemContent += `\n<VOCABULAIRE>\n${userVocabulary}\n</VOCABULAIRE>\n`;
+          fileSystemContent += `\n{vocabulaire}\n${userVocabulary}\n`;
         }
-        fileSystemContent += `\nUtilise ces informations personnelles de manière naturelle et contextuelle. Ne cite JAMAIS ces balises <NOTES> ou <VOCABULAIRE> dans ta réponse.`;
+        fileSystemContent += `\nUtilise ces informations personnelles de manière naturelle et contextuelle.`;
       }
 
       const filePayload = {

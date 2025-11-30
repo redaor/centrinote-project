@@ -107,6 +107,10 @@ export const useCentrinoteAI_Edge = () => {
           session_id: data.session_id, // MEM-FIX: Logger le session_id
         });
 
+        // Appeler ai-memory pour mettre à jour la mémoire persistante (toutes les 5 messages)
+        // Cette logique est aussi gérée côté serveur, mais on peut aussi l'appeler ici si nécessaire
+        // Pour l'instant, on laisse le serveur gérer cela pour éviter les appels redondants
+
         // Log détaillé pour déboguer
         if (!data.enrichment_used) {
           console.warn('⚠️ [useCentrinoteAI_Edge] Aucun enrichissement utilisé:', {
