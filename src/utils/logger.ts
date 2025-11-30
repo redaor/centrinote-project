@@ -147,37 +147,36 @@ class SecureLogger {
     // Tous les logs passent par l'Edge Function
 
     // Envoyer silencieusement à l'Edge Function
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || null;
-
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/log-error`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: sanitizedMessage,
-          level,
-          meta: sanitizedMeta,
-          source,
-          stack_trace: sanitizedStack,
-          url: url || getCurrentUrl(),
-          user_agent: getUserAgent(),
-        }),
+    // Utiliser .then().catch() au lieu de try/catch pour éviter les erreurs dans la console
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        const token = session?.access_token || null;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
+        
+        // Utiliser fetch avec .catch() silencieux pour éviter les erreurs CORS dans la console
+        fetch(`${supabaseUrl}/functions/v1/log-error`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            message: sanitizedMessage,
+            level,
+            meta: sanitizedMeta,
+            source,
+            stack_trace: sanitizedStack,
+            url: url || getCurrentUrl(),
+            user_agent: getUserAgent(),
+          }),
+        }).catch(() => {
+          // Silencieux - ignorer complètement les erreurs (CORS, réseau, etc.)
+          // Ne rien faire - pas de console.error, pas de throw
+        });
+      })
+      .catch(() => {
+        // Silencieux - ignorer les erreurs de session
       });
-
-      if (!response.ok) {
-        // Ne pas faire échouer l'application si le log échoue
-        // Silencieux - pas de console.error
-      }
-    } catch (error) {
-      // Ne pas faire échouer l'application si le log échoue
-      // Silencieux - pas de console.error
-    }
   }
 
   /**
