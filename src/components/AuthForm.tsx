@@ -605,7 +605,9 @@ export default function AuthForm() {
               </button>
             </div>
           </form>
+          )}
 
+          {/* Séparateur et bouton de changement de mode */}
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
