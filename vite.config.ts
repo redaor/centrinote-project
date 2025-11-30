@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  build: {
+    // Supprimer tous les console.* en production
+    dropConsole: true,
+  },
   base: '/', // ✅ Utiliser chemin absolu pour éviter les problèmes avec les routes /meeting/*
   plugins: [react()],
   build: {

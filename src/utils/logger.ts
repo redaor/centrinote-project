@@ -71,7 +71,7 @@ function sanitizeObject(obj: any): any {
     const sanitized: Record<string, any> = {};
     for (const [key, value] of Object.entries(obj)) {
       // Ne pas logger certaines clés sensibles
-      if (['password', 'token', 'apiKey', 'secret', 'authorization', 'cookie'].includes(key.toLowerCase())) {
+      if (['password', 'token', 'apiKey', 'secret', 'authorization', 'cookie', 'email', 'user_id', 'userId', 'id'].includes(key.toLowerCase())) {
         sanitized[key] = '[REDACTED]';
       } else {
         sanitized[key] = sanitizeObject(value);
@@ -114,17 +114,46 @@ function getStackTrace(error?: Error): string | undefined {
 }
 
 /**
- * Logger sécurisé
+ * Logger sécurisé avec backoff pour éviter les boucles d'erreur
  */
 class SecureLogger {
   private isDev: boolean;
+  private lastErrorTime: number = 0;
+  private backoffDuration: number = 60000; // 1 minute
+  private isBackoffActive: boolean = false;
 
   constructor() {
     this.isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
   }
 
   /**
+   * Vérifie si on est en période de backoff (éviter les boucles d'erreur)
+   */
+  private isInBackoff(): boolean {
+    if (!this.isBackoffActive) {
+      return false;
+    }
+    
+    const now = Date.now();
+    if (now - this.lastErrorTime > this.backoffDuration) {
+      this.isBackoffActive = false;
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * Active le backoff après une erreur
+   */
+  private activateBackoff(): void {
+    this.lastErrorTime = Date.now();
+    this.isBackoffActive = true;
+  }
+
+  /**
    * Log un message (silencieux - Edge Function uniquement)
+   * ❌ NE JAMAIS LOGGER DANS LA CONSOLE (même en dev)
    */
   async log(
     message: string,
@@ -144,7 +173,13 @@ class SecureLogger {
     const sanitizedStack = stack ? sanitizeString(stack) : undefined;
 
     // ❌ NE JAMAIS LOGGER DANS LA CONSOLE (même en dev)
-    // Tous les logs passent par l'Edge Function
+    // Tous les logs passent par l'Edge Function silencieusement
+
+    // Vérifier le backoff
+    if (this.isInBackoff()) {
+      // En backoff, ne rien faire
+      return;
+    }
 
     // Envoyer silencieusement à l'Edge Function
     // Utiliser .then().catch() au lieu de try/catch pour éviter les erreurs dans la console
@@ -154,9 +189,8 @@ class SecureLogger {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
         
         // Utiliser fetch avec .catch() silencieux pour éviter les erreurs CORS dans la console
-        // Utiliser un timeout très court pour éviter les erreurs visibles
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 100);
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
         
         fetch(`${supabaseUrl}/functions/v1/log-error`, {
           method: 'POST',
@@ -175,15 +209,26 @@ class SecureLogger {
           }),
           signal: controller.signal,
         })
-        .then(() => clearTimeout(timeoutId))
+        .then((response) => {
+          clearTimeout(timeoutId);
+          
+          // Si erreur 5xx ou CORS, activer le backoff
+          if (!response.ok && (response.status >= 500 || response.status === 0)) {
+            this.activateBackoff();
+          } else {
+            // Succès, réinitialiser le backoff
+            this.isBackoffActive = false;
+          }
+        })
         .catch(() => {
           clearTimeout(timeoutId);
-          // Silencieux - ignorer complètement les erreurs (CORS, réseau, etc.)
-          // Ne rien faire - pas de console.error, pas de throw
+          // Erreur réseau/CORS, activer le backoff
+          this.activateBackoff();
         });
       })
       .catch(() => {
-        // Silencieux - ignorer les erreurs de session
+        // Erreur de session, activer le backoff
+        this.activateBackoff();
       });
   }
 

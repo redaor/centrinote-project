@@ -6,8 +6,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Origin': 'https://centrinote.fr',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-client-info, apikey',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
@@ -23,10 +23,10 @@ interface LogErrorRequest {
 }
 
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight - IMPORTANT: doit être la première chose
+  // Handle CORS preflight - TOUJOURS répondre 200 OK
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
-      status: 204,
+      status: 200,
       headers: {
         ...corsHeaders,
         'Access-Control-Max-Age': '86400',
@@ -47,24 +47,39 @@ Deno.serve(async (req: Request) => {
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
       if (supabaseServiceKey) {
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-        
-        // Vérifier le token et récupérer l'utilisateur
-        const { data: { user } } = await supabase.auth.getUser(token);
-        if (user) {
-          userId = user.id;
+        try {
+          const supabase = createClient(supabaseUrl, supabaseServiceKey);
+          
+          // Vérifier le token et récupérer l'utilisateur
+          const { data: { user } } = await supabase.auth.getUser(token);
+          if (user) {
+            userId = user.id;
+          }
+        } catch (authError) {
+          // Ignorer les erreurs d'auth, continuer sans userId
+          console.error('Error verifying token:', authError);
         }
       }
     }
 
     // Parser le body
-    const body: LogErrorRequest = await req.json();
+    let body: LogErrorRequest;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      // Body invalide, mais renvoyer 200 quand même
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid JSON body' }),
+        { status: 200, headers: corsHeaders }
+      );
+    }
 
     // Valider les données
     if (!body.message || !body.level) {
+      // Données invalides, mais renvoyer 200 quand même
       return new Response(
         JSON.stringify({ success: false, error: 'message and level are required' }),
-        { status: 400, headers: corsHeaders }
+        { status: 200, headers: corsHeaders }
       );
     }
 
@@ -74,9 +89,10 @@ Deno.serve(async (req: Request) => {
 
     if (!supabaseServiceKey) {
       console.error('❌ SUPABASE_SERVICE_ROLE_KEY not set');
+      // Erreur config, mais renvoyer 200 quand même
       return new Response(
         JSON.stringify({ success: false, error: 'Server configuration error' }),
-        { status: 500, headers: corsHeaders }
+        { status: 200, headers: corsHeaders }
       );
     }
 
@@ -96,9 +112,10 @@ Deno.serve(async (req: Request) => {
 
     if (insertError) {
       console.error('❌ Error inserting log:', insertError);
+      // Erreur DB, mais renvoyer 200 quand même
       return new Response(
         JSON.stringify({ success: false, error: insertError.message }),
-        { status: 500, headers: corsHeaders }
+        { status: 200, headers: corsHeaders }
       );
     }
 
@@ -109,12 +126,13 @@ Deno.serve(async (req: Request) => {
 
   } catch (error) {
     console.error('❌ Error in log-error function:', error);
+    // Erreur inattendue, mais renvoyer 200 quand même
     return new Response(
       JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       }),
-      { status: 500, headers: corsHeaders }
+      { status: 200, headers: corsHeaders }
     );
   }
 });
