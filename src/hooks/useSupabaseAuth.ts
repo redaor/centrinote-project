@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../contexts/AppContext';
 import type { User } from '../types';
+import { logger } from '../utils/logger';
 
 export function useSupabaseAuth() {
   const { dispatch } = useApp();
