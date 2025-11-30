@@ -60,10 +60,9 @@ export function AppHeader() {
     logger.debug('Notifications dans AppHeader', {
       count: notifications.length,
       unreadCount,
-      loading: notificationsLoading,
-      user: user?.id
+      loading: notificationsLoading
     });
-  }, [notifications, unreadCount, notificationsLoading, user?.id]);
+  }, [notifications, unreadCount, notificationsLoading]);
 
   // États pour les menus
   const [showUserMenu, setShowUserMenu] = useState(false);
