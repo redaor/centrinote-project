@@ -13,7 +13,7 @@ function RouterLocationDebug() {
   const navigationType = useNavigationType();
 
   React.useEffect(() => {
-    console.log('🧭 [ROUTER] Location changed:', {
+    logger.debug('Location changed', {
       timestamp: new Date().toISOString(),
       pathname: location.pathname,
       search: location.search,

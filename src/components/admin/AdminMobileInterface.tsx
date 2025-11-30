@@ -16,10 +16,12 @@ import {
   Wifi,
   X,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { ErrorLogsDashboard } from './ErrorLogsDashboard';
 
 interface AdminMobileInterfaceProps {
   user: any;
@@ -31,6 +33,7 @@ export function AdminMobileInterface({ user, isOpen, onClose }: AdminMobileInter
   const [mobileView, setMobileView] = useState(false);
   const [currentViewport, setCurrentViewport] = useState('desktop');
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
+  const [errorLogsOpen, setErrorLogsOpen] = useState(false);
   const [touchEventsLog, setTouchEventsLog] = useState<string[]>([]);
   const [performanceMetrics, setPerformanceMetrics] = useState({
     viewport: '',
@@ -269,6 +272,26 @@ export function AdminMobileInterface({ user, isOpen, onClose }: AdminMobileInter
                     </Button>
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Error Logs Dashboard */}
+          <div className="p-4 border-b border-gray-700">
+            <button
+              onClick={() => setErrorLogsOpen(!errorLogsOpen)}
+              className="w-full flex items-center justify-between text-sm font-semibold mb-3 hover:text-purple-400"
+            >
+              <div className="flex items-center">
+                <AlertTriangle className="w-4 h-4 mr-2 text-red-400" />
+                Logs d'erreurs
+              </div>
+              {errorLogsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            
+            {errorLogsOpen && (
+              <div className="bg-gray-800 rounded p-3 max-h-[600px] overflow-y-auto">
+                <ErrorLogsDashboard userId={user.id} />
               </div>
             )}
           </div>

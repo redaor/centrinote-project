@@ -21,14 +21,14 @@ export default function AuthForm() {
 
   // Fonction pour retourner à la landing page
   const handleBackToLanding = () => {
-    console.log('🔄 Retour à la landing page');
+    logger.debug('Retour à la landing page');
     // Utiliser window.location pour forcer le rechargement complet
     window.location.href = '/';
   };
   // Handler pour le lien magique
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🔄 Envoi lien magique pour:', email);
+    logger.info('Envoi lien magique', { email: '[REDACTED]' });
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -57,7 +57,7 @@ export default function AuthForm() {
 
       setSuccess(`Un lien de connexion a été envoyé à ${email}. Vérifiez votre boîte de réception (et vos spams).`);
     } catch (err) {
-      console.error('❌ Erreur lien magique:', err);
+      logger.error('Erreur lien magique', err instanceof Error ? err : new Error(String(err)));
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
     } finally {
       setLoading(false);
@@ -66,14 +66,14 @@ export default function AuthForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(`🔄 Tentative de ${mode === 'login' ? 'connexion' : 'inscription'} avec:`, email);
+    logger.debug(`Tentative de ${mode === 'login' ? 'connexion' : 'inscription'}`);
     setLoading(true);
     setError(null);
     setSuccess(null);
     try {
       const isLogin = mode === 'login';
       if (isLogin) {
-        console.log('🔄 Tentative de connexion pour:', email);
+        logger.debug('Tentative de connexion');
 
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
@@ -81,9 +81,9 @@ export default function AuthForm() {
         });
 
         if (error) {
-          console.error('❌ Erreur de connexion:', error);
-          console.error('❌ Code erreur:', error.status);
-          console.error('❌ Message:', error.message);
+          logger.error('Erreur de connexion', new Error(error.message), {
+            status: error.status,
+          });
           
           // Note: On ne peut pas vérifier de manière fiable si un compte existe dans auth.users
           // sans être authentifié (pour des raisons de sécurité). La vérification dans profiles
@@ -97,8 +97,7 @@ export default function AuthForm() {
 
         // Vérifier si l'email est confirmé
         if (data.user && !data.user.email_confirmed_at) {
-          console.warn('⚠️ Utilisateur connecté mais email non confirmé');
-          console.warn('⚠️ User data:', {
+          logger.warn('Utilisateur connecté mais email non confirmé', {
             email: data.user.email,
             email_confirmed_at: data.user.email_confirmed_at,
             confirmed_at: data.user.confirmed_at,
@@ -112,10 +111,10 @@ export default function AuthForm() {
           throw new Error('Email not confirmed');
         }
 
-        console.log('✅ Connexion réussie:', data.user?.email);
+        logger.info('Connexion réussie');
         navigate('/dashboard');
       } else {
-        console.log('🔄 Tentative d\'inscription avec flux personnalisé pour:', email);
+        logger.debug('Tentative d\'inscription avec flux personnalisé');
 
         // Construire le nom complet à partir du prénom et nom
         const fullName = `${firstName.trim()} ${lastName.trim()}`.trim() || email.split('@')[0];
@@ -132,7 +131,7 @@ export default function AuthForm() {
 
         const createdUserId = data?.user?.id;
 
-        console.log('✅ Inscription (mode confirmation manuelle) réalisée:', {
+        logger.info('Inscription (mode confirmation manuelle) réalisée', {
           userId: createdUserId,
           email,
           sessionReturned: !!data?.session,
@@ -140,11 +139,13 @@ export default function AuthForm() {
         });
 
         if (data?.session) {
-          console.warn('⚠️ Une session Supabase a été renvoyée — fermeture pour imposer la vérification email');
+          logger.warn('Une session Supabase a été renvoyée — fermeture pour imposer la vérification email');
           try {
             await supabase.auth.signOut();
           } catch (signOutError) {
-            console.warn('⚠️ Échec signOut post-signup (non bloquant):', signOutError);
+            logger.warn('Échec signOut post-signup (non bloquant)', {
+              error: signOutError?.message,
+            });
           }
         }
 
@@ -163,7 +164,7 @@ export default function AuthForm() {
         });
       }
     } catch (err) {
-      console.error('❌ Erreur d\'authentification:', err);
+      logger.error('Erreur d\'authentification', err instanceof Error ? err : new Error(String(err)));
 
       // Gérer les erreurs spécifiques avec messages en français
       let errorMessage = 'Erreur d\'authentification';
