@@ -142,7 +142,8 @@ ${conversationText}`;
       };
     }
 
-    // Upsert dans chat_memory
+    // Upsert dans chat_memory (mise à jour si existe, sinon création)
+    // Utiliser ON CONFLICT pour gérer le cas où la clé primaire existe déjà
     const { data, error: upsertError } = await supabase
       .from("chat_memory")
       .upsert(
@@ -156,7 +157,8 @@ ${conversationText}`;
           updated_at: new Date().toISOString()
         },
         {
-          onConflict: "user_id,session_id"
+          onConflict: "user_id,session_id",
+          ignoreDuplicates: false // Mettre à jour si existe
         }
       )
       .select()

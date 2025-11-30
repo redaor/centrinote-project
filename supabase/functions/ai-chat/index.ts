@@ -135,19 +135,21 @@ serve(async (req) => {
           userId = user.id; // MEM-FIX: Stocker userId pour la sauvegarde ultérieure
           console.log("✅ User ID récupéré:", userId.substring(0, 8) + "...");
 
-          // Charger la mémoire persistante
+          // Charger la dernière mémoire persistante de l'utilisateur (peu importe la session)
           const { data: memoryData, error: memoryError } = await supabase
             .from('chat_memory')
             .select('summary, key_topics, language, mood')
             .eq('user_id', user.id)
-            .eq('session_id', sessionId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
             .single();
 
           if (!memoryError && memoryData) {
             chatMemory = memoryData;
-            console.log(`🧠 Mémoire chargée: ${memoryData.summary?.substring(0, 50)}...`);
+            console.log(`🧠 Mémoire chargée (dernière session): ${memoryData.summary?.substring(0, 50)}...`);
           } else {
-            console.log(`ℹ️ Aucune mémoire trouvée pour cette session`);
+            console.log(`ℹ️ Aucune mémoire trouvée pour cet utilisateur`);
+            chatMemory = null;
           }
 
           console.log(`🔍 [DEBUG] Tentative chargement historique pour session_id: ${sessionId.substring(0, 8)}...`);
@@ -367,8 +369,8 @@ serve(async (req) => {
 
           // Construire le prompt système avec recherche web + notes/vocabulaire + mémoire
           const memoryContext = chatMemory?.summary 
-            ? `\n\nMémoire persistante de la conversation :\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
-            : '';
+            ? `\n\n{memory}\nRésumé des conversations précédentes : ${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés abordés : ${chatMemory.key_topics.join(', ')}` : ''}`
+            : '\n\n{memory}\n';
 
           const languageInstruction = isArabic || userLanguage === 'ara'
             ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
@@ -461,8 +463,8 @@ Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ce
       // Si pas de recherche web ET pas de réponse générée, générer une réponse avec notes/vocabulaire si disponibles
       if (!searched && !finalReply && (userNotes || userVocabulary)) {
         const memoryContext = chatMemory?.summary 
-          ? `\n\nMémoire persistante de la conversation :\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
-          : '';
+          ? `\n\n{memory}\nRésumé des conversations précédentes : ${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés abordés : ${chatMemory.key_topics.join(', ')}` : ''}`
+          : '\n\n{memory}\n';
 
         const languageInstruction = isArabic || userLanguage === 'ara'
           ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
@@ -557,8 +559,8 @@ Il est ${now} (heure française).${memoryContext}${languageInstruction}`;
         : "";
 
       const memoryContext = chatMemory?.summary 
-        ? `\n\nMémoire persistante de la conversation :\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
-        : '';
+        ? `\n\n{memory}\nRésumé des conversations précédentes : ${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés abordés : ${chatMemory.key_topics.join(', ')}` : ''}`
+        : '\n\n{memory}\n';
 
       const languageInstruction = isArabic || userLanguage === 'ara'
         ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
