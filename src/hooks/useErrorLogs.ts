@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { logger } from '../utils/logger';
 
 export interface ErrorLog {
   id: string;
