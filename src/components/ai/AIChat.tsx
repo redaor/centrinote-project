@@ -966,15 +966,21 @@ export function AIChat() {
             <Paperclip className="w-5 h-5" />
           </button>
 
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={selectedFile ? "Posez une question sur ce document..." : "Posez votre question..."}
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading || !isReady}
-          />
+          <div className="flex-1 flex items-center gap-2">
+            <input
+              id="rechercheIA"
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={selectedFile ? "Posez une question sur ce document..." : "Posez votre question..."}
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isLoading || !isReady}
+            />
+            {/* 🎤 Bouton de reconnaissance vocale */}
+            <VoiceRecognition inputId="rechercheIA" submitButtonId="notes" />
+          </div>
           <button
+            id="notes"
             type="submit"
             disabled={isLoading || !isReady || !inputValue.trim()}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
