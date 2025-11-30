@@ -17,7 +17,6 @@ export default function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [accountNotFound, setAccountNotFound] = useState(false);
 
   // Fonction pour retourner à la landing page
   const handleBackToLanding = () => {
@@ -46,48 +45,12 @@ export default function AuthForm() {
           console.error('❌ Code erreur:', error.status);
           console.error('❌ Message:', error.message);
           
-          // Détecter si c'est un compte inexistant (seulement si vraiment sûr)
-          if (error.status === 400 && error.message.includes('Invalid login credentials')) {
-            // Vérifier si l'email existe dans la table profiles
-            // Note: On ne peut pas vérifier auth.users directement, donc on vérifie profiles
-            // Si le profil n'existe pas ET qu'il n'y a pas d'erreur de requête, c'est probablement un compte inexistant
-            try {
-              const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('email', email.toLowerCase().trim())
-                .maybeSingle();
-              
-              // Seulement déclencher "compte inexistant" si :
-              // 1. Aucun profil trouvé
-              // 2. Aucune erreur de requête (sinon c'est peut-être un problème de permissions/RLS)
-              // 3. La requête s'est bien terminée (pas d'erreur réseau)
-              if (!profile && !profileError) {
-                // Double vérification : essayer aussi avec l'email tel quel (au cas où)
-                const { data: profileAlt } = await supabase
-                  .from('profiles')
-                  .select('id')
-                  .eq('email', email)
-                  .maybeSingle();
-                
-                // Si toujours rien, c'est probablement un compte inexistant
-                if (!profileAlt) {
-                  console.log('🔍 Aucun profil trouvé pour cet email, compte probablement inexistant');
-                  setAccountNotFound(true);
-                  throw new Error('ACCOUNT_NOT_FOUND');
-                }
-              }
-            } catch (checkError) {
-              // Si la vérification échoue avec notre erreur personnalisée, on la propage
-              if (checkError instanceof Error && checkError.message === 'ACCOUNT_NOT_FOUND') {
-                setAccountNotFound(true);
-                throw checkError;
-              }
-              // Sinon, on ignore l'erreur et on affiche le message d'erreur standard
-              // (cela peut être une erreur de permissions RLS, etc.)
-              console.warn('⚠️ Erreur lors de la vérification du profil, on assume un mauvais mot de passe');
-            }
-          }
+          // Note: On ne peut pas vérifier de manière fiable si un compte existe dans auth.users
+          // sans être authentifié (pour des raisons de sécurité). La vérification dans profiles
+          // peut échouer à cause des RLS si l'utilisateur n'est pas connecté.
+          // Donc on ne fait plus de détection automatique de "compte inexistant".
+          // L'utilisateur verra simplement "Email ou mot de passe incorrect" et pourra
+          // décider de créer un compte s'il le souhaite.
           
           throw error;
         }
@@ -286,24 +249,6 @@ export default function AuthForm() {
                 <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400 mr-3 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-                  {accountNotFound && (
-                    <div className="mt-3">
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        Créer un compte avec cette adresse ?
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode('signup');
-                          setAccountNotFound(false);
-                          setError(null);
-                        }}
-                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300"
-                      >
-                        S'inscrire →
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
