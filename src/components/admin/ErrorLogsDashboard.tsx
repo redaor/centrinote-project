@@ -13,6 +13,7 @@ interface ErrorLogsDashboardProps {
 
 export function ErrorLogsDashboard({ userId }: ErrorLogsDashboardProps) {
   const [levelFilter, setLevelFilter] = useState<ErrorLog['level'] | 'all'>('all');
+  const [showFilters, setShowFilters] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLog, setSelectedLog] = useState<ErrorLog | null>(null);
 
