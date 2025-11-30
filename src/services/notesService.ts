@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Note, Tag, NoteAttachment } from '../types';
-import { log } from '../utils/logger';
+import { logger } from '../utils/logger';
 
 class NotesService {
   /**
@@ -11,7 +11,7 @@ class NotesService {
     const startTime = Date.now();
     
     try {
-      log.debug('🔄 Chargement optimisé des notes pour:', userId);
+      logger.debug('🔄 Chargement optimisé des notes pour:', userId);
       
       // 🚀 UNE SEULE REQUÊTE avec JOINs optimisés
       const { data, error } = await supabase
@@ -40,7 +40,7 @@ class NotesService {
         .order('updated_at', { ascending: false });
         
       if (error) {
-        log.error('❌ Erreur lors du chargement des notes:', error);
+        logger.error('❌ Erreur lors du chargement des notes:', error);
         throw error;
       }
       
@@ -52,11 +52,11 @@ class NotesService {
       }));
       
       const loadTime = Date.now() - startTime;
-      if (isDev) log.debug(`⚡ ${notesWithTags.length} notes chargées en ${loadTime}ms (1 requête)`);
+      if (isDev) logger.debug(`⚡ ${notesWithTags.length} notes chargées en ${loadTime}ms (1 requête)`);
       
       return notesWithTags;
     } catch (error) {
-      log.error('❌ Erreur lors du chargement des notes:', error);
+      logger.error('❌ Erreur lors du chargement des notes:', error);
       throw error;
     }
   }
@@ -66,7 +66,7 @@ class NotesService {
    */
   async getNoteById(noteId: string): Promise<Note | null> {
     try {
-      log.debug('🔄 Chargement de la note:', noteId);
+      logger.debug('🔄 Chargement de la note:', noteId);
       
       const { data, error } = await supabase
         .from('notes')
@@ -83,7 +83,7 @@ class NotesService {
         .single();
         
       if (error) {
-        log.error('❌ Erreur lors du chargement de la note:', error);
+        logger.error('❌ Erreur lors du chargement de la note:', error);
         throw error;
       }
       
@@ -100,7 +100,7 @@ class NotesService {
         .eq('note_id', noteId);
         
       if (tagError) {
-        log.warn('⚠️ Erreur lors du chargement des tags pour la note:', noteId, tagError);
+        logger.warn('⚠️ Erreur lors du chargement des tags pour la note:', noteId, tagError);
       }
       
       // Vérifier si la note a des pièces jointes
@@ -110,7 +110,7 @@ class NotesService {
         .eq('note_id', noteId);
         
       if (attachmentError) {
-        log.warn('⚠️ Erreur lors de la vérification des pièces jointes:', noteId, attachmentError);
+        logger.warn('⚠️ Erreur lors de la vérification des pièces jointes:', noteId, attachmentError);
       }
       
       const noteWithTags = {
@@ -119,10 +119,10 @@ class NotesService {
         has_attachment: count ? count > 0 : false
       };
       
-      log.debug('✅ Note chargée:', data?.id);
+      logger.debug('✅ Note chargée:', data?.id);
       return noteWithTags;
     } catch (error) {
-      log.error('❌ Erreur lors du chargement de la note:', error);
+      logger.error('❌ Erreur lors du chargement de la note:', error);
       throw error;
     }
   }
@@ -132,8 +132,8 @@ class NotesService {
    */
   async addNote(note: Omit<Note, 'id' | 'created_at' | 'updated_at' | 'tags' | 'has_attachment'>, tagNames: string[] = []): Promise<Note> {
     try {
-      log.debug('🔄 Ajout d\'une nouvelle note pour utilisateur:', note.user_id);
-      log.debug('📝 Données de la note:', { title: note.title, content: note.content?.substring(0, 50) + '...', user_id: note.user_id });
+      logger.debug('🔄 Ajout d\'une nouvelle note pour utilisateur:', note.user_id);
+      logger.debug('📝 Données de la note:', { title: note.title, content: note.content?.substring(0, 50) + '...', user_id: note.user_id });
       
       // 1. Insérer la note
       const { data: newNote, error: noteError } = await supabase
@@ -148,8 +148,8 @@ class NotesService {
         .single();
         
       if (noteError) {
-        log.error('❌ Erreur lors de l\'ajout de la note:', noteError);
-        log.error('📊 Détails de l\'erreur:', {
+        logger.error('❌ Erreur lors de l\'ajout de la note:', noteError);
+        logger.error('📊 Détails de l\'erreur:', {
           code: noteError.code,
           message: noteError.message,
           details: noteError.details,
@@ -158,11 +158,11 @@ class NotesService {
         throw noteError;
       }
       
-      log.debug('✅ Note insérée avec succès dans Supabase:', newNote.id);
+      logger.debug('✅ Note insérée avec succès dans Supabase:', newNote.id);
       
       // 2. Ajouter les tags si nécessaire
       if (tagNames.length > 0) {
-        log.debug('🏷️ Ajout des tags:', tagNames);
+        logger.debug('🏷️ Ajout des tags:', tagNames);
         // Créer les tags qui n'existent pas encore
         for (const tagName of tagNames) {
           if (!tagName.trim()) continue;
@@ -188,7 +188,7 @@ class NotesService {
               .single();
               
             if (tagError) {
-              log.error('Erreur lors de la création du tag:', tagError);
+              logger.error('Erreur lors de la création du tag:', tagError);
               continue;
             }
             
@@ -201,7 +201,7 @@ class NotesService {
               });
               
             if (relationError) {
-              log.error('Erreur lors de l\'association du tag:', relationError);
+              logger.error('Erreur lors de l\'association du tag:', relationError);
             }
           } else {
             // Associer le tag existant à la note
@@ -213,7 +213,7 @@ class NotesService {
               });
               
             if (relationError) {
-              log.error('Erreur lors de l\'association du tag:', relationError);
+              logger.error('Erreur lors de l\'association du tag:', relationError);
             }
           }
         }
@@ -222,10 +222,10 @@ class NotesService {
       // 3. Récupérer la note complète avec les tags
       const completeNote = await this.getNoteById(newNote.id);
       
-      log.debug('✅ Note ajoutée avec succès:', newNote.id);
+      logger.debug('✅ Note ajoutée avec succès:', newNote.id);
       return completeNote as Note;
     } catch (error) {
-      log.error('❌ Erreur lors de l\'ajout de la note:', error);
+      logger.error('❌ Erreur lors de l\'ajout de la note:', error);
       throw error;
     }
   }
@@ -235,11 +235,11 @@ class NotesService {
    */
   async updateNote(note: Partial<Note> & { id: string }, tagNames?: string[]): Promise<Note> {
     try {
-      log.debug('🔄 Mise à jour de la note:', note.id);
-      log.debug('📋 Données de la note:', { id: note.id, userId: note.userId, title: note.title });
+      logger.debug('🔄 Mise à jour de la note:', note.id);
+      logger.debug('📋 Données de la note:', { id: note.id, userId: note.userId, title: note.title });
       
       if (!note.userId) {
-        log.error('❌ Erreur: userId manquant pour la mise à jour de la note');
+        logger.error('❌ Erreur: userId manquant pour la mise à jour de la note');
         throw new Error('userId est requis pour mettre à jour une note');
       }
       
@@ -257,8 +257,8 @@ class NotesService {
         .single();
         
       if (noteError) {
-        log.error('❌ Erreur lors de la mise à jour de la note:', noteError);
-        log.error('📊 Détails de l\'erreur:', { code: noteError.code, message: noteError.message, details: noteError.details });
+        logger.error('❌ Erreur lors de la mise à jour de la note:', noteError);
+        logger.error('📊 Détails de l\'erreur:', { code: noteError.code, message: noteError.message, details: noteError.details });
         throw noteError;
       }
       
@@ -271,7 +271,7 @@ class NotesService {
           .eq('note_id', note.id);
           
         if (deleteError) {
-          log.error('Erreur lors de la suppression des tags:', deleteError);
+          logger.error('Erreur lors de la suppression des tags:', deleteError);
         }
         
         // Ajouter les nouveaux tags
@@ -296,7 +296,7 @@ class NotesService {
               });
               
             if (relationError) {
-              log.error('Erreur lors de l\'association du tag:', relationError);
+              logger.error('Erreur lors de l\'association du tag:', relationError);
             }
           } else {
             // Créer le tag
@@ -311,7 +311,7 @@ class NotesService {
               .single();
               
             if (tagError) {
-              log.error('Erreur lors de la création du tag:', tagError);
+              logger.error('Erreur lors de la création du tag:', tagError);
               continue;
             }
             
@@ -324,7 +324,7 @@ class NotesService {
               });
               
             if (relationError) {
-              log.error('Erreur lors de l\'association du tag:', relationError);
+              logger.error('Erreur lors de l\'association du tag:', relationError);
             }
           }
         }
@@ -333,10 +333,10 @@ class NotesService {
       // 3. Récupérer la note complète avec les tags
       const completeNote = await this.getNoteById(note.id);
       
-      log.debug('✅ Note mise à jour avec succès');
+      logger.debug('✅ Note mise à jour avec succès');
       return completeNote as Note;
     } catch (error) {
-      log.error('❌ Erreur lors de la mise à jour de la note:', error);
+      logger.error('❌ Erreur lors de la mise à jour de la note:', error);
       throw error;
     }
   }
@@ -346,7 +346,7 @@ class NotesService {
    */
   async deleteNote(id: string): Promise<boolean> {
     try {
-      log.debug('🔄 Suppression de la note:', id);
+      logger.debug('🔄 Suppression de la note:', id);
       
       const { error } = await supabase
         .from('notes')
@@ -354,14 +354,14 @@ class NotesService {
         .eq('id', id);
         
       if (error) {
-        log.error('❌ Erreur lors de la suppression de la note:', error);
+        logger.error('❌ Erreur lors de la suppression de la note:', error);
         throw error;
       }
       
-      log.debug('✅ Note supprimée avec succès');
+      logger.debug('✅ Note supprimée avec succès');
       return true;
     } catch (error) {
-      log.error('❌ Erreur lors de la suppression de la note:', error);
+      logger.error('❌ Erreur lors de la suppression de la note:', error);
       throw error;
     }
   }
@@ -371,7 +371,7 @@ class NotesService {
    */
   async togglePinNote(id: string, isPinned: boolean): Promise<boolean> {
     try {
-      log.debug(`🔄 ${isPinned ? 'Épinglage' : 'Désépinglage'} de la note:`, id);
+      logger.debug(`🔄 ${isPinned ? 'Épinglage' : 'Désépinglage'} de la note:`, id);
       
       const { error } = await supabase
         .from('notes')
@@ -379,14 +379,14 @@ class NotesService {
         .eq('id', id);
         
       if (error) {
-        log.error(`❌ Erreur lors du ${isPinned ? 'l\'épinglage' : 'désépinglage'} de la note:`, error);
+        logger.error(`❌ Erreur lors du ${isPinned ? 'l\'épinglage' : 'désépinglage'} de la note:`, error);
         throw error;
       }
       
-      log.debug(`✅ Note ${isPinned ? 'épinglée' : 'désépinglée'} avec succès`);
+      logger.debug(`✅ Note ${isPinned ? 'épinglée' : 'désépinglée'} avec succès`);
       return true;
     } catch (error) {
-      log.error(`❌ Erreur lors du ${isPinned ? 'l\'épinglage' : 'désépinglage'} de la note:`, error);
+      logger.error(`❌ Erreur lors du ${isPinned ? 'l\'épinglage' : 'désépinglage'} de la note:`, error);
       throw error;
     }
   }
@@ -396,7 +396,7 @@ class NotesService {
    */
   async searchNotes(searchTerm: string): Promise<Note[]> {
     try {
-      log.debug('🔍 Recherche de notes:', searchTerm);
+      logger.debug('🔍 Recherche de notes:', searchTerm);
       
       // Utiliser la fonction RPC sécurisée si disponible
       try {
@@ -405,11 +405,11 @@ class NotesService {
         });
         
         if (!error) {
-          log.debug(`✅ ${data.length} notes trouvées via RPC`);
+          logger.debug(`✅ ${data.length} notes trouvées via RPC`);
           return data as Note[];
         }
       } catch (rpcError) {
-        log.warn('⚠️ Erreur RPC, utilisation de la méthode alternative:', rpcError);
+        logger.warn('⚠️ Erreur RPC, utilisation de la méthode alternative:', rpcError);
       }
       
       // Méthode alternative si la fonction RPC n'est pas disponible
@@ -421,7 +421,7 @@ class NotesService {
         .order('updated_at', { ascending: false });
         
       if (error) {
-        log.error('❌ Erreur lors de la recherche de notes:', error);
+        logger.error('❌ Erreur lors de la recherche de notes:', error);
         throw error;
       }
       
@@ -439,7 +439,7 @@ class NotesService {
           .eq('note_id', note.id);
           
         if (tagError) {
-          log.warn('⚠️ Erreur lors du chargement des tags pour la note:', note.id, tagError);
+          logger.warn('⚠️ Erreur lors du chargement des tags pour la note:', note.id, tagError);
           return {
             ...note,
             tags: []
@@ -452,10 +452,10 @@ class NotesService {
         };
       }));
       
-      log.debug(`✅ ${notesWithTags.length} notes trouvées`);
+      logger.debug(`✅ ${notesWithTags.length} notes trouvées`);
       return notesWithTags;
     } catch (error) {
-      log.error('❌ Erreur lors de la recherche de notes:', error);
+      logger.error('❌ Erreur lors de la recherche de notes:', error);
       throw error;
     }
   }
@@ -465,7 +465,7 @@ class NotesService {
    */
   async getTags(userId: string): Promise<Tag[]> {
     try {
-      log.debug('🔄 Chargement des tags pour:', userId);
+      logger.debug('🔄 Chargement des tags pour:', userId);
       
       const { data, error } = await supabase
         .from('tags')
@@ -474,14 +474,14 @@ class NotesService {
         .order('name');
         
       if (error) {
-        log.error('❌ Erreur lors du chargement des tags:', error);
+        logger.error('❌ Erreur lors du chargement des tags:', error);
         throw error;
       }
       
-      log.debug(`✅ ${data.length} tags chargés`);
+      logger.debug(`✅ ${data.length} tags chargés`);
       return data as Tag[];
     } catch (error) {
-      log.error('❌ Erreur lors du chargement des tags:', error);
+      logger.error('❌ Erreur lors du chargement des tags:', error);
       throw error;
     }
   }
@@ -491,7 +491,7 @@ class NotesService {
    */
   async getNotesByTag(tagId: string): Promise<Note[]> {
     try {
-      log.debug('🔄 Chargement des notes par tag:', tagId);
+      logger.debug('🔄 Chargement des notes par tag:', tagId);
       
       // Utiliser la fonction RPC sécurisée si disponible
       try {
@@ -500,11 +500,11 @@ class NotesService {
         });
         
         if (!error) {
-          log.debug(`✅ ${data.length} notes trouvées via RPC`);
+          logger.debug(`✅ ${data.length} notes trouvées via RPC`);
           return data as Note[];
         }
       } catch (rpcError) {
-        log.warn('⚠️ Erreur RPC, utilisation de la méthode alternative:', rpcError);
+        logger.warn('⚠️ Erreur RPC, utilisation de la méthode alternative:', rpcError);
       }
       
       // Méthode alternative si la fonction RPC n'est pas disponible
@@ -525,7 +525,7 @@ class NotesService {
         .eq('tag_id', tagId);
         
       if (error) {
-        log.error('❌ Erreur lors du chargement des notes par tag:', error);
+        logger.error('❌ Erreur lors du chargement des notes par tag:', error);
         throw error;
       }
       
@@ -546,7 +546,7 @@ class NotesService {
           .eq('note_id', note.id);
           
         if (tagError) {
-          log.warn('⚠️ Erreur lors du chargement des tags pour la note:', note.id, tagError);
+          logger.warn('⚠️ Erreur lors du chargement des tags pour la note:', note.id, tagError);
           return {
             ...note,
             tags: []
@@ -559,10 +559,10 @@ class NotesService {
         };
       }));
       
-      log.debug(`✅ ${notesWithTags.length} notes trouvées pour le tag`);
+      logger.debug(`✅ ${notesWithTags.length} notes trouvées pour le tag`);
       return notesWithTags;
     } catch (error) {
-      log.error('❌ Erreur lors du chargement des notes par tag:', error);
+      logger.error('❌ Erreur lors du chargement des notes par tag:', error);
       throw error;
     }
   }
@@ -572,7 +572,7 @@ class NotesService {
    */
   async addAttachment(noteId: string, file: File): Promise<NoteAttachment> {
     try {
-      log.debug('🔄 Ajout d\'une pièce jointe à la note:', noteId);
+      logger.debug('🔄 Ajout d\'une pièce jointe à la note:', noteId);
       
       // 1. Téléverser le fichier dans le bucket Storage
       const filePath = `note-attachments/${noteId}/${file.name}`;
@@ -585,7 +585,7 @@ class NotesService {
         });
         
       if (uploadError) {
-        log.error('❌ Erreur lors du téléversement du fichier:', uploadError);
+        logger.error('❌ Erreur lors du téléversement du fichier:', uploadError);
         throw uploadError;
       }
       
@@ -603,14 +603,14 @@ class NotesService {
         .single();
         
       if (attachmentError) {
-        log.error('❌ Erreur lors de l\'ajout de la pièce jointe:', attachmentError);
+        logger.error('❌ Erreur lors de l\'ajout de la pièce jointe:', attachmentError);
         throw attachmentError;
       }
       
-      log.debug('✅ Pièce jointe ajoutée avec succès:', attachment.id);
+      logger.debug('✅ Pièce jointe ajoutée avec succès:', attachment.id);
       return attachment as NoteAttachment;
     } catch (error) {
-      log.error('❌ Erreur lors de l\'ajout de la pièce jointe:', error);
+      logger.error('❌ Erreur lors de l\'ajout de la pièce jointe:', error);
       throw error;
     }
   }
@@ -620,7 +620,7 @@ class NotesService {
    */
   async getNoteAttachments(noteId: string): Promise<NoteAttachment[]> {
     try {
-      log.debug('🔄 Chargement des pièces jointes pour la note:', noteId);
+      logger.debug('🔄 Chargement des pièces jointes pour la note:', noteId);
       
       const { data, error } = await supabase
         .from('note_attachments')
@@ -629,14 +629,14 @@ class NotesService {
         .order('created_at', { ascending: false });
         
       if (error) {
-        log.error('❌ Erreur lors du chargement des pièces jointes:', error);
+        logger.error('❌ Erreur lors du chargement des pièces jointes:', error);
         throw error;
       }
       
-      log.debug(`✅ ${data.length} pièces jointes chargées`);
+      logger.debug(`✅ ${data.length} pièces jointes chargées`);
       return data as NoteAttachment[];
     } catch (error) {
-      log.error('❌ Erreur lors du chargement des pièces jointes:', error);
+      logger.error('❌ Erreur lors du chargement des pièces jointes:', error);
       throw error;
     }
   }
@@ -646,7 +646,7 @@ class NotesService {
    */
   async deleteAttachment(attachmentId: string): Promise<boolean> {
     try {
-      log.debug('🔄 Suppression de la pièce jointe:', attachmentId);
+      logger.debug('🔄 Suppression de la pièce jointe:', attachmentId);
       
       // 1. Récupérer les informations de la pièce jointe
       const { data: attachment, error: getError } = await supabase
@@ -656,7 +656,7 @@ class NotesService {
         .single();
         
       if (getError) {
-        log.error('❌ Erreur lors de la récupération de la pièce jointe:', getError);
+        logger.error('❌ Erreur lors de la récupération de la pièce jointe:', getError);
         throw getError;
       }
       
@@ -666,7 +666,7 @@ class NotesService {
         .remove([attachment.file_path]);
         
       if (storageError) {
-        log.error('❌ Erreur lors de la suppression du fichier:', storageError);
+        logger.error('❌ Erreur lors de la suppression du fichier:', storageError);
         // Continuer même si la suppression du fichier échoue
       }
       
@@ -677,14 +677,14 @@ class NotesService {
         .eq('id', attachmentId);
         
       if (deleteError) {
-        log.error('❌ Erreur lors de la suppression de la pièce jointe:', deleteError);
+        logger.error('❌ Erreur lors de la suppression de la pièce jointe:', deleteError);
         throw deleteError;
       }
       
-      log.debug('✅ Pièce jointe supprimée avec succès');
+      logger.debug('✅ Pièce jointe supprimée avec succès');
       return true;
     } catch (error) {
-      log.error('❌ Erreur lors de la suppression de la pièce jointe:', error);
+      logger.error('❌ Erreur lors de la suppression de la pièce jointe:', error);
       throw error;
     }
   }
@@ -694,21 +694,21 @@ class NotesService {
    */
   async getAttachmentUrl(filePath: string): Promise<string> {
     try {
-      log.debug('🔄 Génération de l\'URL de téléchargement pour:', filePath);
+      logger.debug('🔄 Génération de l\'URL de téléchargement pour:', filePath);
       
       const { data, error } = await supabase.storage
         .from('note-attachments')
         .createSignedUrl(filePath, 60 * 60); // URL valide pendant 1 heure
         
       if (error) {
-        log.error('❌ Erreur lors de la génération de l\'URL:', error);
+        logger.error('❌ Erreur lors de la génération de l\'URL:', error);
         throw error;
       }
       
-      log.debug('✅ URL générée avec succès');
+      logger.debug('✅ URL générée avec succès');
       return data.signedUrl;
     } catch (error) {
-      log.error('❌ Erreur lors de la génération de l\'URL:', error);
+      logger.error('❌ Erreur lors de la génération de l\'URL:', error);
       throw error;
     }
   }
