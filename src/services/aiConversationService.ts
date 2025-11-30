@@ -106,7 +106,7 @@ class AIConversationService {
     } catch (error) {
       logger.error('❌ [AIConversationService] Erreur lors de la sauvegarde:', error);
       // Ne pas bloquer l'UI en cas d'erreur de sauvegarde
-      console.warn('⚠️ Impossible de sauvegarder le message, continuation...', error);
+      logger.warn('Impossible de sauvegarder le message, continuation');
     }
   }
 
@@ -147,7 +147,7 @@ class AIConversationService {
       logger.debug('✅ [AIConversationService] Messages sauvegardés avec succès');
     } catch (error) {
       logger.error('❌ [AIConversationService] Erreur lors de la sauvegarde batch:', error);
-      console.warn('⚠️ Impossible de sauvegarder les messages, continuation...', error);
+      logger.warn('Impossible de sauvegarder les messages, continuation');
     }
   }
 

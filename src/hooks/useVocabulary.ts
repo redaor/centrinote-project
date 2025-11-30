@@ -109,10 +109,10 @@ export function useVocabulary() {
       console.log("📤 [useVocabulary] Données complètes envoyées au service:", entryWithUserId);
 
       // Ajouter à Supabase
-      console.log("🚀 [useVocabulary] Appel vocabularyService.addVocabularyEntry...");
+      logger.debug("Appel vocabularyService.addVocabularyEntry");
       const newEntry = await vocabularyService.addVocabularyEntry(entryWithUserId);
 
-      console.log("✅ [useVocabulary] Résultat reçu:", newEntry ? { id: newEntry.id, word: newEntry.word } : "NULL");
+      logger.debug("Résultat vocabulaire reçu");
       logger.debug("✅ Vocabulaire ajouté avec succès:", newEntry.id);
       logger.debug("📊 Entrée complète:", newEntry);
 
@@ -121,7 +121,7 @@ export function useVocabulary() {
 
       return newEntry;
     } catch (err) {
-      console.error("❌ [useVocabulary] ERREUR CRITIQUE lors de l'ajout du mot:", err);
+      logger.error("ERREUR CRITIQUE lors de l'ajout du mot", err instanceof Error ? err : new Error(String(err)));
       logger.error("❌ ERREUR CRITIQUE lors de l'ajout du mot:", err);
       logger.error("📊 Détails de l'erreur:", {
         error: err,
@@ -134,7 +134,7 @@ export function useVocabulary() {
       
       // Afficher aussi dans la console pour le debug
       if (err instanceof Error) {
-        console.error("❌ [useVocabulary] Message d'erreur:", err.message);
+        logger.error("Message d'erreur vocabulaire", err instanceof Error ? err : new Error(String(err)));
         console.error("❌ [useVocabulary] Stack trace:", err.stack);
       } else {
         console.error("❌ [useVocabulary] Erreur inconnue (pas une Error):", err);

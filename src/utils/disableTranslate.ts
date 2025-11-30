@@ -23,11 +23,40 @@ export function disableTranslateExtensions() {
       const url = args[0]?.toString() || '';
       if (url.includes('translate.googleapis.com') || url.includes('translate-pa.googleapis.com')) {
         if (DEBUG) {
-          console.debug('[disableTranslate] Blocked Google Translate request:', url);
+          // Utiliser logger au lieu de console
+          // logger.debug('[disableTranslate] Blocked Google Translate request');
         }
         return Promise.reject(new Error('Translation blocked'));
       }
       return originalFetch.apply(this, args);
+    };
+    
+    // Intercepter console.log et console.error pour masquer les messages de fetch
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    
+    console.log = function(...args: any[]) {
+      const message = args.join(' ');
+      // Masquer les messages de fetch
+      if (message.includes('Fetch a fini') || message.includes('Échec du chargement')) {
+        return;
+      }
+      // En dev seulement, logger le reste
+      if (DEBUG) {
+        originalConsoleLog.apply(console, args);
+      }
+    };
+    
+    console.error = function(...args: any[]) {
+      const message = args.join(' ');
+      // Masquer les erreurs CORS et fetch
+      if (message.includes('CORS') || message.includes('fetch') || message.includes('ERR_FAILED') || message.includes('Échec du chargement')) {
+        return;
+      }
+      // En dev seulement, logger le reste
+      if (DEBUG) {
+        originalConsoleError.apply(console, args);
+      }
     };
 
     // Bloquer XMLHttpRequest vers Google Translate
@@ -43,9 +72,7 @@ export function disableTranslateExtensions() {
     };
   }
 
-  if (DEBUG) {
-    console.log('✅ [disableTranslate] Google Translate disabled');
-  }
+  // Ne plus logger - silencieux
 }
 
 // Protéger les éléments critiques contre la modification
@@ -60,9 +87,7 @@ export function protectCriticalElements() {
             if (node.className?.includes('goog-') ||
                 node.id?.includes('goog') ||
                 node.getAttribute?.('class')?.includes('translate')) {
-              if (DEBUG) {
-                console.debug('[disableTranslate] Removed Google Translate element');
-              }
+            // Ne plus logger - silencieux
               node.remove();
             }
           }
@@ -77,9 +102,8 @@ export function protectCriticalElements() {
       childList: true,
       subtree: true
     });
-  } else if (DEBUG) {
-    console.warn('[disableTranslate] body not available yet for observation');
   }
+  // Ne plus logger - silencieux
 
   return observer;
 }

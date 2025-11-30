@@ -77,7 +77,7 @@ export class DailyClient {
       }
     };
 
-    console.log('🎥 [DAILY] Création de salle:', roomConfig);
+    logger.debug('Création de salle Daily.co');
 
     const response = await fetch(`${this.baseUrl}/rooms`, {
       method: 'POST',
@@ -94,7 +94,7 @@ export class DailyClient {
     }
 
     const room = await response.json();
-    console.log('✅ [DAILY] Salle créée:', room);
+    logger.debug('Salle Daily.co créée');
     
     return room;
   }
@@ -103,7 +103,7 @@ export class DailyClient {
    * 🗑️ Supprimer une salle de réunion
    */
   async deleteRoom(roomName: string): Promise<void> {
-    console.log('🗑️ [DAILY] Suppression de salle:', roomName);
+    logger.debug('Suppression de salle Daily.co');
 
     const response = await fetch(`${this.baseUrl}/rooms/${roomName}`, {
       method: 'DELETE',
@@ -117,7 +117,7 @@ export class DailyClient {
       throw new Error(`Erreur suppression Daily.co: ${response.status} - ${error}`);
     }
 
-    console.log('✅ [DAILY] Salle supprimée:', roomName);
+    logger.debug('Salle Daily.co supprimée');
   }
 
   /**
@@ -178,7 +178,7 @@ export class DailyClient {
       throw new Error(`Erreur démarrage enregistrement: ${response.status} - ${error}`);
     }
 
-    console.log('🎬 [DAILY] Enregistrement démarré:', roomName);
+    logger.debug('Enregistrement Daily.co démarré');
   }
 
   /**
@@ -197,7 +197,7 @@ export class DailyClient {
       throw new Error(`Erreur arrêt enregistrement: ${response.status} - ${error}`);
     }
 
-    console.log('⏹️ [DAILY] Enregistrement arrêté:', roomName);
+    logger.debug('Enregistrement Daily.co arrêté');
   }
 
   /**
@@ -247,13 +247,13 @@ export class DailyClient {
       });
 
       if (response.ok) {
-        console.log('✅ [DAILY] Connexion API réussie');
+        logger.debug('Connexion API Daily.co réussie');
         return { success: true };
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
-      console.error('❌ [DAILY] Erreur connexion API:', error);
+      logger.error('Erreur connexion API Daily.co', error instanceof Error ? error : new Error(String(error)));
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Erreur inconnue'
