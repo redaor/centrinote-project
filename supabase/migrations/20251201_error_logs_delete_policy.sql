@@ -2,8 +2,10 @@
 -- Ajouter la politique DELETE pour error_logs
 -- =====================================================
 
--- Supprimer l'ancienne politique qui ne permettait que le service role
+-- Supprimer toutes les anciennes politiques DELETE pour éviter les conflits
 DROP POLICY IF EXISTS "Service role can delete error logs" ON error_logs;
+DROP POLICY IF EXISTS "Admins can delete all error logs" ON error_logs;
+DROP POLICY IF EXISTS "Users can delete their own error logs" ON error_logs;
 
 -- Permettre aux admins de supprimer tous les logs
 CREATE POLICY "Admins can delete all error logs"
