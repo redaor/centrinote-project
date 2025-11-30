@@ -133,6 +133,28 @@ serve(async (req) => {
 
         console.log(`✅ Automation ${automation.name} should execute NOW`);
 
+        // ✅ PROTECTION CONTRE LES EXÉCUTIONS MULTIPLES : Vérifier et poser un verrou
+        const { data: lockResult, error: lockError } = await supabase.rpc('try_lock_automation_execution', {
+          p_automation_id: automation.id,
+          p_lock_duration_minutes: 5
+        });
+
+        if (lockError) {
+          console.error(`❌ Error acquiring lock for ${automation.name}:`, lockError);
+          // Continuer quand même (fallback si la fonction n'existe pas encore)
+        } else if (lockResult === false) {
+          console.log(`🔒 Automation ${automation.name} is already locked (execution in progress), skipping`);
+          results.push({
+            automation_id: automation.id,
+            automation_name: automation.name,
+            status: 'skipped',
+            reason: 'Already executing (locked)'
+          });
+          continue;
+        } else {
+          console.log(`🔓 Lock acquired for ${automation.name}`);
+        }
+
         // ✅ Détecter si c'est un micro template (focus_mode, break_time, daily_quote, study-reminder, daily-review, vocab-milestone, forgotten-notes, weekly-summary, monthly-report)
         const microTemplates = ['focus_mode', 'break_time', 'daily_quote', 'study-reminder', 'daily-review', 'vocab-milestone', 'forgotten-notes', 'weekly-summary', 'monthly-report'];
         const isMicroTemplate = microTemplates.includes(automation.name);
@@ -213,15 +235,23 @@ serve(async (req) => {
           nextExecution = calculateNextExecution(automation, now);
         }
 
-        // Update automation with next execution time
+        // Update automation with next execution time and release lock
         await supabase
           .from('automations')
           .update({
             last_executed_at: now.toISOString(),
             next_execution_at: nextExecution,
             updated_at: now.toISOString(),
+            execution_lock: null, // Libérer le verrou après exécution réussie
           })
           .eq('id', automation.id);
+
+        // Libérer le verrou explicitement (au cas où)
+        await supabase.rpc('release_automation_lock', {
+          p_automation_id: automation.id
+        }).catch(err => {
+          console.warn(`⚠️ Could not release lock (function may not exist yet):`, err);
+        });
 
         results.push({
           automation_id: automation.id,
@@ -233,6 +263,14 @@ serve(async (req) => {
 
       } catch (error) {
         console.error(`❌ Error processing automation ${automation.id}:`, error);
+        
+        // Libérer le verrou en cas d'erreur
+        await supabase.rpc('release_automation_lock', {
+          p_automation_id: automation.id
+        }).catch(err => {
+          console.error(`⚠️ Error releasing lock:`, err);
+        });
+        
         results.push({
           automation_id: automation.id,
           automation_name: automation.name,
