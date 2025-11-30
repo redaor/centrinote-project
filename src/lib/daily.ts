@@ -1,6 +1,8 @@
 // 🎥 Client Daily.co pour Centrinote
 // Gestion des salles de réunion et intégration avec n8n
 
+import { logger } from '../utils/logger';
+
 interface DailyRoomConfig {
   name?: string;
   privacy?: 'public' | 'private';
