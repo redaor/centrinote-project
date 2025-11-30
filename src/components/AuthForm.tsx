@@ -626,6 +626,7 @@ export default function AuthForm() {
                   setSuccess(null);
                   setFirstName('');
                   setLastName('');
+                  setLoginMethod('password'); // Réinitialiser à la connexion classique
                 }}
                 className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300"
               >
