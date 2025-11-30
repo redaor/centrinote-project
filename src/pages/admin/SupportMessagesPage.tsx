@@ -90,6 +90,30 @@ export function SupportMessagesPage() {
     }
   };
 
+  const deleteMessage = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible.')) {
+      return;
+    }
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('support_messages')
+        .delete()
+        .eq('id', id);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      // Mettre à jour localement
+      setMessages(prev => prev.filter(msg => msg.id !== id));
+      logger.info('Message de support supprimé', { messageId: id });
+    } catch (err) {
+      logger.error('Erreur lors de la suppression du message', err instanceof Error ? err : new Error(String(err)));
+      alert('Erreur lors de la suppression du message');
+    }
+  };
+
   const filteredMessages =
     selectedStatus === 'all'
       ? messages
@@ -352,6 +376,14 @@ export function SupportMessagesPage() {
                       Marquer résolu
                     </button>
                   )}
+                  <button
+                    onClick={() => deleteMessage(msg.id)}
+                    className="px-3 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors dark:bg-red-900/30 dark:text-red-400 flex items-center gap-1"
+                    title="Supprimer le message"
+                  >
+                    <XCircle className="w-3 h-3" />
+                    Supprimer
+                  </button>
                 </div>
               </div>
 
