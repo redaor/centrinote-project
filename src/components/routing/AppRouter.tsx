@@ -41,6 +41,7 @@ import EmailSentPage from '../../pages/EmailSentPage';
 import WelcomePage from '../../pages/WelcomePage';
 import ConfirmEmailPage from '../../pages/ConfirmEmailPage';
 import ResetPasswordPage from '../../pages/ResetPasswordPage';
+import AuthConfirm from '../../pages/AuthConfirm';
 import { ForumPage } from '../../pages/ForumPage';
 import { ForumPostDetailPage } from '../../pages/ForumPostDetailPage';
 import { GuidePage } from '../../pages/GuidePage';
@@ -152,6 +153,9 @@ export function AppRouter() {
         
         {/* Page de réinitialisation du mot de passe */}
         <Route path="/auth/reset-mot-de-passe" element={<ResetPasswordPage />} />
+        
+        {/* Page de confirmation du lien magique */}
+        <Route path="/auth/confirm" element={<AuthConfirm />} />
         
         {/* Pages légales publiques */}
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />

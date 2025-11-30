@@ -17,6 +17,7 @@ export default function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<'password' | 'magic-link'>('password');
 
   // Fonction pour retourner à la landing page
   const handleBackToLanding = () => {
@@ -24,6 +25,45 @@ export default function AuthForm() {
     // Utiliser window.location pour forcer le rechargement complet
     window.location.href = '/';
   };
+  // Handler pour le lien magique
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('🔄 Envoi lien magique pour:', email);
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const { error: magicError } = await supabase.auth.signInWithOtp({
+        email: email.toLowerCase().trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        },
+      });
+
+      if (magicError) {
+        let errorMessage = 'Erreur lors de l\'envoi du lien magique';
+        
+        if (magicError.message.includes('rate limit') || magicError.message.includes('too many')) {
+          errorMessage = '⚠️ Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.';
+        } else if (magicError.message.includes('email') || magicError.message.includes('invalid')) {
+          errorMessage = '⚠️ Adresse email invalide.';
+        } else {
+          errorMessage = magicError.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      setSuccess(`Un lien de connexion a été envoyé à ${email}. Vérifiez votre boîte de réception (et vos spams).`);
+    } catch (err) {
+      console.error('❌ Erreur lien magique:', err);
+      setError(err instanceof Error ? err.message : 'Erreur inconnue');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log(`🔄 Tentative de ${mode === 'login' ? 'connexion' : 'inscription'} avec:`, email);
@@ -254,28 +294,202 @@ export default function AuthForm() {
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Adresse email
-              </label>
-              <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder="vous@exemple.com"
-                />
-              </div>
+          {/* Onglets pour le mode login */}
+          {mode === 'login' && (
+            <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod('password');
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className={`
+                    py-2 px-1 border-b-2 font-medium text-sm transition-colors
+                    ${loginMethod === 'password'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    }
+                  `}
+                >
+                  Connexion classique
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod('magic-link');
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className={`
+                    py-2 px-1 border-b-2 font-medium text-sm transition-colors
+                    ${loginMethod === 'magic-link'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    }
+                  `}
+                >
+                  Lien magique
+                </button>
+              </nav>
             </div>
+          )}
+
+          {/* Formulaire de connexion classique */}
+          {mode === 'login' && loginMethod === 'password' && (
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Adresse email
+                </label>
+                <div className="mt-1 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="vous@exemple.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Mot de passe
+                </label>
+                <div className="mt-1 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Votre mot de passe"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+                <div className="mt-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300"
+                  >
+                    Mot de passe oublié ?
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <Loader className="animate-spin h-5 w-5" />
+                  ) : (
+                    <>
+                      Se connecter
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Formulaire de lien magique */}
+          {mode === 'login' && loginMethod === 'magic-link' && (
+            <form className="space-y-6" onSubmit={handleMagicLink}>
+              <div>
+                <label htmlFor="magic-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Adresse email
+                </label>
+                <div className="mt-1 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="magic-email"
+                    name="magic-email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="vous@exemple.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <Loader className="animate-spin h-5 w-5" />
+                  ) : (
+                    <>
+                      Envoyer le lien
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Formulaire d'inscription */}
+          {mode === 'signup' && (
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Adresse email
+                </label>
+                <div className="mt-1 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="vous@exemple.com"
+                  />
+                </div>
+              </div>
 
             {mode === 'signup' && (
               <>
