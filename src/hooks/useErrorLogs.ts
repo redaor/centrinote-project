@@ -170,14 +170,18 @@ export function useErrorLogs(options: UseErrorLogsOptions = {}): UseErrorLogsRet
                      profile?.email === 'reda_sahraoui@outlook.fr';
 
       // Construire la requête de suppression
+      // IMPORTANT: PostgREST exige toujours une clause WHERE pour DELETE
       let deleteQuery = supabase.from('error_logs').delete();
 
-      // Si admin, supprimer tous les logs, sinon seulement ceux de l'utilisateur
-      if (!isAdmin) {
+      // Si admin, supprimer tous les logs avec une condition toujours vraie
+      if (isAdmin) {
+        // Admin : supprimer tous les logs (condition toujours vraie pour satisfaire PostgREST)
+        // On utilise une condition sur created_at qui sera toujours vraie
+        deleteQuery = deleteQuery.gte('created_at', '1970-01-01');
+      } else {
         // Utilisateur normal : supprimer uniquement ses logs
         deleteQuery = deleteQuery.eq('user_id', user.id);
       }
-      // Si admin, pas de filtre = supprime tout (géré par la politique RLS)
 
       const { data, error: deleteError } = await deleteQuery;
 
