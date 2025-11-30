@@ -37,23 +37,51 @@ Vous receviez **3 fois** la même automatisation (résumé hebdomadaire et citat
 
 ## 🚀 Déploiement
 
-### Étape 1 : Exécuter la migration SQL
+### Étape 1 : Diagnostic (RECOMMANDÉ)
 
-```bash
-# Dans Supabase Dashboard → SQL Editor
-# Ou via Supabase CLI :
-supabase db push
+Exécutez d'abord le script de diagnostic pour identifier le problème :
+
+```sql
+-- Dans Supabase Dashboard → SQL Editor
+-- Exécutez : supabase/migrations/20251201_diagnostic_duplicates.sql
 ```
 
-### Étape 2 : Vérifier les doublons supprimés
+Ce script vous montrera :
+- Les doublons d'automatisations
+- Les automations actives par utilisateur
+- Les verrous actifs
+- Les dernières exécutions
 
-La migration affichera dans les logs les doublons trouvés et supprimés.
+### Étape 2 : Exécuter la migration de correction V2
 
-### Étape 3 : Redéployer l'Edge Function
+```sql
+-- Dans Supabase Dashboard → SQL Editor
+-- Exécutez : supabase/migrations/20251201_fix_duplicate_automations_v2.sql
+```
 
+Cette migration :
+- ✅ Supprime automatiquement tous les doublons
+- ✅ Crée un index unique pour éviter les doublons futurs
+- ✅ Ajoute/vérifie la colonne `execution_lock`
+- ✅ Crée les fonctions de verrou
+- ✅ Programme le nettoyage automatique des verrous
+
+### Étape 3 : Vérifier les résultats
+
+La migration affichera dans les logs :
+- Les doublons trouvés et supprimés
+- Le nombre de verrous nettoyés
+- Un résumé des actions effectuées
+
+### Étape 4 : Redéployer l'Edge Function (si nécessaire)
+
+Le scheduler a été mis à jour avec une protection renforcée :
+- ✅ Vérification temporelle (pas d'exécution si déjà exécutée dans les 5 dernières minutes)
+- ✅ Vérification du verrou (si la fonction existe)
+- ✅ Vérification directe du verrou dans la table (fallback)
+
+Le déploiement se fait automatiquement via Netlify, mais vous pouvez aussi :
 ```bash
-# Le scheduler sera automatiquement mis à jour lors du prochain déploiement
-# Ou manuellement :
 supabase functions deploy automation-scheduler
 ```
 
@@ -67,18 +95,29 @@ supabase functions deploy automation-scheduler
    GROUP BY user_id, name 
    HAVING COUNT(*) > 1;
    ```
-   → Devrait retourner 0 lignes
+   → Devrait retourner **0 lignes**
 
-2. **Vérifier le système de verrou** :
+2. **Vérifier vos automations spécifiques** :
+   ```sql
+   SELECT id, name, user_local_time, last_executed_at, next_execution_at
+   FROM automations
+   WHERE is_active = true
+     AND name IN ('weekly-summary', 'daily_quote', 'monthly-report')
+   ORDER BY name, created_at;
+   ```
+   → Devrait retourner **1 seule ligne par automatisation**
+
+3. **Vérifier le système de verrou** :
    ```sql
    -- Tenter de poser un verrou
    SELECT try_lock_automation_execution('votre-automation-id'::UUID, 5);
    -- Devrait retourner TRUE la première fois, FALSE si déjà verrouillé
    ```
 
-3. **Attendre la prochaine exécution** :
+4. **Attendre la prochaine exécution** :
    - Le résumé hebdomadaire devrait maintenant s'exécuter **une seule fois**
    - La citation du jour devrait également s'exécuter **une seule fois**
+   - **IMPORTANT** : Si vous recevez encore 3 emails, vérifiez qu'il n'y a pas plusieurs entrées dans la table `automations` pour le même utilisateur avec le même nom
 
 ## 📊 Résultat attendu
 
@@ -111,4 +150,46 @@ ORDER BY count DESC;
 - Le système de verrou est **rétrocompatible** : si les fonctions SQL n'existent pas encore, le scheduler continue de fonctionner (avec un warning)
 - Les verrous expirent automatiquement après 10 minutes pour éviter les blocages
 - Le scheduler 5min est toujours actif pour les automations sans `user_local_time`, mais le verrou empêche les exécutions multiples
+- **Protection renforcée** : Le scheduler vérifie maintenant si l'automatisation a déjà été exécutée dans les 5 dernières minutes (protection temporelle)
+- **Triple protection** :
+  1. Vérification temporelle (5 minutes)
+  2. Vérification du verrou via fonction SQL
+  3. Vérification directe du verrou dans la table (fallback)
+
+## 🔧 Si le problème persiste
+
+Si vous recevez toujours 3 emails après avoir exécuté la migration :
+
+1. **Vérifiez les doublons** :
+   ```sql
+   SELECT user_id, name, COUNT(*), array_agg(id)
+   FROM automations 
+   WHERE is_active = true 
+   GROUP BY user_id, name 
+   HAVING COUNT(*) > 1;
+   ```
+
+2. **Vérifiez les automations spécifiques** :
+   ```sql
+   SELECT id, name, user_id, created_at, is_active
+   FROM automations
+   WHERE name IN ('weekly-summary', 'daily_quote', 'monthly-report')
+   ORDER BY user_id, name, created_at;
+   ```
+
+3. **Supprimez manuellement les doublons** si nécessaire :
+   ```sql
+   -- Garder seulement le plus récent, supprimer les autres
+   DELETE FROM automations
+   WHERE id IN (
+     SELECT id FROM (
+       SELECT id, 
+              ROW_NUMBER() OVER (PARTITION BY user_id, name ORDER BY created_at DESC) as rn
+       FROM automations
+       WHERE is_active = true
+         AND name IN ('weekly-summary', 'daily_quote', 'monthly-report')
+     ) t
+     WHERE rn > 1
+   );
+   ```
 
