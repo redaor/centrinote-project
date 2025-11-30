@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { logger } from '../utils/logger';
 import { signUpWithRobustEmail } from '../services/authService';
 import { AlertCircle, Mail, Lock, Eye, EyeOff, Loader, ArrowRight, User } from 'lucide-react';
 import { ForgotPasswordModal } from './auth/ForgotPasswordModal';

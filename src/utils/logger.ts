@@ -154,6 +154,10 @@ class SecureLogger {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
         
         // Utiliser fetch avec .catch() silencieux pour éviter les erreurs CORS dans la console
+        // Utiliser un timeout très court pour éviter les erreurs visibles
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 100);
+        
         fetch(`${supabaseUrl}/functions/v1/log-error`, {
           method: 'POST',
           headers: {
@@ -169,7 +173,11 @@ class SecureLogger {
             url: url || getCurrentUrl(),
             user_agent: getUserAgent(),
           }),
-        }).catch(() => {
+          signal: controller.signal,
+        })
+        .then(() => clearTimeout(timeoutId))
+        .catch(() => {
+          clearTimeout(timeoutId);
           // Silencieux - ignorer complètement les erreurs (CORS, réseau, etc.)
           // Ne rien faire - pas de console.error, pas de throw
         });
