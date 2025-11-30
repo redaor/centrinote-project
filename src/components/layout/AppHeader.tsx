@@ -108,7 +108,7 @@ export function AppHeader() {
     // ⚡ Sauvegarder en BDD en arrière-plan (fire-and-forget)
     // Ne pas bloquer l'UI avec await
     updateAppearance({ theme: newTheme }).catch(error => {
-      console.error('[AppHeader] Erreur sauvegarde thème:', error);
+      logger.error('Erreur sauvegarde thème', error instanceof Error ? error : new Error(String(error)));
     });
   };
 
