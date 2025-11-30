@@ -96,12 +96,15 @@ export default function ResetPasswordPage() {
         throw new Error(errorMessage);
       }
 
+      // Déconnecter l'utilisateur après la mise à jour du mot de passe
+      await supabase.auth.signOut();
+
       setSuccess(true);
       
-      // Rediriger vers la page de connexion après 2 secondes
+      // Rediriger vers la page de connexion après 3 secondes pour laisser le temps de voir le message de succès
       setTimeout(() => {
         navigate('/auth', { replace: true });
-      }, 2000);
+      }, 3000);
     } catch (err) {
       console.error('❌ Erreur réinitialisation:', err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
@@ -169,9 +172,18 @@ export default function ResetPasswordPage() {
                   ✅ Mot de passe réinitialisé avec succès !
                 </p>
                 <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                  Redirection vers la page de connexion...
+                  Vous allez être redirigé vers la page de connexion pour vous reconnecter avec votre nouveau mot de passe.
+                </p>
+                <p className="text-xs text-green-500 dark:text-green-400 mt-3">
+                  Redirection dans quelques secondes...
                 </p>
               </div>
+              <button
+                onClick={() => navigate('/auth', { replace: true })}
+                className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Se connecter maintenant
+              </button>
             </div>
           ) : (
             <form className="space-y-6" onSubmit={handleSubmit}>
