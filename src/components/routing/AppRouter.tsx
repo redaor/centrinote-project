@@ -26,6 +26,7 @@ function RouterLocationDebug() {
   return null;
 }
 import { useAuth } from '../AuthProvider';
+import { logger } from '../../utils/logger';
 import { LandingPage } from '../landing/LandingPage';
 import { PrivacyPolicy } from '../legal/PrivacyPolicy';
 import { TermsOfService } from '../legal/TermsOfService';
