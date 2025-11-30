@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../contexts/AppContext';
+import { logger } from '../utils/logger';
 
 export interface Notification {
   id: string;

@@ -124,7 +124,7 @@ class SecureLogger {
   }
 
   /**
-   * Log un message (console + Supabase)
+   * Log un message (silencieux - Edge Function uniquement)
    */
   async log(
     message: string,
@@ -143,35 +143,40 @@ class SecureLogger {
     const sanitizedMeta = sanitizeObject(meta);
     const sanitizedStack = stack ? sanitizeString(stack) : undefined;
 
-    // Log dans la console uniquement en mode dev
-    if (this.isDev) {
-      const consoleMethod = console[level] || console.log;
-      consoleMethod(`[${level.toUpperCase()}]`, sanitizedMessage, sanitizedMeta);
-    }
+    // ❌ NE JAMAIS LOGGER DANS LA CONSOLE (même en dev)
+    // Tous les logs passent par l'Edge Function
 
-    // Envoyer à Supabase uniquement si VITE_ENABLE_ERROR_LOGGING est true (ou en prod)
-    const shouldLogToSupabase = import.meta.env.VITE_ENABLE_ERROR_LOGGING === 'true' || !this.isDev;
-    
-    if (shouldLogToSupabase) {
-      try {
-      const { data: { user } } = await supabase.auth.getUser();
+    // Envoyer silencieusement à l'Edge Function
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || null;
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
       
-      await supabase.from('error_logs').insert({
-        user_id: user?.id || null,
-        message: sanitizedMessage,
-        level,
-        meta: sanitizedMeta,
-        source,
-        stack_trace: sanitizedStack,
-        url: url || getCurrentUrl(),
-        user_agent: getUserAgent(),
+      const response = await fetch(`${supabaseUrl}/functions/v1/log-error`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: sanitizedMessage,
+          level,
+          meta: sanitizedMeta,
+          source,
+          stack_trace: sanitizedStack,
+          url: url || getCurrentUrl(),
+          user_agent: getUserAgent(),
+        }),
       });
-      } catch (error) {
+
+      if (!response.ok) {
         // Ne pas faire échouer l'application si le log échoue
-        if (this.isDev) {
-          console.error('❌ Failed to log to Supabase:', error);
-        }
+        // Silencieux - pas de console.error
       }
+    } catch (error) {
+      // Ne pas faire échouer l'application si le log échoue
+      // Silencieux - pas de console.error
     }
   }
 
