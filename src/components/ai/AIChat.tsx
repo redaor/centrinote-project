@@ -19,6 +19,7 @@ import { useAI } from '../../hooks/useAI';
 import { FileContextCard } from './FileContextCard';
 import { ContextBadge } from './ContextBadge';
 import { AIResponseCard } from './AIResponseCard';
+import { VoiceRecognition } from './VoiceRecognition';
 
 interface Message {
   id: string;
