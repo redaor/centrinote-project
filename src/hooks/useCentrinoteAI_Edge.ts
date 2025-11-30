@@ -108,8 +108,38 @@ export const useCentrinoteAI_Edge = () => {
         });
 
         // Appeler ai-memory pour mettre à jour la mémoire persistante (toutes les 5 messages)
-        // Cette logique est aussi gérée côté serveur, mais on peut aussi l'appeler ici si nécessaire
-        // Pour l'instant, on laisse le serveur gérer cela pour éviter les appels redondants
+        // Fire & forget : ne pas attendre la réponse
+        // Compter les messages après avoir ajouté la réponse de l'IA
+        const allMessages = [
+          ...messages,
+          { role: 'assistant' as const, content: data.reply }
+        ];
+        const messageCount = allMessages.length;
+        
+        if (messageCount > 0 && messageCount % 5 === 0) {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
+          
+          // Appeler ai-memory de manière asynchrone (fire & forget)
+          fetch(`${supabaseUrl}/functions/v1/ai-memory`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              session_id: data.session_id || sessionId,
+              user_id: session.user.id,
+              messages: allMessages.map((msg: AIMessage) => ({
+                role: msg.role,
+                content: msg.content
+              }))
+            })
+          }).then(() => {
+            console.log(`🧠 [useCentrinoteAI_Edge] Mémoire mise à jour (fire & forget) pour ${messageCount} messages`);
+          }).catch((err) => {
+            console.warn(`⚠️ [useCentrinoteAI_Edge] Erreur mise à jour mémoire (non bloquant):`, err.message);
+          });
+        }
 
         // Log détaillé pour déboguer
         if (!data.enrichment_used) {
