@@ -7,7 +7,7 @@ import { notesService } from '../../../services/notesService';
 import { vocabularyService } from '../../../services/vocabularyService';
 import type { Note } from '../../../types';
 import type { VocabularyEntry } from '../../../types';
-import { log } from '../../../utils/logger';
+import { logger } from '../../../utils/logger';
 
 export interface UserDataForAI {
   notes: Array<{
@@ -42,7 +42,7 @@ class UserDataLoader {
    */
   async loadUserData(userId: string): Promise<UserDataForAI> {
     try {
-      log.debug('📥 [UserDataLoader] Chargement des données utilisateur pour:', userId);
+      logger.debug('📥 [UserDataLoader] Chargement des données utilisateur pour:', userId);
       console.log('📥 [UserDataLoader] Début chargement données utilisateur...');
 
       // Charger en parallèle avec gestion d'erreur individuelle
@@ -82,14 +82,14 @@ class UserDataLoader {
         createdAt: entry.createdAt || (entry as any).created_at ? new Date((entry as any).created_at) : new Date(),
       }));
 
-      log.debug(`✅ [UserDataLoader] Données chargées: ${formattedNotes.length} notes, ${formattedVocabulary.length} mots`);
+      logger.debug(`✅ [UserDataLoader] Données chargées: ${formattedNotes.length} notes, ${formattedVocabulary.length} mots`);
 
       return {
         notes: formattedNotes,
         vocabulary: formattedVocabulary,
       };
     } catch (error) {
-      log.error('❌ [UserDataLoader] Erreur lors du chargement:', error);
+      logger.error('❌ [UserDataLoader] Erreur lors du chargement:', error);
       // Retourner des données vides en cas d'erreur
       return {
         notes: [],

@@ -3,7 +3,7 @@
  * HOTFIX: Pas de retry infini, une seule requête à la fois
  */
 
-import { log } from '../utils/logger';
+import { logger } from '../utils/logger';
 
 // Configuration des URLs selon l'environnement
 const isDev = import.meta.env.DEV;
@@ -129,7 +129,7 @@ export async function postWebhookViaProxy(
     
     const errorMsg = String((err as any)?.message ?? err);
     if (errorMsg.includes('CORS') || errorMsg.includes('502') || errorMsg.includes('Bad Gateway')) {
-      log.debug('🚫 Erreur CORS/502 détectée - arrêt relance pendant 60s');
+      logger.debug('🚫 Erreur CORS/502 détectée - arrêt relance pendant 60s');
       return { ok: false, error: 'connectivity_issue', status: 502 };
     }
     
@@ -152,9 +152,9 @@ class WebhookService {
     try {
       // TODO: Charger depuis Supabase si nécessaire
       this.configLoaded = true;
-      log.debug('Webhook config loaded');
+      logger.debug('Webhook config loaded');
     } catch (error) {
-      log.warn('Failed to load webhook config, using defaults');
+      logger.warn('Failed to load webhook config, using defaults');
     }
   }
 
@@ -200,7 +200,7 @@ class WebhookService {
       }
 
       const responseTime = Date.now() - startTime;
-      log.debug(`Discussion response in ${responseTime}ms`);
+      logger.debug(`Discussion response in ${responseTime}ms`);
 
       return {
         success: result.ok,
@@ -215,7 +215,7 @@ class WebhookService {
       };
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      log.error('Discussion workflow error:', error);
+      logger.error('Discussion workflow error:', error);
       
       return {
         success: false,
@@ -265,7 +265,7 @@ class WebhookService {
       }
 
       const responseTime = Date.now() - startTime;
-      log.debug(`Automation response in ${responseTime}ms`);
+      logger.debug(`Automation response in ${responseTime}ms`);
 
       return {
         success: result.ok,
@@ -280,7 +280,7 @@ class WebhookService {
       };
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      log.error('Automation workflow error:', error);
+      logger.error('Automation workflow error:', error);
       
       return {
         success: false,
@@ -355,7 +355,7 @@ class WebhookService {
    */
   cleanup(): void {
     for (const [key, controller] of inFlight.entries()) {
-      log.debug('Aborting request:', key);
+      logger.debug('Aborting request:', key);
       controller.abort();
     }
     inFlight.clear();

@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { VocabularyEntry } from '../types';
-import { log } from '../utils/logger';
+import { logger } from '../utils/logger';
 
 class VocabularyService {
   /**
@@ -8,7 +8,7 @@ class VocabularyService {
    */
   async getVocabulary(userId: string): Promise<VocabularyEntry[]> {
     try {
-      log.debug('🔄 Chargement du vocabulaire pour:', userId);
+      logger.debug('🔄 Chargement du vocabulaire pour:', userId);
       
       const { data, error } = await supabase
         .from('vocabulary')
@@ -18,7 +18,7 @@ class VocabularyService {
         .order('word', { ascending: true }); // Tri secondaire par ordre alphabétique
         
       if (error) {
-        log.error('❌ Erreur lors du chargement du vocabulaire:', error);
+        logger.error('❌ Erreur lors du chargement du vocabulaire:', error);
         throw error;
       }
       
@@ -39,10 +39,10 @@ class VocabularyService {
         userId: item.userId // ✅ userId (camelCase) pour table vocabulary
       }));
       
-      log.debug(`✅ ${formattedData.length} mots de vocabulaire chargés`);
+      logger.debug(`✅ ${formattedData.length} mots de vocabulaire chargés`);
       return formattedData;
     } catch (error) {
-      log.error('❌ Erreur lors du chargement du vocabulaire:', error);
+      logger.error('❌ Erreur lors du chargement du vocabulaire:', error);
       throw error;
     }
   }
@@ -52,7 +52,7 @@ class VocabularyService {
    */
   async addVocabularyEntry(entry: Omit<VocabularyEntry, 'id'>): Promise<VocabularyEntry> {
     try {
-      log.debug('🔄 Ajout d\'un nouveau mot de vocabulaire:', entry.word, 'pour utilisateur:', entry.userId);
+      logger.debug('🔄 Ajout d\'un nouveau mot de vocabulaire:', entry.word, 'pour utilisateur:', entry.userId);
 
       // ✅ LOGIQUE IDENTIQUE AUX NOTES: Les données sont déjà .trim() au niveau du composant
       // Vérifier que les champs ne sont pas vides après trim
@@ -93,7 +93,7 @@ class VocabularyService {
         throw new Error(error);
       }
 
-      log.debug('📝 Données du vocabulaire:', {
+      logger.debug('📝 Données du vocabulaire:', {
         word: entry.word,
         definition: entry.definition?.substring(0, 50) + '...',
         category: entry.category,
@@ -119,7 +119,7 @@ class VocabularyService {
         last_reviewed: entry.lastReviewed ? entry.lastReviewed.toISOString() : null
       };
       
-      log.debug('📤 Données envoyées à Supabase:', supabaseEntry);
+      logger.debug('📤 Données envoyées à Supabase:', supabaseEntry);
       console.log('🚀 [VocabularyService] Début de l\'insertion Supabase...', {
         word: supabaseEntry.word,
         userId: supabaseEntry.userId,
@@ -252,8 +252,8 @@ class VocabularyService {
 
       if (error) {
         console.error('❌ [VocabularyService] Erreur Supabase reçue:', error);
-        log.error('❌ Erreur lors de l\'ajout du mot:', error);
-        log.error('📊 Détails de l\'erreur:', {
+        logger.error('❌ Erreur lors de l\'ajout du mot:', error);
+        logger.error('📊 Détails de l\'erreur:', {
           code: error.code,
           message: error.message,
           details: error.details,
@@ -265,12 +265,12 @@ class VocabularyService {
       if (!data) {
         const noDataError = 'No data returned from Supabase INSERT';
         console.error('❌ [VocabularyService] Aucune donnée retournée:', noDataError);
-        log.error('❌ Aucune donnée retournée par Supabase (data is null/undefined)');
+        logger.error('❌ Aucune donnée retournée par Supabase (data is null/undefined)');
         throw new Error(noDataError);
       }
 
       console.log('✅ [VocabularyService] Mot inséré avec succès dans Supabase:', data.id, data.word);
-      log.debug('✅ Mot inséré avec succès dans Supabase:', data.id);
+      logger.debug('✅ Mot inséré avec succès dans Supabase:', data.id);
       
       // Convertir le résultat au format VocabularyEntry
       const newEntry: VocabularyEntry = {
@@ -291,12 +291,12 @@ class VocabularyService {
         word: newEntry.word,
         userId: newEntry.userId,
       });
-      log.debug('✅ Mot converti et retourné:', newEntry);
+      logger.debug('✅ Mot converti et retourné:', newEntry);
       return newEntry;
     } catch (error) {
       console.error('❌ [VocabularyService] Exception dans addVocabularyEntry:', error);
       console.error('❌ [VocabularyService] Stack:', error instanceof Error ? error.stack : 'N/A');
-      log.error('❌ Erreur lors de l\'ajout du mot:', error);
+      logger.error('❌ Erreur lors de l\'ajout du mot:', error);
       // Re-throw pour que le hook puisse gérer l'erreur
       throw error;
     }
@@ -307,7 +307,7 @@ class VocabularyService {
    */
   async updateVocabularyEntry(entry: VocabularyEntry): Promise<VocabularyEntry> {
     try {
-      log.debug('🔄 Mise à jour du mot (ID:', entry.id, ')');
+      logger.debug('🔄 Mise à jour du mot (ID:', entry.id, ')');
       console.log('🔄 [VocabularyService] Mise à jour vocabulaire:', {
         id: entry.id,
         word: entry.word,
@@ -410,7 +410,7 @@ class VocabularyService {
         
       if (error) {
         console.error('❌ [VocabularyService] Erreur lors de la mise à jour:', error);
-        log.error('❌ Erreur lors de la mise à jour du mot:', error);
+        logger.error('❌ Erreur lors de la mise à jour du mot:', error);
         throw error;
       }
       
@@ -432,7 +432,7 @@ class VocabularyService {
         userId: data.userId // ✅ CORRECTION: userId (camelCase) pour table vocabulary
       };
       
-      log.debug('✅ Mot mis à jour avec succès');
+      logger.debug('✅ Mot mis à jour avec succès');
       
       // ✅ NOUVEAU : Vérifier immédiatement si un milestone est atteint (si mastery >= 80)
       if (entry.mastery >= 80 && entry.userId) {
@@ -445,7 +445,7 @@ class VocabularyService {
       
       return updatedEntry;
     } catch (error) {
-      log.error('❌ Erreur lors de la mise à jour du mot:', error);
+      logger.error('❌ Erreur lors de la mise à jour du mot:', error);
       throw error;
     }
   }
@@ -533,7 +533,7 @@ class VocabularyService {
    */
   async deleteVocabularyEntry(id: string): Promise<boolean> {
     try {
-      log.debug('🔄 Suppression du mot:', id);
+      logger.debug('🔄 Suppression du mot:', id);
       
       const { error } = await supabase
         .from('vocabulary')
@@ -541,14 +541,14 @@ class VocabularyService {
         .eq('id', id);
         
       if (error) {
-        log.error('❌ Erreur lors de la suppression du mot:', error);
+        logger.error('❌ Erreur lors de la suppression du mot:', error);
         throw error;
       }
       
-      log.debug('✅ Mot supprimé avec succès');
+      logger.debug('✅ Mot supprimé avec succès');
       return true;
     } catch (error) {
-      log.error('❌ Erreur lors de la suppression du mot:', error);
+      logger.error('❌ Erreur lors de la suppression du mot:', error);
       throw error;
     }
   }

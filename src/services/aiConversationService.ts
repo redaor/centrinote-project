@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { log } from '../utils/logger';
+import { logger } from '../utils/logger';
 
 export interface AIMessage {
   id: string;
@@ -32,7 +32,7 @@ class AIConversationService {
    */
   async getOrCreateSession(userId: string): Promise<string> {
     try {
-      log.debug('🔄 [AIConversationService] Récupération/création session pour:', userId);
+      logger.debug('🔄 [AIConversationService] Récupération/création session pour:', userId);
       
       // Vérifier s'il existe une session récente (moins de 24h)
       const oneDayAgo = new Date();
@@ -47,22 +47,22 @@ class AIConversationService {
         .limit(1);
       
       if (sessionError && sessionError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        log.error('❌ [AIConversationService] Erreur lors de la recherche de session:', sessionError);
+        logger.error('❌ [AIConversationService] Erreur lors de la recherche de session:', sessionError);
         // Continuer et créer une nouvelle session
       }
       
       if (recentMessages && recentMessages.length > 0 && recentMessages[0]?.session_id) {
         const sessionId = recentMessages[0].session_id;
-        log.debug('✅ [AIConversationService] Session existante trouvée:', sessionId);
+        logger.debug('✅ [AIConversationService] Session existante trouvée:', sessionId);
         return sessionId;
       }
       
       // Créer une nouvelle session (UUID généré côté client)
-      log.debug('🆕 [AIConversationService] Création nouvelle session');
+      logger.debug('🆕 [AIConversationService] Création nouvelle session');
       const newSessionId = crypto.randomUUID();
       return newSessionId;
     } catch (error) {
-      log.error('❌ [AIConversationService] Erreur getOrCreateSession:', error);
+      logger.error('❌ [AIConversationService] Erreur getOrCreateSession:', error);
       // Retourner un UUID généré côté client en cas d'erreur
       return crypto.randomUUID();
     }
@@ -77,7 +77,7 @@ class AIConversationService {
     message: AIMessage
   ): Promise<void> {
     try {
-      log.debug('💾 [AIConversationService] Sauvegarde message:', {
+      logger.debug('💾 [AIConversationService] Sauvegarde message:', {
         userId,
         sessionId,
         messageId: message.id,
@@ -98,13 +98,13 @@ class AIConversationService {
         });
 
       if (error) {
-        log.error('❌ [AIConversationService] Erreur sauvegarde message:', error);
+        logger.error('❌ [AIConversationService] Erreur sauvegarde message:', error);
         throw error;
       }
 
-      log.debug('✅ [AIConversationService] Message sauvegardé avec succès');
+      logger.debug('✅ [AIConversationService] Message sauvegardé avec succès');
     } catch (error) {
-      log.error('❌ [AIConversationService] Erreur lors de la sauvegarde:', error);
+      logger.error('❌ [AIConversationService] Erreur lors de la sauvegarde:', error);
       // Ne pas bloquer l'UI en cas d'erreur de sauvegarde
       console.warn('⚠️ Impossible de sauvegarder le message, continuation...', error);
     }
@@ -123,7 +123,7 @@ class AIConversationService {
         return;
       }
 
-      log.debug('💾 [AIConversationService] Sauvegarde batch de', messages.length, 'messages');
+      logger.debug('💾 [AIConversationService] Sauvegarde batch de', messages.length, 'messages');
 
       const messagesToInsert = messages.map(message => ({
         user_id: userId,
@@ -140,13 +140,13 @@ class AIConversationService {
         .insert(messagesToInsert);
 
       if (error) {
-        log.error('❌ [AIConversationService] Erreur sauvegarde batch:', error);
+        logger.error('❌ [AIConversationService] Erreur sauvegarde batch:', error);
         throw error;
       }
 
-      log.debug('✅ [AIConversationService] Messages sauvegardés avec succès');
+      logger.debug('✅ [AIConversationService] Messages sauvegardés avec succès');
     } catch (error) {
-      log.error('❌ [AIConversationService] Erreur lors de la sauvegarde batch:', error);
+      logger.error('❌ [AIConversationService] Erreur lors de la sauvegarde batch:', error);
       console.warn('⚠️ Impossible de sauvegarder les messages, continuation...', error);
     }
   }
@@ -159,7 +159,7 @@ class AIConversationService {
     sessionId: string
   ): Promise<AIMessage[]> {
     try {
-      log.debug('📥 [AIConversationService] Chargement messages session:', { userId, sessionId });
+      logger.debug('📥 [AIConversationService] Chargement messages session:', { userId, sessionId });
 
       const { data, error } = await supabase
         .from('ai_conversations')
@@ -169,7 +169,7 @@ class AIConversationService {
         .order('created_at', { ascending: true });
 
       if (error) {
-        log.error('❌ [AIConversationService] Erreur chargement messages:', error);
+        logger.error('❌ [AIConversationService] Erreur chargement messages:', error);
         throw error;
       }
 
@@ -181,10 +181,10 @@ class AIConversationService {
         metadata: row.metadata || {},
       }));
 
-      log.debug('✅ [AIConversationService] Messages chargés:', messages.length);
+      logger.debug('✅ [AIConversationService] Messages chargés:', messages.length);
       return messages;
     } catch (error) {
-      log.error('❌ [AIConversationService] Erreur lors du chargement:', error);
+      logger.error('❌ [AIConversationService] Erreur lors du chargement:', error);
       return [];
     }
   }
@@ -194,7 +194,7 @@ class AIConversationService {
    */
   async loadLatestSession(userId: string): Promise<AIMessage[]> {
     try {
-      log.debug('📥 [AIConversationService] Chargement dernière session pour:', userId);
+      logger.debug('📥 [AIConversationService] Chargement dernière session pour:', userId);
 
       // Récupérer la dernière session (moins de 24h)
       const oneDayAgo = new Date();
@@ -212,7 +212,7 @@ class AIConversationService {
       if (sessionError) {
         if (sessionError.code === 'PGRST116') {
           // Aucune session trouvée
-          log.debug('ℹ️ [AIConversationService] Aucune session récente trouvée');
+          logger.debug('ℹ️ [AIConversationService] Aucune session récente trouvée');
           return [];
         }
         throw sessionError;
@@ -225,7 +225,7 @@ class AIConversationService {
       // Charger tous les messages de cette session
       return await this.loadSessionMessages(userId, latestMessage.session_id);
     } catch (error) {
-      log.error('❌ [AIConversationService] Erreur lors du chargement de la dernière session:', error);
+      logger.error('❌ [AIConversationService] Erreur lors du chargement de la dernière session:', error);
       return [];
     }
   }
@@ -235,7 +235,7 @@ class AIConversationService {
    */
   async clearSession(userId: string, sessionId: string): Promise<void> {
     try {
-      log.debug('🧹 [AIConversationService] Suppression session:', { userId, sessionId });
+      logger.debug('🧹 [AIConversationService] Suppression session:', { userId, sessionId });
 
       const { error } = await supabase
         .from('ai_conversations')
@@ -244,13 +244,13 @@ class AIConversationService {
         .eq('session_id', sessionId);
 
       if (error) {
-        log.error('❌ [AIConversationService] Erreur suppression session:', error);
+        logger.error('❌ [AIConversationService] Erreur suppression session:', error);
         throw error;
       }
 
-      log.debug('✅ [AIConversationService] Session supprimée avec succès');
+      logger.debug('✅ [AIConversationService] Session supprimée avec succès');
     } catch (error) {
-      log.error('❌ [AIConversationService] Erreur lors de la suppression:', error);
+      logger.error('❌ [AIConversationService] Erreur lors de la suppression:', error);
       throw error;
     }
   }
@@ -260,7 +260,7 @@ class AIConversationService {
    */
   async clearAllConversations(userId: string): Promise<void> {
     try {
-      log.debug('🧹 [AIConversationService] Suppression toutes conversations pour:', userId);
+      logger.debug('🧹 [AIConversationService] Suppression toutes conversations pour:', userId);
 
       const { error } = await supabase
         .from('ai_conversations')
@@ -268,13 +268,13 @@ class AIConversationService {
         .eq('user_id', userId);
 
       if (error) {
-        log.error('❌ [AIConversationService] Erreur suppression conversations:', error);
+        logger.error('❌ [AIConversationService] Erreur suppression conversations:', error);
         throw error;
       }
 
-      log.debug('✅ [AIConversationService] Toutes conversations supprimées');
+      logger.debug('✅ [AIConversationService] Toutes conversations supprimées');
     } catch (error) {
-      log.error('❌ [AIConversationService] Erreur lors de la suppression:', error);
+      logger.error('❌ [AIConversationService] Erreur lors de la suppression:', error);
       throw error;
     }
   }
