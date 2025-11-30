@@ -294,10 +294,7 @@ export function AppHeader() {
               count={unreadCount}
               darkMode={darkMode}
               onClick={() => {
-                console.log('🔔 [APP-HEADER] Badge cliqué', {
-                  unreadCount,
-                  totalCount: notifications.length
-                });
+                logger.debug('Badge notifications cliqué', { unreadCount, totalCount: notifications.length });
                 setShowNotifications(!showNotifications);
               }}
             />
