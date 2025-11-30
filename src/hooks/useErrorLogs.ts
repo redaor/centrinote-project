@@ -78,7 +78,7 @@ export function useErrorLogs(options: UseErrorLogsOptions = {}): UseErrorLogsRet
       setLogs(data || []);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch error logs'));
-      console.error('❌ Error fetching logs:', err);
+      logger.error('Error fetching logs', err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);
     }
@@ -123,9 +123,9 @@ export function useErrorLogs(options: UseErrorLogsOptions = {}): UseErrorLogsRet
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Subscribed to error_logs realtime');
+          logger.debug('Subscribed to error_logs realtime');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Error subscribing to error_logs realtime');
+          logger.error('Error subscribing to error_logs realtime', new Error('Channel error'));
         }
       });
 
@@ -151,29 +151,48 @@ export function useErrorLogs(options: UseErrorLogsOptions = {}): UseErrorLogsRet
   // Fonction pour supprimer les logs (admin uniquement)
   const clearLogs = useCallback(async () => {
     try {
-      // Note: Cette fonction nécessite le service role
-      // Pour l'instant, on ne peut que supprimer les logs de l'utilisateur courant
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
         throw new Error('User not authenticated');
       }
 
-      // Supprimer uniquement les logs de l'utilisateur courant
-      const { error: deleteError } = await supabase
-        .from('error_logs')
-        .delete()
-        .eq('user_id', user.id);
+      // Vérifier si l'utilisateur est admin
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, email')
+        .eq('id', user.id)
+        .single();
+
+      const isAdmin = profile?.role === 'admin' || 
+                     profile?.email === 'contact@centrinote.fr' || 
+                     profile?.email === 'reda_sahraoui@outlook.fr';
+
+      let deleteQuery = supabase.from('error_logs').delete();
+
+      // Si admin, supprimer tous les logs, sinon seulement ceux de l'utilisateur
+      if (isAdmin) {
+        // Admin peut supprimer tous les logs
+        // Pas de filtre, supprime tout
+      } else {
+        // Utilisateur normal : supprimer uniquement ses logs
+        deleteQuery = deleteQuery.eq('user_id', user.id);
+      }
+
+      const { error: deleteError } = await deleteQuery;
 
       if (deleteError) {
         throw deleteError;
       }
 
+      logger.info('Logs cleared', { isAdmin, userId: user.id });
+
       // Rafraîchir la liste
       await fetchLogs();
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to clear logs'));
-      console.error('❌ Error clearing logs:', err);
+      logger.error('Error clearing logs', err instanceof Error ? err : new Error(String(err)));
+      throw err; // Re-throw pour que le composant puisse afficher l'erreur
     }
   }, [fetchLogs]);
 

@@ -128,7 +128,13 @@ export function ErrorLogsDashboard({ userId }: ErrorLogsDashboardProps) {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={refresh}
+              onClick={async () => {
+                try {
+                  await refresh();
+                } catch (err) {
+                  logger.error('Error refreshing logs', err instanceof Error ? err : new Error(String(err)));
+                }
+              }}
               disabled={loading}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
@@ -136,8 +142,20 @@ export function ErrorLogsDashboard({ userId }: ErrorLogsDashboardProps) {
               Actualiser
             </button>
             <button
-              onClick={clearLogs}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center gap-2"
+              onClick={async () => {
+                if (!confirm('Êtes-vous sûr de vouloir supprimer tous les logs d\'erreurs ? Cette action est irréversible.')) {
+                  return;
+                }
+                try {
+                  await clearLogs();
+                  logger.info('Logs cleared successfully');
+                } catch (err) {
+                  logger.error('Error clearing logs', err instanceof Error ? err : new Error(String(err)));
+                  alert('Erreur lors de la suppression des logs. Vérifiez que vous avez les permissions nécessaires.');
+                }
+              }}
+              disabled={loading}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Trash2 className="w-4 h-4" />
               Nettoyer
