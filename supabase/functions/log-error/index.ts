@@ -2,7 +2,6 @@
 // LOG-ERROR - Edge Function pour logger les erreurs silencieusement
 // =====================================================
 
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
@@ -11,16 +10,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
-
-interface LogErrorRequest {
-  message: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  meta?: Record<string, any>;
-  source?: string;
-  stack_trace?: string;
-  url?: string;
-  user_agent?: string;
-}
 
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight - TOUJOURS répondre 200 OK
@@ -63,7 +52,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Parser le body
-    let body: LogErrorRequest;
+    let body: any;
     try {
       body = await req.json();
     } catch (parseError) {
