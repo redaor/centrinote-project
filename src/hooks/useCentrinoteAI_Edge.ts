@@ -14,6 +14,7 @@ interface AIReply {
   cached?: boolean;
   error?: string;
   session_id?: string; // MEM-FIX: Ajouter session_id dans la réponse
+  memory_saved?: boolean; // Flag pour indiquer qu'une information a été mémorisée
 }
 
 export const useCentrinoteAI_Edge = () => {

@@ -50,14 +50,67 @@ serve(async (req) => {
 
     // Récupérer le body
     const body = await req.json();
-    const { session_id, messages, user_id } = body;
+    const { session_id, messages, user_id, is_command, command_text } = body;
 
-    if (!session_id || !messages || !Array.isArray(messages) || messages.length === 0) {
-      throw new Error("session_id et messages (array) requis");
+    if (!session_id) {
+      throw new Error("session_id requis");
     }
 
     if (!user_id) {
       throw new Error("user_id requis");
+    }
+
+    // Si c'est une commande "souviens-toi", sauvegarder directement
+    if (is_command && command_text) {
+      console.log(`🧠 [ai-memory] Commande "souviens-toi" détectée: ${command_text.substring(0, 50)}...`);
+      
+      // Sauvegarder le texte brut dans summary avec key_topics = ["user_preference"]
+      const { data, error: upsertError } = await supabase
+        .from("chat_memory")
+        .upsert(
+          {
+            user_id: user_id,
+            session_id: session_id,
+            summary: command_text.trim(),
+            key_topics: ["user_preference"],
+            language: "fr", // Par défaut, peut être détecté plus tard
+            mood: null,
+            updated_at: new Date().toISOString()
+          },
+          {
+            onConflict: "user_id,session_id",
+            ignoreDuplicates: false
+          }
+        )
+        .select()
+        .single();
+
+      if (upsertError) {
+        console.error("❌ Erreur upsert mémoire commande:", upsertError);
+        throw new Error(`Erreur sauvegarde mémoire: ${upsertError.message}`);
+      }
+
+      console.log(`✅ [ai-memory] Commande mémorisée pour session: ${session_id.substring(0, 8)}...`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          memory: {
+            summary: command_text.trim(),
+            key_topics: ["user_preference"],
+            language: "fr",
+            mood: null
+          }
+        }),
+        {
+          headers: corsHeaders
+        }
+      );
+    }
+
+    // Sinon, traitement normal avec analyse GPT
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      throw new Error("messages (array) requis pour analyse");
     }
 
     console.log(`🧠 [ai-memory] Génération mémoire pour session: ${session_id.substring(0, 8)}...`);

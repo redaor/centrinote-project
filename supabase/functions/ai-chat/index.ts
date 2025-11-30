@@ -215,6 +215,90 @@ serve(async (req) => {
       throw new Error("Question vide");
     }
 
+    // 🔍 Détecter les commandes "souviens-toi"
+    const rememberPatterns = [
+      /souviens-toi\s+(?:que|de|qu'|d'|que\s+je|que\s+mon|que\s+ma|que\s+mes)/i,
+      /note\s+(?:que|que\s+je|que\s+mon|que\s+ma|que\s+mes)/i,
+      /retiens\s+(?:que|que\s+je|que\s+mon|que\s+ma|que\s+mes)/i,
+      /mémorise\s+(?:que|que\s+je|que\s+mon|que\s+ma|que\s+mes)/i,
+      /rappelle-toi\s+(?:que|de|qu'|d'|que\s+je|que\s+mon|que\s+ma|que\s+mes)/i,
+    ];
+
+    const isRememberCommand = rememberPatterns.some(pattern => pattern.test(effectiveQuestion));
+    let cleanedCommand = effectiveQuestion;
+
+    if (isRememberCommand) {
+      console.log("🧠 Commande 'souviens-toi' détectée !");
+      
+      // Nettoyer la commande (enlever les mots-clés)
+      cleanedCommand = effectiveQuestion
+        .replace(/^(?:souviens-toi|note|retiens|mémorise|rappelle-toi)\s+(?:que|de|qu'|d'|que\s+je|que\s+mon|que\s+ma|que\s+mes)\s*/i, '')
+        .trim();
+
+      console.log(`📝 Commande nettoyée: "${cleanedCommand}"`);
+
+      // Si userId existe, appeler ai-memory avec is_command=true
+      if (userId && sessionId) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+        
+        // Appeler ai-memory de manière synchrone (on attend la réponse pour confirmer)
+        try {
+          const memoryRes = await fetch(`${supabaseUrl}/functions/v1/ai-memory`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              session_id: sessionId,
+              user_id: userId,
+              messages: [
+                { role: 'user', content: effectiveQuestion },
+                { role: 'assistant', content: 'Information mémorisée' }
+              ],
+              is_command: true,
+              command_text: cleanedCommand
+            })
+          });
+
+          if (memoryRes.ok) {
+            console.log("✅ Information mémorisée avec succès");
+            // Répondre immédiatement sans appeler GPT
+            return new Response(
+              JSON.stringify({
+                reply: "✅ J'ai enregistré cette information.",
+                session_id: sessionId,
+                timestamp: now,
+                searched: false,
+                fileProcessed: false,
+                cached: false,
+                enrichment_used: false,
+                notes_count: 0,
+                vocabulary_count: 0,
+                memory_saved: true // Flag pour afficher le toast
+              }),
+              {
+                headers: corsHeaders
+              }
+            );
+          } else {
+            console.error("❌ Erreur lors de la sauvegarde de la mémoire");
+            // Continuer avec le traitement normal si erreur
+          }
+        } catch (memoryError: any) {
+          console.error("❌ Erreur appel ai-memory:", memoryError.message);
+          // Continuer avec le traitement normal si erreur
+        }
+      } else {
+        console.warn("⚠️ userId ou sessionId manquant, impossible de mémoriser");
+        // Continuer avec le traitement normal
+      }
+    }
+
+    // Détecter si l'utilisateur demande "Que sais-tu sur moi ?"
+    const isMemoryQuery = /^(?:que\s+sais-tu\s+sur\s+moi|que\s+connais-tu\s+de\s+moi|qu['']est-ce\s+que\s+tu\s+sais\s+sur\s+moi|raconte-moi\s+ce\s+que\s+tu\s+sais\s+sur\s+moi)/i.test(effectiveQuestion);
+
     console.log("🤖 AI Question:", effectiveQuestion.slice(0, 100));
     if (fileProcessed) {
       console.log("📄 Avec fichier:", fileText.slice(0, 100) + "...");
@@ -369,13 +453,18 @@ serve(async (req) => {
 
           // Construire le prompt système avec recherche web + notes/vocabulaire + mémoire
           const memoryContext = chatMemory?.summary 
-            ? `\n\n{memory}\nRésumé des conversations précédentes : ${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés abordés : ${chatMemory.key_topics.join(', ')}` : ''}`
-            : '\n\n{memory}\n';
+            ? `\n\nMémoire utilisateur :\n{memory}\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
+            : '\n\nMémoire utilisateur :\n{memory}\n';
 
           const languageInstruction = isArabic || userLanguage === 'ara'
             ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
             : userLanguage !== 'fr'
             ? `\n\n⚠️ IMPORTANT : Réponds dans la langue détectée : ${userLanguage}`
+            : '';
+
+          // Si l'utilisateur demande "Que sais-tu sur moi ?", répondre uniquement avec la mémoire
+          const memoryOnlyInstruction = isMemoryQuery && chatMemory?.summary
+            ? '\n\n⚠️ IMPORTANT : L\'utilisateur demande ce que tu sais sur lui. Réponds UNIQUEMENT avec les informations de la mémoire utilisateur ci-dessus. Ne cherche pas sur le web, ne mentionne pas les notes ou le vocabulaire. Réponds uniquement avec la mémoire.'
             : '';
 
           let systemContent = `Tu es Centrinote AI, l'assistant personnel intelligent de l'application Centrinote.
@@ -395,7 +484,7 @@ Règles :
 - Si tu utilises une note, indique "Source : Note <titre>"
 - Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
 
-Il est ${now} (heure française).${memoryContext}${languageInstruction}
+Il est ${now} (heure française).${memoryContext}${languageInstruction}${memoryOnlyInstruction}
 
 Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ces informations pour répondre de manière précise et concise à la question de l'utilisateur.`;
 
@@ -463,13 +552,18 @@ Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ce
       // Si pas de recherche web ET pas de réponse générée, générer une réponse avec notes/vocabulaire si disponibles
       if (!searched && !finalReply && (userNotes || userVocabulary)) {
         const memoryContext = chatMemory?.summary 
-          ? `\n\n{memory}\nRésumé des conversations précédentes : ${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés abordés : ${chatMemory.key_topics.join(', ')}` : ''}`
-          : '\n\n{memory}\n';
+          ? `\n\nMémoire utilisateur :\n{memory}\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
+          : '\n\nMémoire utilisateur :\n{memory}\n';
 
         const languageInstruction = isArabic || userLanguage === 'ara'
           ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
           : userLanguage !== 'fr'
           ? `\n\n⚠️ IMPORTANT : Réponds dans la langue détectée : ${userLanguage}`
+          : '';
+
+        // Si l'utilisateur demande "Que sais-tu sur moi ?", répondre uniquement avec la mémoire
+        const memoryOnlyInstruction = isMemoryQuery && chatMemory?.summary
+          ? '\n\n⚠️ IMPORTANT : L\'utilisateur demande ce que tu sais sur lui. Réponds UNIQUEMENT avec les informations de la mémoire utilisateur ci-dessus. Ne cherche pas sur le web, ne mentionne pas les notes ou le vocabulaire. Réponds uniquement avec la mémoire.'
           : '';
 
         let directSystemContent = `Tu es Centrinote AI, l'assistant personnel intelligent de l'application Centrinote.
@@ -489,7 +583,7 @@ Règles :
 - Si tu utilises une note, indique "Source : Note <titre>"
 - Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
 
-Il est ${now} (heure française).${memoryContext}${languageInstruction}`;
+Il est ${now} (heure française).${memoryContext}${languageInstruction}${memoryOnlyInstruction}`;
         
         if (userNotes || userVocabulary) {
           directSystemContent += `\n\nContexte utilisateur :\n`;
@@ -559,13 +653,18 @@ Il est ${now} (heure française).${memoryContext}${languageInstruction}`;
         : "";
 
       const memoryContext = chatMemory?.summary 
-        ? `\n\n{memory}\nRésumé des conversations précédentes : ${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés abordés : ${chatMemory.key_topics.join(', ')}` : ''}`
-        : '\n\n{memory}\n';
+        ? `\n\nMémoire utilisateur :\n{memory}\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
+        : '\n\nMémoire utilisateur :\n{memory}\n';
 
       const languageInstruction = isArabic || userLanguage === 'ara'
         ? '\n\n⚠️ IMPORTANT : La question est en arabe. Réponds TOUJOURS en arabe avec les bonnes lettres connectées (ligatures).'
         : userLanguage !== 'fr'
         ? `\n\n⚠️ IMPORTANT : Réponds dans la langue détectée : ${userLanguage}`
+        : '';
+
+      // Si l'utilisateur demande "Que sais-tu sur moi ?", répondre uniquement avec la mémoire
+      const memoryOnlyInstruction = isMemoryQuery && chatMemory?.summary
+        ? '\n\n⚠️ IMPORTANT : L\'utilisateur demande ce que tu sais sur lui. Réponds UNIQUEMENT avec les informations de la mémoire utilisateur ci-dessus. Ne cherche pas sur le web, ne mentionne pas les notes ou le vocabulaire. Réponds uniquement avec la mémoire.'
         : '';
 
       // Construire le prompt système pour analyse de document + notes/vocabulaire
@@ -586,7 +685,7 @@ Règles :
 - Si tu utilises une note, indique "Source : Note <titre>"
 - Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
 
-Il est ${now} (heure française).${memoryContext}${languageInstruction}
+Il est ${now} (heure française).${memoryContext}${languageInstruction}${memoryOnlyInstruction}
 
 L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, amicale et professionnelle en te basant sur le contenu du document.`;
 
