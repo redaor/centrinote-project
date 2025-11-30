@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Mail, Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Shield, Mail, Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, XCircle, AlertTriangle } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { supabase } from '../../lib/supabase';
+import { ErrorLogsDashboard } from '../../components/admin/ErrorLogsDashboard';
+import { logger } from '../../utils/logger';
 
 interface SupportMessage {
   id: string;
@@ -24,6 +26,7 @@ export function SupportMessagesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'support' | 'logs'>('support');
 
   // Vérifier si l'utilisateur est admin
   const isAdmin =
@@ -59,7 +62,7 @@ export function SupportMessagesPage() {
 
       setMessages(data || []);
     } catch (err) {
-      console.error('Erreur lors du chargement des messages:', err);
+      logger.error('Erreur lors du chargement des messages', err instanceof Error ? err : new Error(String(err)));
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
     } finally {
       setLoading(false);
@@ -82,7 +85,7 @@ export function SupportMessagesPage() {
         prev.map(msg => (msg.id === id ? { ...msg, status: newStatus } : msg))
       );
     } catch (err) {
-      console.error('Erreur lors de la mise à jour du statut:', err);
+      logger.error('Erreur lors de la mise à jour du statut', err instanceof Error ? err : new Error(String(err)));
       alert('Erreur lors de la mise à jour du statut');
     }
   };
@@ -144,6 +147,44 @@ export function SupportMessagesPage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
+        {/* Onglets */}
+        <div className="flex space-x-2 mb-4">
+          <button
+            onClick={() => setActiveTab('support')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'support'
+                ? 'bg-purple-500 text-white'
+                : darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 inline mr-2" />
+            Messages Support
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'logs'
+                ? 'bg-purple-500 text-white'
+                : darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4 inline mr-2" />
+            Logs d'erreurs
+          </button>
+        </div>
+      </div>
+
+      {/* Contenu selon l'onglet actif */}
+      {activeTab === 'logs' ? (
+        <ErrorLogsDashboard userId={user?.id} />
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="p-3 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
             <Shield className="w-8 h-8 text-white" />
@@ -325,6 +366,8 @@ export function SupportMessagesPage() {
             </div>
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );

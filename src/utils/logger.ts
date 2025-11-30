@@ -149,8 +149,11 @@ class SecureLogger {
       consoleMethod(`[${level.toUpperCase()}]`, sanitizedMessage, sanitizedMeta);
     }
 
-    // Toujours envoyer à Supabase (même en prod)
-    try {
+    // Envoyer à Supabase uniquement si VITE_ENABLE_ERROR_LOGGING est true (ou en prod)
+    const shouldLogToSupabase = import.meta.env.VITE_ENABLE_ERROR_LOGGING === 'true' || !this.isDev;
+    
+    if (shouldLogToSupabase) {
+      try {
       const { data: { user } } = await supabase.auth.getUser();
       
       await supabase.from('error_logs').insert({
@@ -163,10 +166,11 @@ class SecureLogger {
         url: url || getCurrentUrl(),
         user_agent: getUserAgent(),
       });
-    } catch (error) {
-      // Ne pas faire échouer l'application si le log échoue
-      if (this.isDev) {
-        console.error('❌ Failed to log to Supabase:', error);
+      } catch (error) {
+        // Ne pas faire échouer l'application si le log échoue
+        if (this.isDev) {
+          console.error('❌ Failed to log to Supabase:', error);
+        }
       }
     }
   }

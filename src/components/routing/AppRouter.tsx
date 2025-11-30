@@ -76,19 +76,18 @@ export function AppRouter() {
 
   // Debug de l'état d'authentification
   React.useEffect(() => {
-    console.log('🔍 État d\'authentification:', { user: !!user, loading });
+    logger.debug('État d\'authentification', { hasUser: !!user, loading });
     
     // Si l'utilisateur vient de se connecter et qu'on affiche le formulaire, le cacher
     if (user && showAuthForm) {
-      console.log('✅ Utilisateur connecté détecté, fermeture du formulaire');
+      logger.debug('Utilisateur connecté détecté, fermeture du formulaire');
       setShowAuthForm(false);
     }
   }, [user, loading]);
 
   // Fonction pour gérer l'affichage du formulaire d'authentification
   const handleGetStarted = () => {
-    console.log('🔄 Clic sur Se connecter - affichage du formulaire');
-    console.log('📍 État actuel - user:', !!user, 'showAuthForm:', showAuthForm);
+    logger.debug('Clic sur Se connecter - affichage du formulaire', { hasUser: !!user, showAuthForm });
     setShowAuthForm(true);
   };
 
