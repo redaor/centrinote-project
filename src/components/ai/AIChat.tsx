@@ -425,7 +425,34 @@ export function AIChat() {
           replyPreview: edgeReply.reply?.substring(0, 100) || 'vide',
           cached: edgeReply.cached ?? false,
           timestamp: edgeReply.timestamp,
+          memory_saved: edgeReply.memory_saved ?? false,
         });
+
+        // Afficher un toast si une information a été mémorisée
+        if (edgeReply.memory_saved) {
+          // Créer un toast simple avec animation
+          const toast = document.createElement('div');
+          toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 transition-all duration-300 transform translate-y-0 opacity-100';
+          toast.style.cssText = 'animation: slideInRight 0.3s ease-out;';
+          toast.innerHTML = `
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span class="font-medium">Information mémorisée ✅</span>
+          `;
+          document.body.appendChild(toast);
+          
+          // Retirer le toast après 3 secondes avec animation
+          setTimeout(() => {
+            toast.style.animation = 'slideOutRight 0.3s ease-in';
+            toast.style.opacity = '0';
+            setTimeout(() => {
+              if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+              }
+            }, 300);
+          }, 3000);
+        }
 
         const result = {
           suggestion: edgeReply.reply,
