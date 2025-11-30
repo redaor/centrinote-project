@@ -133,26 +133,68 @@ serve(async (req) => {
 
         console.log(`✅ Automation ${automation.name} should execute NOW`);
 
-        // ✅ PROTECTION CONTRE LES EXÉCUTIONS MULTIPLES : Vérifier et poser un verrou
-        const { data: lockResult, error: lockError } = await supabase.rpc('try_lock_automation_execution', {
-          p_automation_id: automation.id,
-          p_lock_duration_minutes: 5
-        });
+        // ✅ PROTECTION 1 : Vérifier si déjà exécutée récemment (dans les 5 dernières minutes)
+        if (automation.last_executed_at) {
+          const lastExec = new Date(automation.last_executed_at);
+          const minutesSinceLastExec = (now.getTime() - lastExec.getTime()) / (1000 * 60);
+          
+          if (minutesSinceLastExec < 5) {
+            console.log(`⏭️ Automation ${automation.name} was executed ${minutesSinceLastExec.toFixed(1)} minutes ago, skipping (too recent)`);
+            results.push({
+              automation_id: automation.id,
+              automation_name: automation.name,
+              status: 'skipped',
+              reason: `Executed ${minutesSinceLastExec.toFixed(1)} minutes ago (too recent)`
+            });
+            continue;
+          }
+        }
 
-        if (lockError) {
-          console.error(`❌ Error acquiring lock for ${automation.name}:`, lockError);
-          // Continuer quand même (fallback si la fonction n'existe pas encore)
-        } else if (lockResult === false) {
-          console.log(`🔒 Automation ${automation.name} is already locked (execution in progress), skipping`);
-          results.push({
-            automation_id: automation.id,
-            automation_name: automation.name,
-            status: 'skipped',
-            reason: 'Already executing (locked)'
+        // ✅ PROTECTION 2 : Vérifier le verrou d'exécution (si la fonction existe)
+        let lockAcquired = true;
+        try {
+          const { data: lockResult, error: lockError } = await supabase.rpc('try_lock_automation_execution', {
+            p_automation_id: automation.id,
+            p_lock_duration_minutes: 5
           });
-          continue;
-        } else {
-          console.log(`🔓 Lock acquired for ${automation.name}`);
+
+          if (lockError) {
+            // Si la fonction n'existe pas encore, on continue (fallback)
+            console.warn(`⚠️ Lock function not available for ${automation.name} (migration may not be applied):`, lockError.message);
+            lockAcquired = true; // On continue quand même
+          } else if (lockResult === false) {
+            console.log(`🔒 Automation ${automation.name} is already locked (execution in progress), skipping`);
+            results.push({
+              automation_id: automation.id,
+              automation_name: automation.name,
+              status: 'skipped',
+              reason: 'Already executing (locked)'
+            });
+            continue;
+          } else {
+            console.log(`🔓 Lock acquired for ${automation.name}`);
+            lockAcquired = true;
+          }
+        } catch (err) {
+          // Si la fonction RPC n'existe pas, on continue avec la protection temporelle uniquement
+          console.warn(`⚠️ Could not check lock for ${automation.name} (function may not exist):`, err);
+          lockAcquired = true;
+        }
+
+        // ✅ PROTECTION 3 : Vérifier le verrou directement dans la table (fallback)
+        if (automation.execution_lock) {
+          const lockTime = new Date(automation.execution_lock);
+          if (lockTime > now) {
+            const minutesUntilUnlock = (lockTime.getTime() - now.getTime()) / (1000 * 60);
+            console.log(`🔒 Automation ${automation.name} is locked until ${lockTime.toISOString()} (${minutesUntilUnlock.toFixed(1)} min remaining), skipping`);
+            results.push({
+              automation_id: automation.id,
+              automation_name: automation.name,
+              status: 'skipped',
+              reason: `Locked until ${lockTime.toISOString()}`
+            });
+            continue;
+          }
         }
 
         // ✅ Détecter si c'est un micro template (focus_mode, break_time, daily_quote, study-reminder, daily-review, vocab-milestone, forgotten-notes, weekly-summary, monthly-report)
@@ -236,10 +278,11 @@ serve(async (req) => {
         }
 
         // Update automation with next execution time and release lock
+        // IMPORTANT: Mettre à jour last_executed_at IMMÉDIATEMENT pour éviter les exécutions multiples
         await supabase
           .from('automations')
           .update({
-            last_executed_at: now.toISOString(),
+            last_executed_at: now.toISOString(), // ✅ Mise à jour IMMÉDIATE pour protection
             next_execution_at: nextExecution,
             updated_at: now.toISOString(),
             execution_lock: null, // Libérer le verrou après exécution réussie
@@ -247,11 +290,14 @@ serve(async (req) => {
           .eq('id', automation.id);
 
         // Libérer le verrou explicitement (au cas où)
-        await supabase.rpc('release_automation_lock', {
-          p_automation_id: automation.id
-        }).catch(err => {
+        try {
+          await supabase.rpc('release_automation_lock', {
+            p_automation_id: automation.id
+          });
+        } catch (err) {
+          // Si la fonction n'existe pas, ce n'est pas grave
           console.warn(`⚠️ Could not release lock (function may not exist yet):`, err);
-        });
+        }
 
         results.push({
           automation_id: automation.id,
