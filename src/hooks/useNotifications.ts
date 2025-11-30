@@ -36,7 +36,7 @@ export function useNotifications() {
     const loadNotifications = async () => {
       try {
         setLoading(true);
-        console.log('🔔 Chargement des notifications pour user:', user.id);
+        logger.debug('Chargement des notifications');
         
         const { data, error } = await supabase
           .from('notifications')
@@ -46,27 +46,20 @@ export function useNotifications() {
           .limit(50);
 
         if (error) {
-          console.error('❌ Erreur lors du chargement des notifications:', error);
-          console.error('❌ Détails de l\'erreur:', JSON.stringify(error, null, 2));
+          logger.error('Erreur lors du chargement des notifications', error instanceof Error ? error : new Error(String(error)));
           return;
         }
 
-        console.log('✅ Notifications chargées:', data?.length || 0);
-        console.log('🔍 [useNotifications] Détail des notifications:', data?.map(n => ({ 
-          id: n.id, 
-          title: n.title, 
-          is_read: n.is_read,
-          created_at: n.created_at 
-        })));
+        logger.debug('Notifications chargées', { count: data?.length || 0 });
         setNotifications(data || []);
         const unread = (data || []).filter(n => !n.is_read).length;
         setUnreadCount(unread);
-        console.log(`✅ ${data?.length || 0} notifications chargées, ${unread} non lues`);
+        logger.debug('Notifications chargées', { total: data?.length || 0, unread });
         if (unread === 0 && (data || []).length > 0) {
-          console.warn('⚠️ [useNotifications] Toutes les notifications sont marquées comme lues !');
+          logger.warn('Toutes les notifications sont marquées comme lues');
         }
       } catch (error) {
-        console.error('❌ Erreur lors du chargement des notifications:', error);
+        logger.error('Erreur lors du chargement des notifications', error instanceof Error ? error : new Error(String(error)));
       } finally {
         setLoading(false);
       }
@@ -78,22 +71,18 @@ export function useNotifications() {
   // 2. Compteur de notifications non lues
   useEffect(() => {
     const unread = notifications.filter(n => !n.is_read).length;
-    console.log('🔔 [useNotifications] Calcul unreadCount:', {
-      total: notifications.length,
-      unread,
-      notifications: notifications.map(n => ({ id: n.id, title: n.title, is_read: n.is_read }))
-    });
+    logger.debug('Calcul unreadCount', { total: notifications.length, unread });
     setUnreadCount(unread);
   }, [notifications]);
 
   // 3. Écouter les nouvelles notifications en temps réel + polling de secours
   useEffect(() => {
     if (!user?.id) {
-      console.log('🔔 Pas d\'utilisateur, pas d\'écoute Realtime');
+      logger.debug('Pas d\'utilisateur, pas d\'écoute Realtime');
       return;
     }
 
-    console.log('🔔 Écoute des nouvelles notifications pour user:', user.id);
+    logger.debug('Écoute des nouvelles notifications en temps réel');
 
     // A. Souscription Realtime
     const channelName = `notifications:${user.id}`;
@@ -108,15 +97,15 @@ export function useNotifications() {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('🔔 Nouvelle notification reçue via Realtime:', payload.new);
+          logger.debug('Nouvelle notification reçue via Realtime');
           const newNotification = payload.new as Notification;
           setNotifications(prev => {
             // Éviter les doublons
             if (prev.some(n => n.id === newNotification.id)) {
-              console.log('⚠️ Notification déjà présente, ignorée');
+              logger.debug('Notification déjà présente, ignorée');
               return prev;
             }
-            console.log('✅ Nouvelle notification ajoutée à la liste');
+            logger.debug('Nouvelle notification ajoutée à la liste');
             return [newNotification, ...prev];
           });
           if (!newNotification.is_read) {
@@ -133,22 +122,22 @@ export function useNotifications() {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('🔔 Notification mise à jour via Realtime:', payload.new);
+          logger.debug('Notification mise à jour via Realtime');
           setNotifications(prev =>
             prev.map(n => (n.id === payload.new.id ? (payload.new as Notification) : n))
           );
         }
       )
       .subscribe((status) => {
-        console.log('🔔 Statut de la souscription Realtime:', status);
+        logger.debug('Statut de la souscription Realtime', { status });
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Abonné aux notifications en temps réel');
+          logger.debug('Abonné aux notifications en temps réel');
         } else if (status === 'CHANNEL_ERROR') {
-          console.warn('⚠️ Erreur de canal Realtime - Le polling de secours prendra le relais');
+          logger.warn('Erreur de canal Realtime - Le polling de secours prendra le relais');
         } else if (status === 'TIMED_OUT') {
-          console.warn('⚠️ Timeout de connexion Realtime - Le polling de secours prendra le relais');
+          logger.warn('Timeout de connexion Realtime - Le polling de secours prendra le relais');
         } else if (status === 'CLOSED') {
-          console.warn('⚠️ Canal Realtime fermé - Le polling de secours prendra le relais');
+          logger.warn('Canal Realtime fermé - Le polling de secours prendra le relais');
         }
       });
 
@@ -163,7 +152,7 @@ export function useNotifications() {
           .limit(50);
 
         if (error) {
-          console.error('❌ Erreur lors du polling des notifications:', error);
+          logger.error('Erreur lors du polling des notifications', error instanceof Error ? error : new Error(String(error)));
           return;
         }
 
@@ -173,18 +162,18 @@ export function useNotifications() {
           const newNotifications = (data || []).filter(n => !currentIds.has(n.id));
           
           if (newNotifications.length > 0) {
-            console.log(`🔄 [POLLING] ${newNotifications.length} nouvelle(s) notification(s) détectée(s)`);
+            logger.debug('Nouvelles notifications détectées via polling', { count: newNotifications.length });
             return [...newNotifications, ...prev];
           }
           return prev;
         });
       } catch (error) {
-        console.error('❌ Erreur lors du polling:', error);
+        logger.error('Erreur lors du polling', error instanceof Error ? error : new Error(String(error)));
       }
     }, 5000); // Toutes les 5 secondes
 
     return () => {
-      console.log('🔔 Désabonnement des notifications');
+      logger.debug('Désabonnement des notifications');
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
@@ -193,7 +182,7 @@ export function useNotifications() {
   // 4. Marquer une notification comme lue
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
-      console.log('🔔 Marquer notification comme lue:', notificationId);
+      logger.debug('Marquer notification comme lue');
       const { error } = await supabase
         .from('notifications')
         .update({ 
@@ -204,7 +193,7 @@ export function useNotifications() {
         .eq('user_id', user?.id); // Sécurité supplémentaire
 
       if (error) {
-        console.error('❌ Erreur lors de la mise à jour de la notification:', error);
+        logger.error('Erreur lors de la mise à jour de la notification', error instanceof Error ? error : new Error(String(error)));
         return;
       }
 
@@ -217,9 +206,9 @@ export function useNotifications() {
         )
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
-      console.log('✅ Notification marquée comme lue');
+      logger.debug('Notification marquée comme lue');
     } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour de la notification:', error);
+      logger.error('Erreur lors de la mise à jour de la notification', error instanceof Error ? error : new Error(String(error)));
     }
   }, [user?.id]);
 
@@ -228,7 +217,7 @@ export function useNotifications() {
     if (!user?.id) return;
 
     try {
-      console.log('🔔 Marquer toutes les notifications comme lues');
+      logger.debug('Marquer toutes les notifications comme lues');
       const { error } = await supabase
         .from('notifications')
         .update({
@@ -239,7 +228,7 @@ export function useNotifications() {
         .eq('is_read', false);
 
       if (error) {
-        console.error('❌ Erreur lors de la mise à jour des notifications:', error);
+        logger.error('Erreur lors de la mise à jour des notifications', error instanceof Error ? error : new Error(String(error)));
         return;
       }
 
@@ -248,16 +237,16 @@ export function useNotifications() {
         prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
       );
       setUnreadCount(0);
-      console.log('✅ Toutes les notifications marquées comme lues');
+      logger.debug('Toutes les notifications marquées comme lues');
     } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour des notifications:', error);
+      logger.error('Erreur lors de la mise à jour des notifications', error instanceof Error ? error : new Error(String(error)));
     }
   }, [user?.id]);
 
   // 6. Supprimer une notification
   const deleteNotification = useCallback(async (notificationId: string) => {
     try {
-      console.log('🔔 Suppression de la notification:', notificationId);
+      logger.debug('Suppression de la notification');
 
       // Sauvegarder l'état de la notification avant suppression (pour rollback si erreur)
       const notificationToDelete = notifications.find(n => n.id === notificationId);
@@ -277,7 +266,7 @@ export function useNotifications() {
         .eq('user_id', user?.id); // Sécurité supplémentaire
 
       if (error) {
-        console.error('❌ Erreur lors de la suppression de la notification:', error);
+        logger.error('Erreur lors de la suppression de la notification', error instanceof Error ? error : new Error(String(error)));
         // Rollback en cas d'erreur
         if (notificationToDelete) {
           setNotifications(prev => [notificationToDelete, ...prev].sort((a, b) =>
@@ -290,9 +279,9 @@ export function useNotifications() {
         return;
       }
 
-      console.log('✅ Notification supprimée avec succès');
+      logger.debug('Notification supprimée avec succès');
     } catch (error) {
-      console.error('❌ Erreur lors de la suppression de la notification:', error);
+      logger.error('Erreur lors de la suppression de la notification', error instanceof Error ? error : new Error(String(error)));
     }
   }, [user?.id, notifications]);
 

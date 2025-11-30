@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../AuthProvider';
 import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
+import { logger } from '../../utils/logger';
 // Plus de composant de vérification - redirection simple
 
 interface ProtectedRouteProps {
@@ -13,18 +14,16 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { needsEmailVerification } = useSupabaseAuth();
 
   // 🔍 TRACE: État ProtectedRoute
-  console.log('🛡️ [PROTECTED-ROUTE] Vérification accès:', {
-    timestamp: new Date().toISOString(),
+  logger.debug('Vérification accès route protégée', {
     pathname: window.location.pathname,
     hasUser: !!user,
-    userEmail: user?.email,
     loading,
     needsEmailVerification,
     willRedirect: loading || !user || needsEmailVerification
   });
 
   if (loading) {
-    console.log('⏳ [PROTECTED-ROUTE] En cours de chargement...');
+    logger.debug('Route protégée - En cours de chargement');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
@@ -36,16 +35,16 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
-    console.log('🚫 [PROTECTED-ROUTE] Pas d\'utilisateur - redirection vers /');
+    logger.debug('Route protégée - Pas d\'utilisateur, redirection');
     return <Navigate to="/" replace />;
   }
 
   // Si l'utilisateur est connecté mais email non vérifié, rediriger vers accueil
   if (needsEmailVerification) {
-    console.log('📧 [PROTECTED-ROUTE] Email non vérifié - redirection vers /');
+    logger.debug('Route protégée - Email non vérifié, redirection');
     return <Navigate to="/" replace />;
   }
 
-  console.log('✅ [PROTECTED-ROUTE] Accès autorisé - render children');
+  logger.debug('Route protégée - Accès autorisé');
   return <>{children}</>;
 }

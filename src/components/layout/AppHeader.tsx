@@ -18,6 +18,7 @@ import { useSettings } from '../../hooks/settings/useSettings';
 import { useTranslation } from '../../hooks/useTranslation';
 import { ConfirmModal } from '../settings/modals/ConfirmModal';
 import { useNotifications } from '../../hooks/useNotifications';
+import { logger } from '../../utils/logger';
 import { BadgePulse, NotificationPanel } from '../notifications/NotificationVisuals2025';
 
 // Fonction pour formater le temps relatif
@@ -56,7 +57,7 @@ export function AppHeader() {
   
   // 🔍 DEBUG: Afficher les notifications dans la console
   useEffect(() => {
-    console.log('🔔 [APP-HEADER] Notifications:', {
+    logger.debug('Notifications dans AppHeader', {
       count: notifications.length,
       unreadCount,
       loading: notificationsLoading,
@@ -343,7 +344,7 @@ export function AppHeader() {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('🔄 Toggle user menu, état actuel:', showUserMenu);
+                logger.debug('Toggle user menu');
                 setShowUserMenu(!showUserMenu);
               }}
               className={`

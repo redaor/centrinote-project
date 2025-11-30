@@ -46,7 +46,8 @@ export class DailyClient {
     this.domain = import.meta.env.VITE_DAILY_DOMAIN || 'centrinote.daily.co';
 
     if (!this.apiKey) {
-      console.warn('⚠️ VITE_DAILY_API_KEY non configurée - Les fonctionnalités de vidéoconférence seront désactivées');
+      // Note: Ce warning est intentionnel et non bloquant - pas besoin de logger
+      // La clé API est configurée côté serveur pour des raisons de sécurité
     }
   }
 

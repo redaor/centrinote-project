@@ -50,7 +50,7 @@ export function useSupabaseAuth() {
               .single();
               
             if (profileError) {
-              console.warn("Erreur lors de la récupération du profil:", profileError);
+              logger.warn("Erreur lors de la récupération du profil", { error: profileError?.message });
               // Créer un profil par défaut si aucun n'existe
               const defaultUser: User = {
                 id: session.user.id,
@@ -78,17 +78,17 @@ export function useSupabaseAuth() {
             
             setNeedsEmailVerification(false);
           } catch (err) {
-            console.error("Erreur lors du traitement du profil:", err);
+            logger.error("Erreur lors du traitement du profil", err instanceof Error ? err : new Error(String(err)));
             setError(err instanceof Error ? err.message : 'Erreur inconnue');
           }
         } else {
-          console.log("Aucune session Supabase trouvée");
+          logger.debug("Aucune session Supabase trouvée");
           setUser(null);
           setNeedsEmailVerification(false);
           dispatch({ type: 'SET_USER', payload: null });
         }
       } catch (err) {
-        console.error("Erreur d'authentification:", err);
+        logger.error("Erreur d'authentification", err instanceof Error ? err : new Error(String(err)));
         setError(err instanceof Error ? err.message : 'Erreur inconnue');
         setUser(null);
         dispatch({ type: 'SET_USER', payload: null });
@@ -102,14 +102,14 @@ export function useSupabaseAuth() {
     
     // Écouter les changements d'état d'authentification
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Changement d'état d'authentification:", event);
+      logger.debug("Changement d'état d'authentification", { event });
       
       if (event === 'SIGNED_IN' && session?.user) {
         // 🔒 Vérifier la confirmation email (colonne native Supabase)
         const emailConfirmed = !!session.user.email_confirmed_at;
 
         if (!emailConfirmed) {
-          console.log("⚠️ Utilisateur connecté mais email non confirmé");
+          logger.warn("Utilisateur connecté mais email non confirmé");
           setNeedsEmailVerification(true);
           setUser(null);
           dispatch({ type: 'SET_USER', payload: null });
