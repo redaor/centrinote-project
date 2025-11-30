@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { notesService } from '../services/notesService';
 import { Note, Tag, NoteAttachment } from '../types';
-import { log } from '../utils/logger';
+import { logger } from '../utils/logger';
 
 // PERF: Cache SWR-like pour éviter les refetch inutiles
 interface CacheEntry<T> {
@@ -95,7 +95,7 @@ export function useNotes() {
 
       setInitialized(true);
     } catch (err) {
-      log.error("❌ Erreur lors du chargement des notes:", err);
+      logger.error("❌ Erreur lors du chargement des notes:", err);
       
       // Gestion spéciale si les tables n'existent pas
       if (err instanceof Error && (
@@ -105,7 +105,7 @@ export function useNotes() {
         err.message.includes('table "tags" does not exist')
       )) {
         setError('Les tables de base de données ne sont pas encore créées. Veuillez appliquer les migrations Supabase.');
-        log.debug("🛠️ Conseil: Exécutez 'supabase db push' pour appliquer les migrations");
+        logger.debug("🛠️ Conseil: Exécutez 'supabase db push' pour appliquer les migrations");
       } else {
         setError(err instanceof Error ? err.message : 'Erreur inconnue');
       }
@@ -128,8 +128,8 @@ export function useNotes() {
     isPinned: boolean = false
   ): Promise<Note | null> => {
     if (!user?.id) {
-      log.error("❌ CRITIQUE: Tentative d'ajout de note sans ID utilisateur");
-      log.error("📊 État utilisateur:", { user, userId: user?.id });
+      logger.error("❌ CRITIQUE: Tentative d'ajout de note sans ID utilisateur");
+      logger.error("📊 État utilisateur:", { user, userId: user?.id });
       return null;
     }
 
@@ -137,9 +137,9 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      log.debug("🔄 Ajout d'une nouvelle note:", title, "pour utilisateur:", user.id);
-      log.debug("📝 Contenu de la note:", content.substring(0, 100) + "...");
-      log.debug("🏷️ Tags:", tagNames);
+      logger.debug("🔄 Ajout d'une nouvelle note:", title, "pour utilisateur:", user.id);
+      logger.debug("📝 Contenu de la note:", content.substring(0, 100) + "...");
+      logger.debug("🏷️ Tags:", tagNames);
       
       const newNote = await notesService.addNote({
         userId: user.id,
@@ -148,8 +148,8 @@ export function useNotes() {
         is_pinned: isPinned
       }, tagNames);
       
-      log.debug("✅ Note ajoutée avec succès:", newNote.id);
-      log.debug("📊 Note complète:", newNote);
+      logger.debug("✅ Note ajoutée avec succès:", newNote.id);
+      logger.debug("📊 Note complète:", newNote);
       setNotes(prev => [newNote, ...prev]);
 
       // PERF: Invalider le cache après mutation
@@ -159,15 +159,15 @@ export function useNotes() {
 
       // Mettre à jour les tags si de nouveaux ont été créés
       if (tagNames.length > 0) {
-        log.debug("🔄 Rechargement des tags après ajout de note");
+        logger.debug("🔄 Rechargement des tags après ajout de note");
         const tagsData = await notesService.getTags(user.id);
         setTags(tagsData);
       }
 
       return newNote;
     } catch (err) {
-      log.error("❌ ERREUR CRITIQUE lors de l'ajout de la note:", err);
-      log.error("📊 Détails de l'erreur:", {
+      logger.error("❌ ERREUR CRITIQUE lors de l'ajout de la note:", err);
+      logger.error("📊 Détails de l'erreur:", {
         error: err,
         message: err instanceof Error ? err.message : 'Erreur inconnue',
         stack: err instanceof Error ? err.stack : undefined,
@@ -189,7 +189,7 @@ export function useNotes() {
     tagNames?: string[]
   ): Promise<Note | null> => {
     if (!user?.id) {
-      log.warn("⚠️ Tentative de mise à jour de note sans ID utilisateur");
+      logger.warn("⚠️ Tentative de mise à jour de note sans ID utilisateur");
       return null;
     }
 
@@ -197,14 +197,14 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      log.debug("🔄 Mise à jour de la note:", noteId);
+      logger.debug("🔄 Mise à jour de la note:", noteId);
       const updatedNote = await notesService.updateNote({
         id: noteId,
         userId: user.id,
         ...updates
       }, tagNames);
       
-      log.debug("✅ Note mise à jour:", updatedNote.id);
+      logger.debug("✅ Note mise à jour:", updatedNote.id);
       setNotes(prev => prev.map(note =>
         note.id === noteId ? updatedNote : note
       ));
@@ -221,7 +221,7 @@ export function useNotes() {
 
       return updatedNote;
     } catch (err) {
-      log.error("❌ Erreur lors de la mise à jour de la note:", err);
+      logger.error("❌ Erreur lors de la mise à jour de la note:", err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       return null;
     } finally {
@@ -232,7 +232,7 @@ export function useNotes() {
   // Supprimer une note
   const deleteNote = useCallback(async (noteId: string): Promise<boolean> => {
     if (!user?.id) {
-      log.warn("⚠️ Tentative de suppression de note sans ID utilisateur");
+      logger.warn("⚠️ Tentative de suppression de note sans ID utilisateur");
       return false;
     }
 
@@ -240,10 +240,10 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      log.debug("🔄 Suppression de la note:", noteId);
+      logger.debug("🔄 Suppression de la note:", noteId);
       await notesService.deleteNote(noteId);
 
-      log.debug("✅ Note supprimée:", noteId);
+      logger.debug("✅ Note supprimée:", noteId);
       setNotes(prev => prev.filter(note => note.id !== noteId));
 
       // PERF: Invalider le cache après mutation
@@ -252,7 +252,7 @@ export function useNotes() {
 
       return true;
     } catch (err) {
-      log.error("❌ Erreur lors de la suppression de la note:", err);
+      logger.error("❌ Erreur lors de la suppression de la note:", err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       return false;
     } finally {
@@ -263,7 +263,7 @@ export function useNotes() {
   // Épingler/désépingler une note
   const togglePinNote = useCallback(async (noteId: string, isPinned: boolean): Promise<boolean> => {
     if (!user?.id) {
-      log.warn("⚠️ Tentative d'épinglage de note sans ID utilisateur");
+      logger.warn("⚠️ Tentative d'épinglage de note sans ID utilisateur");
       return false;
     }
 
@@ -271,10 +271,10 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      log.debug(`🔄 ${isPinned ? 'Épinglage' : 'Désépinglage'} de la note:`, noteId);
+      logger.debug(`🔄 ${isPinned ? 'Épinglage' : 'Désépinglage'} de la note:`, noteId);
       await notesService.togglePinNote(noteId, isPinned);
       
-      log.debug(`✅ Note ${isPinned ? 'épinglée' : 'désépinglée'}:`, noteId);
+      logger.debug(`✅ Note ${isPinned ? 'épinglée' : 'désépinglée'}:`, noteId);
       setNotes(prev => {
         const updatedNotes = prev.map(note => 
           note.id === noteId ? { ...note, is_pinned: isPinned } : note
@@ -289,7 +289,7 @@ export function useNotes() {
       
       return true;
     } catch (err) {
-      log.error(`❌ Erreur lors de ${isPinned ? 'l\'épinglage' : 'désépinglage'} de la note:`, err);
+      logger.error(`❌ Erreur lors de ${isPinned ? 'l\'épinglage' : 'désépinglage'} de la note:`, err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       return false;
     } finally {
@@ -307,13 +307,13 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      log.debug("🔍 Recherche de notes:", searchTerm);
+      logger.debug("🔍 Recherche de notes:", searchTerm);
       const searchResults = await notesService.searchNotes(searchTerm);
-      log.debug("✅ Résultats de recherche:", searchResults.length);
+      logger.debug("✅ Résultats de recherche:", searchResults.length);
       
       return searchResults;
     } catch (err) {
-      log.error("❌ Erreur lors de la recherche de notes:", err);
+      logger.error("❌ Erreur lors de la recherche de notes:", err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       return [];
     } finally {
@@ -331,13 +331,13 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      log.debug("🔍 Filtrage des notes par tag:", tagId);
+      logger.debug("🔍 Filtrage des notes par tag:", tagId);
       const filteredNotes = await notesService.getNotesByTag(tagId);
-      log.debug("✅ Notes filtrées:", filteredNotes.length);
+      logger.debug("✅ Notes filtrées:", filteredNotes.length);
       
       return filteredNotes;
     } catch (err) {
-      log.error("❌ Erreur lors du filtrage des notes par tag:", err);
+      logger.error("❌ Erreur lors du filtrage des notes par tag:", err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       return [];
     } finally {
@@ -348,7 +348,7 @@ export function useNotes() {
   // Ajouter une pièce jointe
   const addAttachment = useCallback(async (noteId: string, file: File): Promise<NoteAttachment | null> => {
     if (!user?.id) {
-      log.warn("⚠️ Tentative d'ajout de pièce jointe sans ID utilisateur");
+      logger.warn("⚠️ Tentative d'ajout de pièce jointe sans ID utilisateur");
       return null;
     }
 
@@ -356,10 +356,10 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      log.debug("🔄 Ajout d'une pièce jointe à la note:", noteId);
+      logger.debug("🔄 Ajout d'une pièce jointe à la note:", noteId);
       const attachment = await notesService.addAttachment(noteId, file);
       
-      log.debug("✅ Pièce jointe ajoutée:", attachment.id);
+      logger.debug("✅ Pièce jointe ajoutée:", attachment.id);
       
       // Mettre à jour l'état local pour indiquer que la note a une pièce jointe
       setNotes(prev => prev.map(note => 
@@ -368,7 +368,7 @@ export function useNotes() {
       
       return attachment;
     } catch (err) {
-      log.error("❌ Erreur lors de l'ajout de la pièce jointe:", err);
+      logger.error("❌ Erreur lors de l'ajout de la pièce jointe:", err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       return null;
     } finally {
@@ -379,7 +379,7 @@ export function useNotes() {
   // Supprimer une pièce jointe
   const deleteAttachment = useCallback(async (attachmentId: string, noteId: string): Promise<boolean> => {
     if (!user?.id) {
-      log.warn("⚠️ Tentative de suppression de pièce jointe sans ID utilisateur");
+      logger.warn("⚠️ Tentative de suppression de pièce jointe sans ID utilisateur");
       return false;
     }
 
@@ -387,10 +387,10 @@ export function useNotes() {
       setLoading(true);
       setError(null);
       
-      log.debug("🔄 Suppression de la pièce jointe:", attachmentId);
+      logger.debug("🔄 Suppression de la pièce jointe:", attachmentId);
       await notesService.deleteAttachment(attachmentId);
       
-      log.debug("✅ Pièce jointe supprimée:", attachmentId);
+      logger.debug("✅ Pièce jointe supprimée:", attachmentId);
       
       // Vérifier s'il reste des pièces jointes pour cette note
       const attachments = await notesService.getNoteAttachments(noteId);
@@ -402,7 +402,7 @@ export function useNotes() {
       
       return true;
     } catch (err) {
-      log.error("❌ Erreur lors de la suppression de la pièce jointe:", err);
+      logger.error("❌ Erreur lors de la suppression de la pièce jointe:", err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       return false;
     } finally {
@@ -413,12 +413,12 @@ export function useNotes() {
   // Obtenir l'URL de téléchargement d'une pièce jointe
   const getAttachmentUrl = useCallback(async (filePath: string): Promise<string | null> => {
     try {
-      log.debug("🔄 Génération de l'URL de téléchargement:", filePath);
+      logger.debug("🔄 Génération de l'URL de téléchargement:", filePath);
       const url = await notesService.getAttachmentUrl(filePath);
-      log.debug("✅ URL générée");
+      logger.debug("✅ URL générée");
       return url;
     } catch (err) {
-      log.error("❌ Erreur lors de la récupération de l'URL de téléchargement:", err);
+      logger.error("❌ Erreur lors de la récupération de l'URL de téléchargement:", err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       return null;
     }
