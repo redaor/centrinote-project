@@ -78,7 +78,7 @@ WITH CHECK (auth.uid() = user_id OR auth.uid() IS NULL);
 -- Le service role peut tout insérer
 CREATE POLICY "Service role can insert all error logs" 
 ON error_logs FOR INSERT 
-USING (auth.jwt() ->> 'role' = 'service_role');
+WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
 
 -- Seul le service role peut supprimer (pour nettoyage)
 CREATE POLICY "Service role can delete error logs" 
