@@ -25,6 +25,11 @@ export function LongRecButton({
   onCreateNewNote,
   darkMode = false,
 }: LongRecButtonProps) {
+  // Vérifier si Supabase est configuré (nécessaire pour l'Edge Function)
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const hasSupabaseConfig = !!(supabaseUrl && supabaseAnonKey);
+
   const {
     isRecording,
     isTranscribing,
@@ -65,6 +70,15 @@ export function LongRecButton({
 
   // Calculer le pourcentage de progression (30 min = 100%)
   const progressPercent = Math.min((elapsedTime / (30 * 60)) * 100, 100);
+
+  // Si pas de configuration Supabase, afficher un message d'avertissement
+  if (!hasSupabaseConfig) {
+    return (
+      <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
+        Configuration Supabase manquante
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">

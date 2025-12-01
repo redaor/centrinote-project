@@ -59,31 +59,42 @@ export function useLongRecording(): UseLongRecordingReturn {
     }
   }, []);
 
-  // Transcrire audio via OpenAI API
+  // Transcrire audio via Edge Function Supabase (utilise OPENAI_API_KEY depuis Supabase)
   const transcribeAudio = useCallback(async (audioBlob: Blob): Promise<string> => {
-    const apiKey = import.meta.env.VITE_OPENAI_KEY;
-    if (!apiKey) {
-      throw new Error('VITE_OPENAI_KEY non configurée');
+    // Récupérer la session Supabase pour l'authentification
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Configuration Supabase manquante');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      throw new Error('Vous devez être connecté pour transcrire l\'audio');
     }
 
     // Convertir Blob en File pour FormData
     const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
     const formData = new FormData();
     formData.append('file', audioFile);
-    formData.append('model', 'whisper-1');
-    formData.append('language', 'fr'); // Optionnel : forcer français
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    // Appeler l'Edge Function Supabase
+    const response = await fetch(`${supabaseUrl}/functions/v1/transcribe-audio`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': supabaseAnonKey,
       },
       body: formData,
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: 'Erreur inconnue' } }));
-      throw new Error(errorData.error?.message || `Erreur API: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+      throw new Error(errorData.error || `Erreur API: ${response.status}`);
     }
 
     const data = await response.json();

@@ -1593,10 +1593,28 @@ export function ModernNotesManager() {
           </div>
 
           {/* Footer fixe avec boutons */}
-          <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-6 pt-4 flex justify-between items-center gap-3">
-            <AIContentHelper
-              content={formData.content}
-              title={formData.title}
+          <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-6 pt-4 flex flex-col gap-3">
+            {/* 🎤 Bouton d'enregistrement audio long (modal création) */}
+            <div className="flex items-center gap-2">
+              <LongRecButton
+                noteId="new-note"
+                noteContent={formData.content}
+                onContentAppend={(text) => {
+                  const newContent = formData.content + text;
+                  handleFormDataChange('content', newContent);
+                }}
+                onCreateNewNote={() => {
+                  // Après création, on pourra créer une nouvelle note
+                  setShowAddModal(false);
+                }}
+                darkMode={darkMode}
+              />
+            </div>
+            
+            <div className="flex justify-between items-center gap-3">
+              <AIContentHelper
+                content={formData.content}
+                title={formData.title}
               contentType="note"
               onApply={(improvedContent) => {
                 handleFormDataChange('content', improvedContent);
