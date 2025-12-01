@@ -36,7 +36,9 @@ export function useLongRecording(): UseLongRecordingReturn {
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
-  const shouldContinueRef = useRef<boolean>(false); // Ref pour suivre si on doit continuer après un chunk
+  const shouldContinueRef = useRef<boolean>(false);
+  // FIX: Set pour stocker les timestamps des chunks déjà envoyés à l'API
+  const sentChunksRef = useRef<Set<number>>(new Set());
 
   // Demander permission micro (une seule fois)
   const requestMicrophonePermission = useCallback(async (): Promise<MediaStream> => {
@@ -133,15 +135,29 @@ export function useLongRecording(): UseLongRecordingReturn {
 
   // Traiter un chunk (transcription)
   const processChunk = useCallback(async (audioBlob: Blob, chunkNumber: number): Promise<string> => {
+    // FIX: Créer un timestamp unique pour ce chunk basé sur le numéro et l'heure de début
+    const chunkTimestamp = startTimeRef.current + chunkNumber;
+    
+    // FIX: Vérifier si ce chunk a déjà été envoyé
+    if (sentChunksRef.current.has(chunkTimestamp)) {
+      console.log(`⏭️ Chunk ${chunkNumber} (timestamp: ${chunkTimestamp}) déjà envoyé, ignoré`);
+      return '';
+    }
+
     setIsTranscribing(true);
     setError(null);
 
     try {
-      console.log(`🎤 Transcription du chunk ${chunkNumber}...`);
+      console.log(`🎤 Transcription du chunk ${chunkNumber} (timestamp: ${chunkTimestamp})...`);
+      // FIX: Marquer ce chunk comme envoyé AVANT l'appel API
+      sentChunksRef.current.add(chunkTimestamp);
+      
       const text = await transcribeAudio(audioBlob);
       console.log(`✅ Chunk ${chunkNumber} transcrit:`, text.slice(0, 100) + '...');
       return text;
     } catch (err) {
+      // FIX: En cas d'erreur, retirer le chunk du Set pour permettre une nouvelle tentative
+      sentChunksRef.current.delete(chunkTimestamp);
       const errorMessage = err instanceof Error ? err.message : 'Erreur de transcription';
       console.error(`❌ Erreur transcription chunk ${chunkNumber}:`, err);
       setError(errorMessage);
@@ -159,6 +175,8 @@ export function useLongRecording(): UseLongRecordingReturn {
       setCurrentChunk(0);
       setElapsedTime(0);
       chunksRef.current = [];
+      // FIX: Réinitialiser le Set des chunks envoyés
+      sentChunksRef.current.clear();
 
       // Demander permission micro
       const stream = await requestMicrophonePermission();
@@ -188,54 +206,31 @@ export function useLongRecording(): UseLongRecordingReturn {
         }
       };
 
-      // Gérer la fin d'un chunk (30 min)
-      const handleChunkStop = async (chunkBlob: Blob, chunkNumber: number) => {
-        try {
-          // Transcrire le chunk
-          const transcribed = await processChunk(chunkBlob, chunkNumber);
-          setTranscribedText(transcribed);
-
-          // Si on continue l'enregistrement, redémarrer pour le chunk suivant
+      // FIX: Gérer l'arrêt du chunk et redémarrer
+      mediaRecorder.onstop = async () => {
+        if (chunks.length === 0) {
+          // Si pas de données, redémarrer directement si on continue
           if (shouldContinueRef.current && streamRef.current) {
-            // Créer un nouveau MediaRecorder pour le chunk suivant
-            const nextOptions: MediaRecorderOptions = {
-              mimeType: 'audio/webm;codecs=opus',
-              audioBitsPerSecond: 128000,
-            };
-            if (!MediaRecorder.isTypeSupported(nextOptions.mimeType!)) {
-              delete nextOptions.mimeType;
-            }
-
-            const nextRecorder = new MediaRecorder(streamRef.current, nextOptions);
+            const nextRecorder = new MediaRecorder(streamRef.current, options);
             const nextChunks: Blob[] = [];
             
-            nextRecorder.ondataavailable = (event) => {
-              if (event.data.size > 0) {
-                nextChunks.push(event.data);
-              }
-            };
-
-            // Réutiliser le même handler pour le prochain chunk
+            nextRecorder.ondataavailable = mediaRecorder.ondataavailable;
             nextRecorder.onstop = mediaRecorder.onstop;
             mediaRecorderRef.current = nextRecorder;
             
-            // Redémarrer après un court délai
             setTimeout(() => {
-              if (nextRecorder && nextRecorder.state === 'inactive' && streamRef.current && shouldContinueRef.current) {
+              if (nextRecorder.state === 'inactive' && streamRef.current && shouldContinueRef.current) {
                 nextRecorder.start();
                 startTimeRef.current = Date.now();
                 setElapsedTime(0);
-                console.log(`🎤 Chunk ${chunkNumber + 1} démarré`);
+                const nextChunk = currentChunk + 1;
+                setCurrentChunk(nextChunk);
+                console.log(`🎤 Chunk ${nextChunk} redémarré`);
               }
             }, 1000);
           }
-        } catch (err) {
-          console.error('Erreur lors du traitement du chunk:', err);
+          return;
         }
-      };
-
-      mediaRecorder.onstop = async () => {
-        if (chunks.length === 0) return;
 
         const chunkBlob = new Blob(chunks, { type: 'audio/webm' });
         const chunkNumber = currentChunk + 1;
@@ -243,11 +238,16 @@ export function useLongRecording(): UseLongRecordingReturn {
         chunks.length = 0; // Réinitialiser pour le prochain chunk
 
         // Traiter le chunk (transcription)
-        await handleChunkStop(chunkBlob, chunkNumber);
+        try {
+          const transcribed = await processChunk(chunkBlob, chunkNumber);
+          setTranscribedText(transcribed);
+        } catch (err) {
+          console.error('Erreur lors du traitement du chunk:', err);
+        }
 
-        // Si on continue l'enregistrement, redémarrer pour le chunk suivant
+        // FIX: Si on continue l'enregistrement, arrêter et redémarrer le MediaRecorder
         if (shouldContinueRef.current && streamRef.current) {
-          // Créer un nouveau MediaRecorder pour le chunk suivant
+          // FIX: Créer un nouveau MediaRecorder pour le chunk suivant
           const nextOptions: MediaRecorderOptions = {
             mimeType: 'audio/webm;codecs=opus',
             audioBitsPerSecond: 128000,
@@ -265,19 +265,26 @@ export function useLongRecording(): UseLongRecordingReturn {
             }
           };
 
-          // Réutiliser le même handler pour le prochain chunk
+          // FIX: Réutiliser le même handler pour le prochain chunk
           nextRecorder.onstop = mediaRecorder.onstop;
           mediaRecorderRef.current = nextRecorder;
           
-          // Redémarrer après un court délai
+          // FIX: Redémarrer après un court délai
           setTimeout(() => {
-            if (nextRecorder && nextRecorder.state === 'inactive' && streamRef.current && isRecording) {
+            if (nextRecorder && nextRecorder.state === 'inactive' && streamRef.current && shouldContinueRef.current) {
               nextRecorder.start();
               startTimeRef.current = Date.now();
               setElapsedTime(0);
-              console.log(`🎤 Chunk ${chunkNumber + 1} démarré`);
+              console.log(`🎤 Chunk ${chunkNumber + 1} redémarré`);
             }
           }, 1000);
+        } else {
+          // FIX: Arrêt définitif
+          setIsRecording(false);
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
         }
       };
 
@@ -308,7 +315,7 @@ export function useLongRecording(): UseLongRecordingReturn {
       setError(errorMessage);
       console.error('❌ Erreur démarrage enregistrement:', err);
     }
-  }, [currentChunk, isRecording, processChunk, requestMicrophonePermission]);
+  }, [currentChunk, processChunk, requestMicrophonePermission]);
 
   // Arrêter l'enregistrement
   const stopRecording = useCallback(() => {
@@ -343,4 +350,3 @@ export function useLongRecording(): UseLongRecordingReturn {
     error,
   };
 }
-
