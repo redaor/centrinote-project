@@ -184,6 +184,108 @@ export function ModernNotesManager() {
   const [formData, setFormData] = useState(emptyFormState);
 
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout>();
+  
+  // FIX: Clé localStorage pour sauvegarder le contenu en cours d'édition
+  const DRAFT_STORAGE_KEY = 'centrinote-note-draft';
+  const DRAFT_TIMESTAMP_KEY = 'centrinote-note-draft-timestamp';
+  
+  // FIX: Ref pour éviter les boucles infinies entre sauvegarde et restauration
+  const isRestoringRef = useRef(false);
+
+  // FIX: Sauvegarder automatiquement le contenu dans localStorage
+  useEffect(() => {
+    // Ne pas sauvegarder si on est en train de restaurer
+    if (isRestoringRef.current) {
+      return;
+    }
+    
+    // Sauvegarder uniquement si on est en mode édition ou création avec du contenu
+    if ((isEditing || showAddModal) && (formData.title.trim() || formData.content.trim())) {
+      const draft = {
+        title: formData.title,
+        content: formData.content,
+        tags: formData.tags,
+        noteId: selectedNote?.id || 'new',
+        timestamp: Date.now()
+      };
+      try {
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+        localStorage.setItem(DRAFT_TIMESTAMP_KEY, String(Date.now()));
+      } catch (err) {
+        console.warn('⚠️ Impossible de sauvegarder le brouillon:', err);
+      }
+    } else {
+      // Nettoyer le localStorage si on n'est plus en mode édition/création
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        localStorage.removeItem(DRAFT_TIMESTAMP_KEY);
+      } catch (err) {
+        console.warn('⚠️ Impossible de nettoyer le brouillon:', err);
+      }
+    }
+  }, [formData, isEditing, showAddModal, selectedNote?.id]);
+
+  // FIX: Restaurer le contenu au retour sur la page (détection de visibilité)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Page redevenue visible : vérifier s'il y a un brouillon à restaurer
+        try {
+          const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          const savedTimestamp = localStorage.getItem(DRAFT_TIMESTAMP_KEY);
+          
+          if (savedDraft && savedTimestamp) {
+            const draft = JSON.parse(savedDraft);
+            const draftAge = Date.now() - parseInt(savedTimestamp, 10);
+            
+            // Restaurer uniquement si le brouillon a moins de 1 heure
+            if (draftAge < 3600000) {
+              // Vérifier si on est toujours sur la même note ou en création
+              const isSameNote = (selectedNote?.id === draft.noteId) || 
+                                 (draft.noteId === 'new' && showAddModal);
+              
+              if (isSameNote && (draft.title.trim() || draft.content.trim())) {
+                // Restaurer uniquement si le contenu actuel est vide ou différent
+                const currentHasContent = formData.title.trim() || formData.content.trim();
+                if (!currentHasContent || draft.content.length > formData.content.length) {
+                  console.log('💾 Restauration du brouillon sauvegardé');
+                  // FIX: Marquer qu'on est en train de restaurer pour éviter la boucle
+                  isRestoringRef.current = true;
+                  setFormData({
+                    title: draft.title || '',
+                    content: draft.content || '',
+                    tags: draft.tags || ''
+                  });
+                  setHasUnsavedChanges(true);
+                  // Réinitialiser le flag après un court délai
+                  setTimeout(() => {
+                    isRestoringRef.current = false;
+                  }, 100);
+                }
+              }
+            } else {
+              // Brouillon trop ancien, le supprimer
+              localStorage.removeItem(DRAFT_STORAGE_KEY);
+              localStorage.removeItem(DRAFT_TIMESTAMP_KEY);
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Erreur lors de la restauration du brouillon:', err);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Vérifier aussi au montage du composant
+    if (document.visibilityState === 'visible') {
+      handleVisibilityChange();
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [selectedNote?.id, showAddModal, formData]);
 
   // Filtrer et trier les notes (optimisé avec useMemo pour éviter les re-calculs)
   useEffect(() => {
@@ -305,6 +407,13 @@ export function ModernNotesManager() {
         setMessage({ type: 'success', text: 'Note ajoutée avec succès' });
         setShowAddModal(false);
         resetForm();
+        // FIX: Nettoyer le brouillon après sauvegarde réussie
+        try {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+          localStorage.removeItem(DRAFT_TIMESTAMP_KEY);
+        } catch (err) {
+          console.warn('⚠️ Impossible de nettoyer le brouillon:', err);
+        }
         handleSelectNote(newNote);
       }
     } catch (error) {
@@ -385,16 +494,7 @@ export function ModernNotesManager() {
                     darkMode={darkMode}
                   />
                 )}
-                <AIContentHelper
-                  content={formData.content}
-                  title={formData.title}
-                  contentType="note"
-                  onApply={(improvedContent) => {
-                    handleFormDataChange('content', improvedContent);
-                    setMessage({ type: 'success', text: 'Contenu amélioré avec l\'IA' });
-                  }}
-                  darkMode={darkMode}
-                />
+                {/* FIX: Bouton "Aide IA" supprimé en mode édition pour éviter la duplication */}
                 <Button
                   variant="primary"
                   onClick={handleUpdateNote}
@@ -697,6 +797,13 @@ export function ModernNotesManager() {
         setMessage({ type: 'success', text: 'Note mise à jour avec succès' });
         setHasUnsavedChanges(false);
         setOriginalFormData({ ...formData });
+        // FIX: Nettoyer le brouillon après sauvegarde réussie
+        try {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+          localStorage.removeItem(DRAFT_TIMESTAMP_KEY);
+        } catch (err) {
+          console.warn('⚠️ Impossible de nettoyer le brouillon:', err);
+        }
         closeNoteDetail();
       } else {
         throw new Error('La fonction updateNote a retourné null');
