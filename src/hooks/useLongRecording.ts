@@ -82,6 +82,12 @@ export function useLongRecording(): UseLongRecordingReturn {
     formData.append('file', audioFile);
 
     // Appeler l'Edge Function Supabase
+    console.log('🎤 Appel Edge Function transcribe-audio...', {
+      url: `${supabaseUrl}/functions/v1/transcribe-audio`,
+      fileSize: audioBlob.size,
+      fileType: audioBlob.type,
+    });
+
     const response = await fetch(`${supabaseUrl}/functions/v1/transcribe-audio`, {
       method: 'POST',
       headers: {
@@ -91,12 +97,37 @@ export function useLongRecording(): UseLongRecordingReturn {
       body: formData,
     });
 
+    console.log('📡 Réponse Edge Function:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      contentType: response.headers.get('content-type'),
+    });
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+      // Vérifier si c'est une redirection HTML (404 Netlify)
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        const htmlText = await response.text();
+        console.error('❌ Réponse HTML inattendue (redirection Netlify?):', htmlText.slice(0, 200));
+        throw new Error('Edge Function non trouvée. Vérifiez que l\'Edge Function est déployée sur Supabase.');
+      }
+
+      const errorData = await response.json().catch(() => {
+        // Si la réponse n'est pas du JSON, c'est probablement une erreur de déploiement
+        return { error: `Erreur ${response.status}: ${response.statusText}. L'Edge Function n'est peut-être pas déployée.` };
+      });
+      
+      console.error('❌ Erreur Edge Function:', errorData);
       throw new Error(errorData.error || `Erreur API: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log('✅ Transcription réussie:', {
+      textLength: data.text?.length || 0,
+      preview: data.text?.slice(0, 50) || 'vide',
+    });
+    
     return data.text || '';
   }, []);
 
