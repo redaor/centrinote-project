@@ -1593,35 +1593,38 @@ export function ModernNotesManager() {
             </div>
 
             {/* Footer fixe avec boutons */}
-            <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-6 pt-4 flex flex-col gap-3">
-              {/* 🎤 Bouton d'enregistrement audio long (modal création) */}
-              <div className="flex items-center gap-2">
-                <LongRecButton
-                  noteId="new-note"
-                  noteContent={formData.content}
-                  onContentAppend={(text) => {
-                    const newContent = formData.content + text;
-                    handleFormDataChange('content', newContent);
-                  }}
-                  onCreateNewNote={() => {
-                    // Après création, on pourra créer une nouvelle note
-                    setShowAddModal(false);
-                  }}
-                  darkMode={darkMode}
-                />
-              </div>
-              
-              <div className="flex justify-between items-center gap-3">
-                <AIContentHelper
-                  content={formData.content}
-                  title={formData.title}
-                  contentType="note"
-                  onApply={(improvedContent) => {
-                    handleFormDataChange('content', improvedContent);
-                    setMessage({ type: 'success', text: 'Contenu amélioré avec l\'IA' });
-                  }}
-                  darkMode={darkMode}
-                />
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-6 pt-4">
+              <div className="flex items-center justify-between gap-3">
+                {/* Actions principales : Enregistrer ce cours, Aide IA */}
+                <div className="flex items-center gap-2">
+                  {/* 🎤 Bouton d'enregistrement audio long (modal création) */}
+                  <LongRecButton
+                    noteId="new-note"
+                    noteContent={formData.content}
+                    onContentAppend={(text) => {
+                      const newContent = formData.content + text;
+                      handleFormDataChange('content', newContent);
+                    }}
+                    onCreateNewNote={() => {
+                      // Après création, on pourra créer une nouvelle note
+                      setShowAddModal(false);
+                    }}
+                    darkMode={darkMode}
+                  />
+                  {/* Aide IA - Positionné avec les autres actions principales */}
+                  <AIContentHelper
+                    content={formData.content}
+                    title={formData.title}
+                    contentType="note"
+                    onApply={(improvedContent) => {
+                      handleFormDataChange('content', improvedContent);
+                      setMessage({ type: 'success', text: 'Contenu amélioré avec l\'IA' });
+                    }}
+                    darkMode={darkMode}
+                  />
+                </div>
+                
+                {/* Actions secondaires : Annuler, Créer */}
                 <div className="flex space-x-3">
                   <Button
                     variant="ghost"

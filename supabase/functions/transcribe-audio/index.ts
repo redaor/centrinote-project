@@ -71,7 +71,9 @@ serve(async (req) => {
     const openaiFormData = new FormData();
     openaiFormData.append('file', audioFile);
     openaiFormData.append('model', 'whisper-1');
-    openaiFormData.append('language', 'fr');
+    // FIX: Ne pas forcer la langue pour permettre la détection automatique multilingue
+    // Whisper détecte automatiquement les langues dans un même flux audio
+    // openaiFormData.append('language', 'fr'); // Retiré pour support multilingue
 
     // Appeler l'API OpenAI
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -91,10 +93,32 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const transcribedText = data.text || '';
+    let transcribedText = data.text || '';
+    const detectedLanguage = data.language || 'auto'; // Whisper retourne parfois la langue détectée
+
+    // FIX: Amélioration multilingue - Formatage intelligent du texte transcrit
+    // Si le texte contient des segments dans différentes langues, on peut les marquer
+    // Note: Whisper gère déjà le multilingue, mais on peut améliorer le formatage
+    if (transcribedText) {
+      // Détecter les changements de langue potentiels (basé sur les caractères)
+      const hasArabic = /[\u0600-\u06FF]/.test(transcribedText);
+      const hasFrench = /[àâäéèêëïîôùûüÿç]/.test(transcribedText) || /[ÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ]/.test(transcribedText);
+      
+      // Si on détecte un mélange de langues, on peut ajouter des indicateurs
+      // (optionnel, car Whisper gère déjà bien le multilingue)
+      if (hasArabic && hasFrench) {
+        console.log('🌍 Transcription multilingue détectée (arabe + français)');
+        // Le texte est déjà bien transcrit par Whisper, on le retourne tel quel
+        // L'utilisateur peut voir le texte mixte directement
+      }
+    }
 
     return new Response(
-      JSON.stringify({ text: transcribedText }),
+      JSON.stringify({ 
+        text: transcribedText,
+        language: detectedLanguage, // Langue principale détectée
+        isMultilingual: detectedLanguage === 'auto' || transcribedText.includes('[') // Indicateur simple
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

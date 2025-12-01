@@ -128,9 +128,21 @@ export function useLongRecording(): UseLongRecordingReturn {
     console.log('✅ Transcription réussie:', {
       textLength: data.text?.length || 0,
       preview: data.text?.slice(0, 50) || 'vide',
+      language: data.language || 'auto',
+      isMultilingual: data.isMultilingual || false,
     });
     
-    return data.text || '';
+    // FIX: Support multilingue - Retourner le texte avec métadonnées si disponibles
+    let finalText = data.text || '';
+    
+    // Si multilingue détecté, on peut ajouter un indicateur visuel (optionnel)
+    if (data.isMultilingual && finalText) {
+      // Whisper gère déjà bien le multilingue, on retourne le texte tel quel
+      // L'utilisateur verra le texte mixte directement dans la note
+      console.log('🌍 Transcription multilingue détectée');
+    }
+    
+    return finalText;
   }, []);
 
   // Traiter un chunk (transcription)
