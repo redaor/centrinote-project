@@ -1551,8 +1551,8 @@ export function ModernNotesManager() {
           size="lg"
         >
           <div className="p-6">
-          <div className="space-y-6 pb-4">
-            <div>
+            <div className="space-y-6 pb-4">
+              <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Titre *
               </label>
@@ -1589,56 +1589,57 @@ export function ModernNotesManager() {
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                 placeholder="ex: important, projet, idée"
               />
+              </div>
             </div>
-          </div>
 
-          {/* Footer fixe avec boutons */}
-          <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-6 pt-4 flex flex-col gap-3">
-            {/* 🎤 Bouton d'enregistrement audio long (modal création) */}
-            <div className="flex items-center gap-2">
-              <LongRecButton
-                noteId="new-note"
-                noteContent={formData.content}
-                onContentAppend={(text) => {
-                  const newContent = formData.content + text;
-                  handleFormDataChange('content', newContent);
-                }}
-                onCreateNewNote={() => {
-                  // Après création, on pourra créer une nouvelle note
-                  setShowAddModal(false);
-                }}
-                darkMode={darkMode}
-              />
+            {/* Footer fixe avec boutons */}
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-6 pt-4 flex flex-col gap-3">
+              {/* 🎤 Bouton d'enregistrement audio long (modal création) */}
+              <div className="flex items-center gap-2">
+                <LongRecButton
+                  noteId="new-note"
+                  noteContent={formData.content}
+                  onContentAppend={(text) => {
+                    const newContent = formData.content + text;
+                    handleFormDataChange('content', newContent);
+                  }}
+                  onCreateNewNote={() => {
+                    // Après création, on pourra créer une nouvelle note
+                    setShowAddModal(false);
+                  }}
+                  darkMode={darkMode}
+                />
+              </div>
+              
+              <div className="flex justify-between items-center gap-3">
+                <AIContentHelper
+                  content={formData.content}
+                  title={formData.title}
+                  contentType="note"
+                  onApply={(improvedContent) => {
+                    handleFormDataChange('content', improvedContent);
+                    setMessage({ type: 'success', text: 'Contenu amélioré avec l\'IA' });
+                  }}
+                  darkMode={darkMode}
+                />
+                <div className="flex space-x-3">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowAddModal(false)}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleAddNote}
+                    loading={loading}
+                  >
+                    <Save className="w-5 h-5 mr-2" />
+                    Créer la note
+                  </Button>
+                </div>
+              </div>
             </div>
-            
-            <div className="flex justify-between items-center gap-3">
-              <AIContentHelper
-                content={formData.content}
-                title={formData.title}
-              contentType="note"
-              onApply={(improvedContent) => {
-                handleFormDataChange('content', improvedContent);
-                setMessage({ type: 'success', text: 'Contenu amélioré avec l\'IA' });
-              }}
-              darkMode={darkMode}
-            />
-            <div className="flex space-x-3">
-              <Button
-                variant="ghost"
-                onClick={() => setShowAddModal(false)}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleAddNote}
-                loading={loading}
-              >
-                <Save className="w-5 h-5 mr-2" />
-                Créer la note
-              </Button>
-            </div>
-          </div>
           </div>
         </Modal>
 
@@ -1674,9 +1675,7 @@ export function ModernNotesManager() {
             </div>
           </div>
         </Modal>
-
       </div>
-
     </div>
   );
 }

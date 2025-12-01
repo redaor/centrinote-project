@@ -6,6 +6,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 
 interface UseLongRecordingReturn {
   isRecording: boolean;
@@ -62,7 +63,6 @@ export function useLongRecording(): UseLongRecordingReturn {
   // Transcrire audio via Edge Function Supabase (utilise OPENAI_API_KEY depuis Supabase)
   const transcribeAudio = useCallback(async (audioBlob: Blob): Promise<string> => {
     // Récupérer la session Supabase pour l'authentification
-    const { createClient } = await import('@supabase/supabase-js');
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
@@ -70,7 +70,6 @@ export function useLongRecording(): UseLongRecordingReturn {
       throw new Error('Configuration Supabase manquante');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
