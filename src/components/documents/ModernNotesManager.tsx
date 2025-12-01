@@ -53,6 +53,7 @@ import { Modal } from '../ui/Modal';
 import { LoadingSpinner, ProgressBar } from '../ui/LoadingStates';
 import { DatabaseErrorMessage } from '../common/DatabaseErrorMessage';
 import { AIContentHelper } from '../ai/AIContentHelper';
+import { LongRecButton } from './LongRecButton';
 
 interface FilterChip {
   id: string;
@@ -367,6 +368,23 @@ export function ModernNotesManager() {
                 >
                   Annuler
                 </Button>
+                {/* 🎤 Bouton d'enregistrement audio long (mode édition) */}
+                {selectedNote && (
+                  <LongRecButton
+                    noteId={selectedNote.id}
+                    noteContent={formData.content || selectedNote.content || ''}
+                    onContentAppend={(text) => {
+                      const currentContent = formData.content || selectedNote.content || '';
+                      const newContent = currentContent + text;
+                      handleFormDataChange('content', newContent);
+                      setHasUnsavedChanges(true);
+                    }}
+                    onCreateNewNote={() => {
+                      handleBackToList();
+                    }}
+                    darkMode={darkMode}
+                  />
+                )}
                 <AIContentHelper
                   content={formData.content}
                   title={formData.title}
@@ -503,6 +521,23 @@ export function ModernNotesManager() {
               <Edit className="w-4 h-4" />
               Modifier
             </Button>
+            {/* 🎤 Bouton d'enregistrement audio long */}
+            {selectedNote && !isEditing && (
+              <LongRecButton
+                noteId={selectedNote.id}
+                noteContent={formData.content || selectedNote.content || ''}
+                onContentAppend={(text) => {
+                  const currentContent = formData.content || selectedNote.content || '';
+                  const newContent = currentContent + text;
+                  handleFormDataChange('content', newContent);
+                  setHasUnsavedChanges(true);
+                }}
+                onCreateNewNote={() => {
+                  handleBackToList();
+                }}
+                darkMode={darkMode}
+              />
+            )}
             <AIContentHelper
               content={selectedNote.content || ''}
               title={selectedNote.title}
