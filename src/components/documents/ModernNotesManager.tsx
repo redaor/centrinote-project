@@ -1606,19 +1606,19 @@ export function ModernNotesManager() {
                       handleFormDataChange('content', newContent);
                     }}
                     onCreateNewNote={() => {
-                      // Après création, on pourra créer une nouvelle note
+                      // FIX: Vérifier s'il y a du contenu non sauvegardé avant de créer une nouvelle note
+                      const hasUnsavedContent = formData.title.trim() || formData.content.trim();
+                      
+                      if (hasUnsavedContent) {
+                        const confirmMessage = '⚠️ Vous avez du contenu non sauvegardé dans cette note.\n\nVoulez-vous vraiment créer une nouvelle note ? Le contenu actuel (titre, contenu, transcription) sera perdu.\n\nPour sauvegarder, cliquez sur "Créer la note" avant de créer une nouvelle note.';
+                        if (!window.confirm(confirmMessage)) {
+                          return; // L'utilisateur a annulé, on ne fait rien
+                        }
+                      }
+                      
+                      // Réinitialiser le formulaire et fermer la modal
+                      resetForm();
                       setShowAddModal(false);
-                    }}
-                    darkMode={darkMode}
-                  />
-                  {/* Aide IA - Positionné avec les autres actions principales */}
-                  <AIContentHelper
-                    content={formData.content}
-                    title={formData.title}
-                    contentType="note"
-                    onApply={(improvedContent) => {
-                      handleFormDataChange('content', improvedContent);
-                      setMessage({ type: 'success', text: 'Contenu amélioré avec l\'IA' });
                     }}
                     darkMode={darkMode}
                   />
