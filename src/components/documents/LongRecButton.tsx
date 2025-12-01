@@ -5,7 +5,7 @@
  * - Bouton "Arrêter" et "➕ Nouvelle note" après chaque chunk
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Mic, Square, Plus } from 'lucide-react';
 import { useLongRecording } from '../../hooks/useLongRecording';
 import { Button } from '../ui/Button';
@@ -41,9 +41,12 @@ export function LongRecButton({
     error,
   } = useLongRecording();
 
-  // Insérer le texte transcrit à la fin de la note avec horodatage
+  // Insérer le texte transcrit à la fin de la note avec horodatage (une seule fois par chunk)
+  const lastProcessedChunkRef = useRef<number>(0);
+  
   useEffect(() => {
-    if (transcribedText && currentChunk > 0) {
+    // Ne traiter que si on a un nouveau texte transcrit ET un nouveau chunk
+    if (transcribedText && currentChunk > 0 && currentChunk !== lastProcessedChunkRef.current) {
       const now = new Date();
       const timestamp = now.toLocaleString('fr-FR', {
         day: '2-digit',
@@ -57,9 +60,10 @@ export function LongRecButton({
       const chunkText = `${separator}--- Transcription chunk ${currentChunk} (${timestamp}) ---\n${transcribedText}`;
 
       onContentAppend(chunkText);
-      console.log(`✅ Texte transcrit inséré dans la note ${noteId}`);
+      lastProcessedChunkRef.current = currentChunk; // Marquer ce chunk comme traité
+      console.log(`✅ Texte transcrit inséré dans la note ${noteId} (chunk ${currentChunk})`);
     }
-  }, [transcribedText, currentChunk, noteId, noteContent, onContentAppend]);
+  }, [transcribedText, currentChunk, noteId, onContentAppend]); // Retirer noteContent des dépendances
 
   // Formater le temps écoulé (MM:SS)
   const formatTime = (seconds: number): string => {
