@@ -103,6 +103,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Supprimer le trigger s'il existe déjà
+DROP TRIGGER IF EXISTS trigger_update_conversation_updated_at ON messages;
+
 -- Trigger pour mettre à jour updated_at lors de l'ajout d'un message
 CREATE TRIGGER trigger_update_conversation_updated_at
   AFTER INSERT ON messages
@@ -186,6 +189,18 @@ ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_summaries ENABLE ROW LEVEL SECURITY;
 
+-- Supprimer les politiques existantes si elles existent (pour permettre la réexécution)
+DROP POLICY IF EXISTS "Users can view own conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can create own conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can update own conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can delete own conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can view own messages" ON messages;
+DROP POLICY IF EXISTS "Users can create own messages" ON messages;
+DROP POLICY IF EXISTS "Users can view own summaries" ON conversation_summaries;
+DROP POLICY IF EXISTS "Service role full access conversations" ON conversations;
+DROP POLICY IF EXISTS "Service role full access messages" ON messages;
+DROP POLICY IF EXISTS "Service role full access summaries" ON conversation_summaries;
+
 -- Politique: Les utilisateurs peuvent voir leurs propres conversations
 CREATE POLICY "Users can view own conversations"
   ON conversations FOR SELECT
@@ -205,6 +220,10 @@ CREATE POLICY "Users can update own conversations"
 CREATE POLICY "Users can delete own conversations"
   ON conversations FOR DELETE
   USING (auth.uid() = user_id);
+
+-- Supprimer les politiques existantes si elles existent
+DROP POLICY IF EXISTS "Users can view own messages" ON messages;
+DROP POLICY IF EXISTS "Users can create own messages" ON messages;
 
 -- Politique: Les utilisateurs peuvent voir les messages de leurs conversations
 CREATE POLICY "Users can view own messages"
@@ -228,6 +247,12 @@ CREATE POLICY "Users can create own messages"
     )
     AND (messages.user_id = auth.uid() OR messages.user_id IS NULL)
   );
+
+-- Supprimer les politiques existantes si elles existent
+DROP POLICY IF EXISTS "Users can view own summaries" ON conversation_summaries;
+DROP POLICY IF EXISTS "Service role full access conversations" ON conversations;
+DROP POLICY IF EXISTS "Service role full access messages" ON messages;
+DROP POLICY IF EXISTS "Service role full access summaries" ON conversation_summaries;
 
 -- Politique: Les utilisateurs peuvent voir leurs propres résumés
 CREATE POLICY "Users can view own summaries"

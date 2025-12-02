@@ -31,6 +31,8 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 // Limites de configuration
 const MAX_RECENT_MESSAGES = 20; // Nombre de messages récents à inclure
 const MAX_SEMANTIC_RESULTS = 10; // Nombre de résultats de recherche sémantique
+const MAX_NOTE_CHUNKS = 8; // Nombre maximum de chunks de notes à inclure
+const MIN_NOTE_SIMILARITY = 0.7; // Score minimum de similarité pour un chunk de note
 const MAX_CONVERSATION_MESSAGES = 50; // Seuil pour déclencher un résumé
 const MAX_TOKENS_ESTIMATE = 8000; // Estimation max de tokens dans le prompt
 const TOKEN_RATIO = 4; // Approximation: 1 token ≈ 4 caractères
@@ -62,6 +64,8 @@ interface ChatResponse {
     recent_messages_count: number;
     semantic_messages_count: number;
     summaries_count: number;
+    note_chunks_count: number;
+    notes_used?: Array<{ note_id: string; title: string }>;
     total_tokens_estimate: number;
   };
   error?: string;
@@ -90,6 +94,17 @@ interface SemanticMessage {
   content: string;
   created_at: string;
   similarity: number;
+}
+
+interface NoteChunk {
+  id: string;
+  note_id: string;
+  chunk_index: number;
+  chunk_text: string;
+  similarity: number;
+  note_title: string;
+  note_tags: string[];
+  note_updated_at: string;
 }
 
 // ============================================================================
@@ -338,28 +353,81 @@ async function getConversationSummaries(conversationId: string): Promise<any[]> 
   return data || [];
 }
 
+/**
+ * Recherche les chunks de notes pertinents pour une requête
+ * Utilise la fonction SQL search_note_chunks qui retourne déjà les métadonnées
+ */
+async function retrieveRelevantNoteChunks(
+  userId: string,
+  queryEmbedding: number[],
+  limit: number = MAX_NOTE_CHUNKS,
+  minSimilarity: number = MIN_NOTE_SIMILARITY
+): Promise<NoteChunk[]> {
+  if (!queryEmbedding || queryEmbedding.length === 0) {
+    return [];
+  }
+
+  const embeddingString = `[${queryEmbedding.join(",")}]`;
+
+  const { data, error } = await supabase
+    .rpc("search_note_chunks", {
+      p_user_id: userId,
+      p_query_embedding: embeddingString,
+      p_limit: limit,
+      p_similarity_threshold: minSimilarity,
+      p_tag_filter: null
+    });
+
+  if (error) {
+    logger.warn(`Erreur recherche chunks de notes`, { 
+      userId: userId.substring(0, 8) + "...",
+      error: new Error(error.message) 
+    });
+    return [];
+  }
+
+  // La fonction SQL retourne déjà les métadonnées, on les mappe directement
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    note_id: row.note_id,
+    chunk_index: row.chunk_index,
+    chunk_text: row.chunk_text,
+    similarity: row.similarity,
+    note_title: row.note_title || "Note sans titre",
+    note_tags: row.note_tags || [],
+    note_updated_at: row.note_updated_at
+  })) as NoteChunk[];
+}
+
 // ============================================================================
 // Helpers: Construction du prompt
 // ============================================================================
 
 /**
- * Construit le prompt final pour le LLM avec mémoire contextuelle
+ * Construit le prompt final pour le LLM avec mémoire contextuelle et notes
  */
 function buildPrompt(
   userMessage: string,
   recentMessages: Message[],
   semanticMessages: SemanticMessage[],
-  summaries: any[]
-): { messages: any[]; totalTokensEstimate: number } {
+  summaries: any[],
+  noteChunks: NoteChunk[]
+): { messages: any[]; totalTokensEstimate: number; notesUsed: Array<{ note_id: string; title: string }> } {
   const messages: any[] = [];
+  const notesUsed: Array<{ note_id: string; title: string }> = [];
 
   // Message système décrivant le rôle et la mémoire
   const systemPrompt = `Tu es un assistant IA intelligent et bienveillant pour CentriNote, une application de prise de notes et de productivité.
 
-Tu as accès à une mémoire persistante des conversations précédentes avec cet utilisateur. Utilise cette mémoire pour:
-- Te souvenir des préférences, faits et informations importantes mentionnés
-- Fournir des réponses cohérentes et personnalisées
-- Faire référence aux conversations passées quand c'est pertinent
+Tu as accès à:
+1. Une mémoire persistante des conversations précédentes avec cet utilisateur
+2. TOUTES les notes que l'utilisateur a créées dans CentriNote (base de connaissances personnelle)
+
+Règles importantes:
+- PRIORITÉ ABSOLUE: Si des notes pertinentes sont fournies, base-toi PRINCIPALEMENT sur ces notes pour répondre
+- Cite naturellement la source (titre de la note) quand tu utilises une information provenant d'une note
+- Utilise la mémoire de conversation pour le contexte et les préférences
+- Si aucune note n'est pertinente, réponds avec tes connaissances générales
 
 Réponds de manière naturelle, concise et utile. Si tu détectes une langue autre que le français dans les messages, adapte ta réponse à cette langue.`;
 
@@ -369,6 +437,45 @@ Réponds de manière naturelle, concise et utile. Si tu détectes une langue aut
   });
 
   let totalTokens = Math.ceil(systemPrompt.length / TOKEN_RATIO);
+
+  // Ajouter les notes trouvées (PRIORITÉ - avant la mémoire de conversation)
+  if (noteChunks.length > 0) {
+    // Grouper les chunks par note pour un formatage plus lisible
+    const chunksByNote = new Map<string, NoteChunk[]>();
+    noteChunks.forEach(chunk => {
+      if (!chunksByNote.has(chunk.note_id)) {
+        chunksByNote.set(chunk.note_id, []);
+        notesUsed.push({
+          note_id: chunk.note_id,
+          title: chunk.note_title || "Note sans titre"
+        });
+      }
+      chunksByNote.get(chunk.note_id)!.push(chunk);
+    });
+
+    const notesText = Array.from(chunksByNote.entries())
+      .map(([noteId, chunks]) => {
+        const noteTitle = chunks[0].note_title || "Note sans titre";
+        const tags = chunks[0].note_tags?.length > 0 
+          ? ` [Tags: ${chunks[0].note_tags.join(", ")}]` 
+          : "";
+        const chunksText = chunks
+          .map((chunk, idx) => {
+            const similarity = (chunk.similarity * 100).toFixed(0);
+            return `Extrait ${idx + 1} (pertinence: ${similarity}%):\n${chunk.chunk_text}`;
+          })
+          .join("\n\n");
+        return `📝 Note: "${noteTitle}"${tags}\n\n${chunksText}`;
+      })
+      .join("\n\n---\n\n");
+
+    messages.push({
+      role: "system",
+      content: `NOTES CENTRINOTE PERTINENTES (base de connaissances de l'utilisateur):\n\n${notesText}\n\n⚠️ IMPORTANT: Utilise ces notes comme source principale pour répondre. Cite le titre de la note quand tu utilises une information.`
+    });
+
+    totalTokens += Math.ceil(notesText.length / TOKEN_RATIO);
+  }
 
   // Ajouter les résumés (mémoire long terme)
   if (summaries.length > 0) {
@@ -423,7 +530,7 @@ Réponds de manière naturelle, concise et utile. Si tu détectes une langue aut
   });
   totalTokens += Math.ceil(userMessage.length / TOKEN_RATIO);
 
-  return { messages, totalTokensEstimate: totalTokens };
+  return { messages, totalTokensEstimate: totalTokens, notesUsed };
 }
 
 // ============================================================================
@@ -641,19 +748,45 @@ serve(async (req) => {
 
     const summaries = await getConversationSummaries(conversation.id);
 
+    // 4.5. Rechercher les chunks de notes pertinents (RAG)
+    let noteChunks: NoteChunk[] = [];
+    if (queryEmbedding.length > 0) {
+      try {
+        noteChunks = await retrieveRelevantNoteChunks(
+          user_id,
+          queryEmbedding,
+          MAX_NOTE_CHUNKS,
+          MIN_NOTE_SIMILARITY
+        );
+        
+        logger.debug(`Chunks de notes récupérés`, {
+          count: noteChunks.length,
+          userId: user_id.substring(0, 8) + "..."
+        });
+      } catch (err) {
+        logger.warn(`Erreur recherche chunks de notes`, {
+          error: err instanceof Error ? err : new Error(String(err)),
+          userId: user_id.substring(0, 8) + "..."
+        });
+        // Continuer sans les notes plutôt que d'échouer
+      }
+    }
+
     logger.debug(`Mémoire contextuelle récupérée`, {
       recentCount: recentMessages.length,
       semanticCount: semanticMessages.length,
       summariesCount: summaries.length,
+      noteChunksCount: noteChunks.length,
       conversationId: conversation.id.substring(0, 8) + "..."
     });
 
-    // 5. Construire le prompt
-    const { messages: promptMessages, totalTokensEstimate } = buildPrompt(
+    // 5. Construire le prompt (avec les notes)
+    const { messages: promptMessages, totalTokensEstimate, notesUsed } = buildPrompt(
       message,
       recentMessages,
       semanticMessages,
-      summaries
+      summaries,
+      noteChunks
     );
 
     logger.debug(`Prompt construit`, {
@@ -695,6 +828,8 @@ serve(async (req) => {
         recent_messages_count: recentMessages.length,
         semantic_messages_count: semanticMessages.length,
         summaries_count: summaries.length,
+        note_chunks_count: noteChunks.length,
+        notes_used: notesUsed.length > 0 ? notesUsed : undefined,
         total_tokens_estimate: totalTokensEstimate
       }
     };

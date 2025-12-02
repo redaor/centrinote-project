@@ -222,6 +222,18 @@ class NotesService {
       // 3. Récupérer la note complète avec les tags
       const completeNote = await this.getNoteById(newNote.id);
       
+      // 4. Indexer la note pour le système RAG (en arrière-plan, non bloquant)
+      // Le trigger SQL devrait déjà le faire, mais on fait un appel en fallback
+      // Utiliser un import dynamique pour éviter les dépendances circulaires
+      setTimeout(async () => {
+        try {
+          const { indexNote } = await import('../services/noteIndexService');
+          await indexNote(newNote.id, note.userId);
+        } catch (err) {
+          logger.warn('⚠️ Erreur indexation note (non bloquant):', err);
+        }
+      }, 0);
+      
       logger.debug('✅ Note ajoutée avec succès:', newNote.id);
       return completeNote as Note;
     } catch (error) {
@@ -332,6 +344,18 @@ class NotesService {
       
       // 3. Récupérer la note complète avec les tags
       const completeNote = await this.getNoteById(note.id);
+      
+      // 4. Réindexer la note pour le système RAG (en arrière-plan, non bloquant)
+      // Le trigger SQL devrait déjà le faire, mais on fait un appel en fallback
+      // Utiliser un import dynamique pour éviter les dépendances circulaires
+      setTimeout(async () => {
+        try {
+          const { indexNote } = await import('../services/noteIndexService');
+          await indexNote(note.id, note.userId);
+        } catch (err) {
+          logger.warn('⚠️ Erreur réindexation note (non bloquant):', err);
+        }
+      }, 0);
       
       logger.debug('✅ Note mise à jour avec succès');
       return completeNote as Note;
