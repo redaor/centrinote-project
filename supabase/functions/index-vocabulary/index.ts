@@ -226,13 +226,14 @@ async function upsertVocabularyChunkEmbedding(
   }
 
   // 2. Insérer le nouveau chunk
+  // ⚠️ IMPORTANT: Utiliser le même format que index-note (string formatée)
   const { error: insertError } = await supabase
     .from("vocabulary_chunks_embeddings")
     .insert({
       vocabulary_id: vocabularyId,
       user_id: userId,
       chunk_text: chunkText.trim(),
-      embedding: `[${embedding.join(",")}]`, // Format string pour pgvector
+      embedding: `[${embedding.join(",")}]`, // Format string pour pgvector (identique à index-note)
       metadata: metadata
     });
 

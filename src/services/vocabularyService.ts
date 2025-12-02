@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { VocabularyEntry } from '../types';
 import { logger } from '../utils/logger';
-import { indexVocabulary } from './vocabularyIndexService';
+// Import dynamique comme pour les notes (pour éviter les problèmes de circular dependencies)
 
 class VocabularyService {
   /**
@@ -295,17 +295,21 @@ class VocabularyService {
       logger.debug('✅ Mot converti et retourné:', newEntry);
       
       // Indexer le vocabulaire en arrière-plan (fallback si le trigger SQL ne fonctionne pas)
-      console.log('🔄 [VocabularyService] Appel indexVocabulary pour:', {
-        vocabularyId: newEntry.id,
-        userId: entry.userId
-      });
-      indexVocabulary(newEntry.id, entry.userId).catch(err => {
-        console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
-        logger.warn('Indexation vocabulaire échouée (non bloquant)', {
-          vocabularyId: newEntry.id.substring(0, 8) + "...",
-          error: err instanceof Error ? err.message : String(err)
-        });
-      });
+      // Utiliser setTimeout comme pour les notes pour éviter de bloquer
+      setTimeout(async () => {
+        try {
+          console.log('🔄 [VocabularyService] Appel indexVocabulary pour:', {
+            vocabularyId: newEntry.id,
+            userId: entry.userId
+          });
+          const { indexVocabulary } = await import('./vocabularyIndexService');
+          await indexVocabulary(newEntry.id, entry.userId);
+          console.log('✅ [VocabularyService] Indexation vocabulaire réussie');
+        } catch (err) {
+          console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
+          logger.warn('⚠️ Erreur indexation vocabulaire (non bloquant):', err);
+        }
+      }, 0);
       
       return newEntry;
     } catch (error) {
@@ -460,17 +464,21 @@ class VocabularyService {
       
       // Indexer le vocabulaire mis à jour en arrière-plan (fallback si le trigger SQL ne fonctionne pas)
       if (entry.userId) {
-        console.log('🔄 [VocabularyService] Appel indexVocabulary pour mise à jour:', {
-          vocabularyId: entry.id,
-          userId: entry.userId
-        });
-        indexVocabulary(entry.id, entry.userId).catch(err => {
-          console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
-          logger.warn('Indexation vocabulaire échouée (non bloquant)', {
-            vocabularyId: entry.id.substring(0, 8) + "...",
-            error: err instanceof Error ? err.message : String(err)
-          });
-        });
+        // Utiliser setTimeout comme pour les notes pour éviter de bloquer
+        setTimeout(async () => {
+          try {
+            console.log('🔄 [VocabularyService] Appel indexVocabulary pour mise à jour:', {
+              vocabularyId: entry.id,
+              userId: entry.userId
+            });
+            const { indexVocabulary } = await import('./vocabularyIndexService');
+            await indexVocabulary(entry.id, entry.userId);
+            console.log('✅ [VocabularyService] Indexation vocabulaire réussie');
+          } catch (err) {
+            console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
+            logger.warn('⚠️ Erreur réindexation vocabulaire (non bloquant):', err);
+          }
+        }, 0);
       }
       
       return updatedEntry;
