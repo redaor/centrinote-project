@@ -10,6 +10,7 @@ import { useCentrinoteAI } from '../../hooks/useCentrinoteAI';
 import { useCentrinoteAI_Edge } from '../../hooks/useCentrinoteAI_Edge';
 import { useApp } from '../../contexts/AppContext';
 import { aiConversationService, type AIMessage } from '../../services/aiConversationService';
+import { chatMemoryService } from '../../services/chatMemoryService';
 import { AIActionParser, type AIAction } from '../../services/ai/actionParser';
 import { AIActionConfirmModal } from './AIActionConfirmModal';
 import { vocabularyService } from '../../services/vocabularyService';
@@ -408,55 +409,76 @@ export function AIChat() {
           return; // Important: sortir ici pour éviter le traitement normal
         }
 
-        // Mode normal sans fichier
-        const conversationMessages = [...messages, userMessage]
-          .filter((msg) => msg.content && msg.content.trim().length > 0)
-          .map((msg) => ({
-            role: msg.type === 'user' ? 'user' : 'assistant',
-            // Si le message contient le contexte complet d'un fichier, utiliser le texte complet
-            content: msg.metadata?.isFileContext && msg.metadata?.fullText
-              ? `📄 Contenu du document:\n\n${msg.metadata.fullText}`
-              : msg.content,
-          }));
+        // Mode normal sans fichier - Utiliser chat-memory pour la mémoire persistante
+        const memoryResponse = await chatMemoryService.sendMessage(message, user?.id || null);
 
-        const edgeReply = await sendEdgeMessage(conversationMessages);
-
-        console.log('📥 [AIChat] Réponse Edge reçue:', {
-          replyLength: edgeReply.reply?.length || 0,
-          replyPreview: edgeReply.reply?.substring(0, 100) || 'vide',
-          cached: edgeReply.cached ?? false,
-          timestamp: edgeReply.timestamp,
-          memory_saved: edgeReply.memory_saved ?? false,
-        });
-
-        // Afficher un toast si une information a été mémorisée
-        if (edgeReply.memory_saved) {
-          // Créer un toast simple avec animation
-          const toast = document.createElement('div');
-          toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 transition-all duration-300 transform translate-y-0 opacity-100';
-          toast.style.cssText = 'animation: slideInRight 0.3s ease-out;';
-          toast.innerHTML = `
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span class="font-medium">Information mémorisée ✅</span>
-          `;
-          document.body.appendChild(toast);
+        if (!memoryResponse.success) {
+          // Fallback vers l'ancienne méthode si chat-memory échoue
+          const conversationMessages = [...messages, userMessage]
+            .filter((msg) => msg.content && msg.content.trim().length > 0)
+            .map((msg) => ({
+              role: msg.type === 'user' ? 'user' : 'assistant',
+              content: msg.metadata?.isFileContext && msg.metadata?.fullText
+                ? `📄 Contenu du document:\n\n${msg.metadata.fullText}`
+                : msg.content,
+            }));
+          const edgeReply = await sendEdgeMessage(conversationMessages);
           
-          // Retirer le toast après 3 secondes avec animation
-          setTimeout(() => {
-            toast.style.animation = 'slideOutRight 0.3s ease-in';
-            toast.style.opacity = '0';
-            setTimeout(() => {
-              if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-              }
-            }, 300);
-          }, 3000);
+          const result = {
+            suggestion: edgeReply.reply,
+            isValid: true,
+            securityScore: 1,
+          };
+          
+          // Continuer avec le traitement normal...
+          if (!result.suggestion || result.suggestion.trim().length === 0) {
+            const errorMessage: Message = {
+              id: `error-${Date.now()}`,
+              type: 'error',
+              content: memoryResponse.error || 'L\'IA n\'a pas pu générer de réponse. Veuillez réessayer.',
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, errorMessage]);
+            return;
+          }
+          
+          // Traiter la réponse (code existant ci-dessous)
+          let processedContent = result.suggestion.trim();
+          let messageType: 'ai' | 'code' = 'ai';
+          
+          // ... (continuer avec le code existant pour traiter la réponse)
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            type: messageType,
+            content: processedContent,
+            timestamp: new Date(),
+            metadata: {
+              executionTime: edgeReply.timestamp ? Date.now() - new Date(edgeReply.timestamp).getTime() : undefined,
+            },
+          };
+          
+          setMessages(prev => [...prev, aiMessage]);
+          
+          // Sauvegarder le message IA
+          if (userIdRef.current && sessionIdRef.current) {
+            aiConversationService.saveMessage(
+              userIdRef.current,
+              sessionIdRef.current,
+              aiMessage
+            ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
+          }
+          
+          return;
         }
 
+        // Utiliser la réponse de chat-memory
+        console.log('📥 [AIChat] Réponse chat-memory reçue:', {
+          replyLength: memoryResponse.response?.length || 0,
+          conversationId: memoryResponse.conversation_id?.substring(0, 8) + '...',
+        });
+
         const result = {
-          suggestion: edgeReply.reply,
+          suggestion: memoryResponse.response,
           isValid: true,
           securityScore: 1,
         };
@@ -1080,14 +1102,33 @@ export function AIChat() {
                 }
                 
                 // Détecter les actions dans la nouvelle réponse
-                const detectedActions = AIActionParser.parseActions(edgeReply.reply, {
-                  vocabulary: vocabularyContext,
-                  notes: notesContext,
-                });
+                // Utiliser chat-memory pour la mémoire persistante
+                const memoryResponseForAction = await chatMemoryService.sendMessage(confirmationMessage, user?.id || null);
                 
                 if (detectedActions.length > 0 && (detectedActions[0].type === 'update_vocabulary' || detectedActions[0].type === 'update_note')) {
                   setPendingAction(detectedActions[0]);
                   setIsActionModalOpen(true);
+                }
+              } else {
+                // Fallback si chat-memory échoue
+                const conversationMessages = [...messages, userMessage]
+                  .filter((msg) => msg.content && msg.content.trim().length > 0)
+                  .map((msg) => ({
+                    role: msg.type === 'user' ? 'user' : 'assistant',
+                    content: msg.content,
+                  }));
+                const edgeReply = await sendEdgeMessage(conversationMessages);
+                
+                if (edgeReply && edgeReply.reply) {
+                  const detectedActions = AIActionParser.parseActions(edgeReply.reply, {
+                    vocabulary: vocabularyContext,
+                    notes: notesContext,
+                  });
+                  
+                  if (detectedActions.length > 0 && (detectedActions[0].type === 'update_vocabulary' || detectedActions[0].type === 'update_note')) {
+                    setPendingAction(detectedActions[0]);
+                    setIsActionModalOpen(true);
+                  }
                 }
               }
             } catch (error) {
