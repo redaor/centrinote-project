@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { VocabularyEntry } from '../types';
 import { logger } from '../utils/logger';
+import { indexVocabulary } from './vocabularyIndexService';
 
 class VocabularyService {
   /**
@@ -292,6 +293,15 @@ class VocabularyService {
         userId: newEntry.userId,
       });
       logger.debug('✅ Mot converti et retourné:', newEntry);
+      
+      // Indexer le vocabulaire en arrière-plan (fallback si le trigger SQL ne fonctionne pas)
+      indexVocabulary(newEntry.id, entry.userId).catch(err => {
+        logger.warn('Indexation vocabulaire échouée (non bloquant)', {
+          vocabularyId: newEntry.id.substring(0, 8) + "...",
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
+      
       return newEntry;
     } catch (error) {
       console.error('❌ [VocabularyService] Exception dans addVocabularyEntry:', error);
@@ -440,6 +450,16 @@ class VocabularyService {
         this.checkVocabMilestone(entry.userId).catch(err => {
           console.warn('⚠️ [VocabularyService] Erreur lors de la vérification du milestone:', err);
           // Ne pas bloquer la mise à jour si la vérification échoue
+        });
+      }
+      
+      // Indexer le vocabulaire mis à jour en arrière-plan (fallback si le trigger SQL ne fonctionne pas)
+      if (entry.userId) {
+        indexVocabulary(entry.id, entry.userId).catch(err => {
+          logger.warn('Indexation vocabulaire échouée (non bloquant)', {
+            vocabularyId: entry.id.substring(0, 8) + "...",
+            error: err instanceof Error ? err.message : String(err)
+          });
         });
       }
       

@@ -85,6 +85,10 @@ export function useNotifications() {
 
     logger.debug('Écoute des nouvelles notifications en temps réel');
 
+    // État du Realtime pour contrôler le polling
+    let realtimeStatus: 'SUBSCRIBED' | 'CLOSED' | 'ERROR' = 'CLOSED';
+    let pollInterval: NodeJS.Timeout | null = null;
+
     // A. Souscription Realtime
     const channelName = `notifications:${user.id}`;
     const channel = supabase
@@ -132,51 +136,88 @@ export function useNotifications() {
       .subscribe((status) => {
         logger.debug('Statut de la souscription Realtime', { status });
         if (status === 'SUBSCRIBED') {
+          realtimeStatus = 'SUBSCRIBED';
           logger.debug('Abonné aux notifications en temps réel');
+          // ⚡ PERFORMANCE: Désactiver le polling si Realtime fonctionne
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+            logger.debug('Polling de secours désactivé (Realtime actif)');
+          }
         } else if (status === 'CHANNEL_ERROR') {
+          realtimeStatus = 'ERROR';
           logger.warn('Erreur de canal Realtime - Le polling de secours prendra le relais');
+          // Activer le polling si pas déjà actif
+          if (!pollInterval) {
+            startPolling();
+          }
         } else if (status === 'TIMED_OUT') {
+          realtimeStatus = 'ERROR';
           logger.warn('Timeout de connexion Realtime - Le polling de secours prendra le relais');
+          if (!pollInterval) {
+            startPolling();
+          }
         } else if (status === 'CLOSED') {
+          realtimeStatus = 'CLOSED';
           logger.warn('Canal Realtime fermé - Le polling de secours prendra le relais');
+          if (!pollInterval) {
+            startPolling();
+          }
         }
       });
 
-    // B. Polling de secours toutes les 5 secondes (si Realtime ne fonctionne pas)
-    const pollInterval = setInterval(async () => {
-      try {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (error) {
-          logger.error('Erreur lors du polling des notifications', error instanceof Error ? error : new Error(String(error)));
-          return;
-        }
-
-        // Comparer avec l'état actuel pour détecter les nouvelles notifications
-        setNotifications(prev => {
-          const currentIds = new Set(prev.map(n => n.id));
-          const newNotifications = (data || []).filter(n => !currentIds.has(n.id));
-          
-          if (newNotifications.length > 0) {
-            logger.debug('Nouvelles notifications détectées via polling', { count: newNotifications.length });
-            return [...newNotifications, ...prev];
-          }
-          return prev;
-        });
-      } catch (error) {
-        logger.error('Erreur lors du polling', error instanceof Error ? error : new Error(String(error)));
+    // B. Polling de secours UNIQUEMENT si Realtime ne fonctionne pas
+    const startPolling = () => {
+      if (pollInterval) {
+        return; // Déjà actif
       }
-    }, 5000); // Toutes les 5 secondes
+
+      logger.debug('Démarrage du polling de secours pour les notifications');
+      pollInterval = setInterval(async () => {
+        try {
+          const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (error) {
+            logger.error('Erreur lors du polling des notifications', error instanceof Error ? error : new Error(String(error)));
+            return;
+          }
+
+          // Comparer avec l'état actuel pour détecter les nouvelles notifications
+          setNotifications(prev => {
+            const currentIds = new Set(prev.map(n => n.id));
+            const newNotifications = (data || []).filter(n => !currentIds.has(n.id));
+            
+            if (newNotifications.length > 0) {
+              logger.debug('Nouvelles notifications détectées via polling', { count: newNotifications.length });
+              return [...newNotifications, ...prev];
+            }
+            return prev;
+          });
+        } catch (error) {
+          logger.error('Erreur lors du polling', error instanceof Error ? error : new Error(String(error)));
+        }
+      }, 10000); // ⚡ PERFORMANCE: Augmenté à 10 secondes au lieu de 5
+    };
+
+    // Ne démarrer le polling que si Realtime n'est pas SUBSCRIBED après 2 secondes
+    const initialPollingTimeout = setTimeout(() => {
+      if (realtimeStatus !== 'SUBSCRIBED' && !pollInterval) {
+        startPolling();
+      }
+    }, 2000);
 
     return () => {
       logger.debug('Désabonnement des notifications');
       supabase.removeChannel(channel);
-      clearInterval(pollInterval);
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      clearTimeout(initialPollingTimeout);
     };
   }, [user?.id]);
 

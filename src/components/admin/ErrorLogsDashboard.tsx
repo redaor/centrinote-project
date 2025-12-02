@@ -18,7 +18,7 @@ export function ErrorLogsDashboard({ userId }: ErrorLogsDashboardProps) {
   const [selectedLog, setSelectedLog] = useState<ErrorLog | null>(null);
 
   const { logs, loading, error, refresh, clearLogs } = useErrorLogs({
-    limit: 200,
+    limit: 50, // ⚡ PERFORMANCE: Réduit de 200 à 50 pour améliorer les performances
     level: levelFilter !== 'all' ? levelFilter : undefined,
     userId,
     realtime: true,

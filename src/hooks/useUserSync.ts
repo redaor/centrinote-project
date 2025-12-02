@@ -279,8 +279,8 @@ export function useUserSync() {
     // Vérifier immédiatement
     checkProfileUpdates();
 
-    // Puis toutes les 30 secondes
-    const intervalId = setInterval(checkProfileUpdates, 30000);
+    // ⚡ PERFORMANCE: Augmenté à 5 minutes (le profil change rarement)
+    const intervalId = setInterval(checkProfileUpdates, 300000); // 5 minutes au lieu de 30 secondes
 
     return () => {
       DEBUG && console.log('[useUserSync] Stopping profile polling');
