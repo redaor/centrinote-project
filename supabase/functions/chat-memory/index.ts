@@ -13,7 +13,17 @@
 
 import { serve } from "https://deno.land/std@0.200.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { logger } from "../_shared/logger.ts";
+
+// Logger simple (sans dépendance au fichier partagé pour compatibilité Dashboard)
+const logger = {
+  info: (msg: string, data?: any) => console.log(`[INFO] ${msg}`, data ? JSON.stringify(data) : ""),
+  warn: (msg: string, data?: any) => console.warn(`[WARN] ${msg}`, data ? JSON.stringify(data) : ""),
+  error: (msg: string, err?: Error | any, data?: any) => {
+    const errorMsg = err instanceof Error ? err.message : String(err || "");
+    console.error(`[ERROR] ${msg}`, errorMsg, data ? JSON.stringify(data) : "");
+  },
+  debug: (msg: string, data?: any) => console.debug(`[DEBUG] ${msg}`, data ? JSON.stringify(data) : "")
+};
 
 // ============================================================================
 // Configuration
@@ -32,7 +42,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const MAX_RECENT_MESSAGES = 20; // Nombre de messages récents à inclure
 const MAX_SEMANTIC_RESULTS = 10; // Nombre de résultats de recherche sémantique
 const MAX_NOTE_CHUNKS = 8; // Nombre maximum de chunks de notes à inclure
-const MIN_NOTE_SIMILARITY = 0.7; // Score minimum de similarité pour un chunk de note
+const MIN_NOTE_SIMILARITY = 0.5; // Score minimum de similarité pour un chunk de note (réduit de 0.7 à 0.5 pour plus de résultats)
 const MAX_CONVERSATION_MESSAGES = 50; // Seuil pour déclencher un résumé
 const MAX_TOKENS_ESTIMATE = 8000; // Estimation max de tokens dans le prompt
 const TOKEN_RATIO = 4; // Approximation: 1 token ≈ 4 caractères
@@ -369,6 +379,14 @@ async function retrieveRelevantNoteChunks(
 
   const embeddingString = `[${queryEmbedding.join(",")}]`;
 
+  logger.info(`Recherche chunks de notes`, {
+    userId: userId.substring(0, 8) + "...",
+    embeddingLength: queryEmbedding.length,
+    limit,
+    minSimilarity,
+    embeddingStringPreview: embeddingString.substring(0, 50) + "..."
+  });
+
   const { data, error } = await supabase
     .rpc("search_note_chunks", {
       p_user_id: userId,
@@ -379,12 +397,21 @@ async function retrieveRelevantNoteChunks(
     });
 
   if (error) {
-    logger.warn(`Erreur recherche chunks de notes`, { 
+    logger.error(`Erreur recherche chunks de notes`, new Error(error.message), { 
       userId: userId.substring(0, 8) + "...",
-      error: new Error(error.message) 
+      errorDetails: error
     });
     return [];
   }
+
+  logger.info(`Résultat recherche chunks de notes`, {
+    resultCount: data?.length || 0,
+    results: data?.slice(0, 3).map((r: any) => ({
+      note_id: r.note_id?.substring(0, 8) + "...",
+      similarity: r.similarity,
+      chunk_preview: r.chunk_text?.substring(0, 50) + "..."
+    })) || []
+  });
 
   // La fonction SQL retourne déjà les métadonnées, on les mappe directement
   return (data || []).map((row: any) => ({
@@ -462,12 +489,25 @@ Réponds de manière naturelle, concise et utile. Si tu détectes une langue aut
         const chunksText = chunks
           .map((chunk, idx) => {
             const similarity = (chunk.similarity * 100).toFixed(0);
-            return `Extrait ${idx + 1} (pertinence: ${similarity}%):\n${chunk.chunk_text}`;
+            // Log pour debug : vérifier le contenu du chunk
+            logger.debug(`Chunk ${idx + 1} pour note ${noteId.substring(0, 8)}...`, {
+              chunk_text_length: chunk.chunk_text?.length || 0,
+              chunk_text_preview: chunk.chunk_text?.substring(0, 100) || "VIDE",
+              similarity: chunk.similarity
+            });
+            return `Extrait ${idx + 1} (pertinence: ${similarity}%):\n${chunk.chunk_text || "(contenu vide)"}`;
           })
           .join("\n\n");
         return `📝 Note: "${noteTitle}"${tags}\n\n${chunksText}`;
       })
       .join("\n\n---\n\n");
+
+    // Log le texte complet qui sera injecté dans le prompt
+    logger.info(`Texte des notes à injecter dans le prompt`, {
+      notesTextLength: notesText.length,
+      notesTextPreview: notesText.substring(0, 500) + "...",
+      totalChunks: noteChunks.length
+    });
 
     messages.push({
       role: "system",
