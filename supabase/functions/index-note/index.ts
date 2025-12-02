@@ -96,13 +96,13 @@ function chunkNoteContent(title: string, content: string | null): string[] {
   const chunks: string[] = [];
   const chunkSizeChars = CHUNK_SIZE_TOKENS * TOKEN_RATIO;
   const overlapChars = CHUNK_OVERLAP_TOKENS * TOKEN_RATIO;
-  
+
   let start = 0;
   let chunkIndex = 0;
 
   while (start < fullText.length) {
     let end = start + chunkSizeChars;
-    
+
     // Si on n'est pas à la fin, essayer de couper à un espace ou saut de ligne
     if (end < fullText.length) {
       // Chercher le dernier espace/saut de ligne avant la limite
@@ -179,7 +179,7 @@ async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
   // Limiter le nombre de textes pour éviter de surcharger l'API
   const maxBatchSize = 10;
   const batches: string[][] = [];
-  
+
   for (let i = 0; i < texts.length; i += maxBatchSize) {
     batches.push(texts.slice(i, i + maxBatchSize));
   }
@@ -295,7 +295,7 @@ async function upsertNoteChunksEmbeddings(
     const batch = chunksToInsert.slice(i, i + batchSize);
     
     const { error: insertError } = await supabase
-      .from("note_chunks_embeddings")
+    .from("note_chunks_embeddings")
       .insert(batch);
 
     if (insertError) {
@@ -305,7 +305,7 @@ async function upsertNoteChunksEmbeddings(
         batchSize: batch.length
       });
       throw new Error(`Erreur insertion chunks: ${insertError.message}`);
-    }
+  }
   }
 
   logger.info("Chunks indexés avec succès", {
@@ -412,12 +412,12 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: false,
-        error: err.message || "Erreur inconnue"
+      success: false,
+      error: err.message || "Erreur inconnue"
       }),
       {
-        status: 200, // Toujours 200 pour ne pas bloquer le frontend
-        headers: corsHeaders
+      status: 200, // Toujours 200 pour ne pas bloquer le frontend
+      headers: corsHeaders
       }
     );
   }

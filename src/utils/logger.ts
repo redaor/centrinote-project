@@ -192,6 +192,7 @@ class SecureLogger {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
         
+        // Appel silencieux avec gestion d'erreur pour éviter les erreurs dans la console
         fetch(`${supabaseUrl}/functions/v1/log-error`, {
           method: 'POST',
           headers: {
@@ -207,7 +208,7 @@ class SecureLogger {
             url: url || getCurrentUrl(),
             user_agent: getUserAgent(),
           }),
-          signal: controller.signal,
+          signal: controller.signal
         })
         .then((response) => {
           clearTimeout(timeoutId);

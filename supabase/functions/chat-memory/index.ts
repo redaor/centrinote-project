@@ -42,7 +42,9 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const MAX_RECENT_MESSAGES = 20; // Nombre de messages récents à inclure
 const MAX_SEMANTIC_RESULTS = 10; // Nombre de résultats de recherche sémantique
 const MAX_NOTE_CHUNKS = 8; // Nombre maximum de chunks de notes à inclure
+const MAX_VOCABULARY_CHUNKS = 5; // Nombre maximum d'entrées de vocabulaire à inclure
 const MIN_NOTE_SIMILARITY = 0.5; // Score minimum de similarité pour un chunk de note (réduit de 0.7 à 0.5 pour plus de résultats)
+const MIN_VOCABULARY_SIMILARITY = 0.5; // Score minimum de similarité pour une entrée de vocabulaire
 const MAX_CONVERSATION_MESSAGES = 50; // Seuil pour déclencher un résumé
 const MAX_TOKENS_ESTIMATE = 8000; // Estimation max de tokens dans le prompt
 const TOKEN_RATIO = 4; // Approximation: 1 token ≈ 4 caractères
@@ -75,7 +77,9 @@ interface ChatResponse {
     semantic_messages_count: number;
     summaries_count: number;
     note_chunks_count: number;
+    vocabulary_chunks_count: number;
     notes_used?: Array<{ note_id: string; title: string }>;
+    vocabulary_used?: Array<{ vocabulary_id: string; word: string }>;
     total_tokens_estimate: number;
   };
   error?: string;
@@ -115,6 +119,20 @@ interface NoteChunk {
   note_title: string;
   note_tags: string[];
   note_updated_at: string;
+}
+
+interface VocabularyChunk {
+  id: string;
+  vocabulary_id: string;
+  chunk_text: string;
+  similarity: number;
+  word: string;
+  definition: string;
+  category: string;
+  examples: string[];
+  difficulty: number;
+  mastery: number;
+  vocabulary_updated_at: string;
 }
 
 // ============================================================================
@@ -364,6 +382,70 @@ async function getConversationSummaries(conversationId: string): Promise<any[]> 
 }
 
 /**
+ * Récupère la dernière note créée/modifiée par l'utilisateur
+ * Utile pour répondre à "quelle est ma dernière note" sans nom explicite
+ */
+async function getLastNote(userId: string): Promise<{ id: string; title: string; content: string | null; updated_at: string } | null> {
+  const { data, error } = await supabase
+    .from("notes")
+    .select("id, title, content, updated_at")
+    .eq("userId", userId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    logger.debug(`Aucune note trouvée pour l'utilisateur`, {
+      userId: userId.substring(0, 8) + "...",
+      error: error?.message
+    });
+    return null;
+  }
+
+  return {
+    id: data.id,
+    title: data.title,
+    content: data.content,
+    updated_at: data.updated_at
+  };
+}
+
+/**
+ * Récupère la dernière entrée de vocabulaire créée/modifiée par l'utilisateur
+ * Utile pour répondre à "mon dernier vocabulaire" sans nom explicite
+ */
+async function getLastVocabulary(userId: string): Promise<{ id: string; word: string; definition: string; category: string; examples: string[]; updated_at: string } | null> {
+  const { data, error } = await supabase
+    .from("vocabulary")
+    .select("id, word, definition, category, examples, updated_at")
+    .eq("userId", userId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    logger.debug(`Aucune entrée de vocabulaire trouvée pour l'utilisateur`, {
+      userId: userId.substring(0, 8) + "...",
+      error: error?.message
+    });
+    return null;
+  }
+
+  const examples = Array.isArray(data.examples) 
+    ? data.examples.map((ex: any) => String(ex))
+    : [];
+
+  return {
+    id: data.id,
+    word: data.word,
+    definition: data.definition,
+    category: data.category || "General",
+    examples: examples,
+    updated_at: data.updated_at
+  };
+}
+
+/**
  * Recherche les chunks de notes pertinents pour une requête
  * Utilise la fonction SQL search_note_chunks qui retourne déjà les métadonnées
  */
@@ -426,6 +508,71 @@ async function retrieveRelevantNoteChunks(
   })) as NoteChunk[];
 }
 
+/**
+ * Recherche les entrées de vocabulaire pertinentes pour une requête
+ * Utilise la fonction SQL search_vocabulary_chunks
+ */
+async function retrieveRelevantVocabularyChunks(
+  userId: string,
+  queryEmbedding: number[],
+  limit: number = MAX_VOCABULARY_CHUNKS,
+  minSimilarity: number = MIN_VOCABULARY_SIMILARITY
+): Promise<VocabularyChunk[]> {
+  if (!queryEmbedding || queryEmbedding.length === 0) {
+    return [];
+  }
+
+  const embeddingString = `[${queryEmbedding.join(",")}]`;
+
+  logger.info(`Recherche chunks de vocabulaire`, {
+    userId: userId.substring(0, 8) + "...",
+    embeddingLength: queryEmbedding.length,
+    limit,
+    minSimilarity
+  });
+
+  const { data, error } = await supabase
+    .rpc("search_vocabulary_chunks", {
+      p_user_id: userId,
+      p_query_embedding: embeddingString,
+      p_limit: limit,
+      p_similarity_threshold: minSimilarity,
+      p_category_filter: null
+    });
+
+  if (error) {
+    logger.error(`Erreur recherche chunks de vocabulaire`, new Error(error.message), { 
+      userId: userId.substring(0, 8) + "...",
+      errorDetails: error
+    });
+    return [];
+  }
+
+  logger.info(`Résultat recherche chunks de vocabulaire`, {
+    resultCount: data?.length || 0,
+    results: data?.slice(0, 3).map((r: any) => ({
+      vocabulary_id: r.vocabulary_id?.substring(0, 8) + "...",
+      word: r.word,
+      similarity: r.similarity
+    })) || []
+  });
+
+  // La fonction SQL retourne déjà les métadonnées, on les mappe directement
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    vocabulary_id: row.vocabulary_id,
+    chunk_text: row.chunk_text,
+    similarity: row.similarity,
+    word: row.word || "",
+    definition: row.definition || "",
+    category: row.category || "General",
+    examples: Array.isArray(row.examples) ? row.examples : [],
+    difficulty: row.difficulty || 1,
+    mastery: row.mastery || 0,
+    vocabulary_updated_at: row.vocabulary_updated_at
+  })) as VocabularyChunk[];
+}
+
 // ============================================================================
 // Helpers: Construction du prompt
 // ============================================================================
@@ -438,10 +585,12 @@ function buildPrompt(
   recentMessages: Message[],
   semanticMessages: SemanticMessage[],
   summaries: any[],
-  noteChunks: NoteChunk[]
-): { messages: any[]; totalTokensEstimate: number; notesUsed: Array<{ note_id: string; title: string }> } {
+  noteChunks: NoteChunk[],
+  vocabularyChunks: VocabularyChunk[]
+): { messages: any[]; totalTokensEstimate: number; notesUsed: Array<{ note_id: string; title: string }>; vocabularyUsed: Array<{ vocabulary_id: string; word: string }> } {
   const messages: any[] = [];
   const notesUsed: Array<{ note_id: string; title: string }> = [];
+  const vocabularyUsed: Array<{ vocabulary_id: string; word: string }> = [];
 
   // Message système décrivant le rôle et la mémoire
   const systemPrompt = `Tu es un assistant IA intelligent et bienveillant pour CentriNote, une application de prise de notes et de productivité.
@@ -451,10 +600,18 @@ Tu as accès à:
 2. TOUTES les notes que l'utilisateur a créées dans CentriNote (base de connaissances personnelle)
 
 Règles importantes:
-- PRIORITÉ ABSOLUE: Si des notes pertinentes sont fournies, base-toi PRINCIPALEMENT sur ces notes pour répondre
-- Cite naturellement la source (titre de la note) quand tu utilises une information provenant d'une note
+- PRIORITÉ ABSOLUE: Si des notes ou du vocabulaire pertinents sont fournis, base-toi PRINCIPALEMENT sur ces sources pour répondre
+- Cite naturellement la source (titre de la note ou mot de vocabulaire) quand tu utilises une information
 - Utilise la mémoire de conversation pour le contexte et les préférences
-- Si aucune note n'est pertinente, réponds avec tes connaissances générales
+- Si l'utilisateur demande "ma dernière note" ou "la note que j'ai créée" sans nom explicite, utilise la note la plus récente fournie dans le contexte
+- Si l'utilisateur demande "mon dernier vocabulaire" ou "le mot que j'ai ajouté" sans nom explicite, utilise l'entrée de vocabulaire la plus récente fournie dans le contexte
+- Si aucune note ou vocabulaire n'est pertinent, réponds avec tes connaissances générales
+
+Fonctionnalités spéciales:
+- Tu peux proposer des corrections ou améliorations aux notes si l'utilisateur le demande
+- Si l'utilisateur demande une correction, propose la version corrigée de manière claire et structurée
+- Utilise des phrases comme "Voici la version corrigée :" ou "La note devrait être :" pour faciliter la détection automatique
+- Mentionne clairement le titre de la note entre guillemets quand tu proposes une modification (ex: "Voici la version corrigée de la note 'Titre de la note' :")
 
 Réponds de manière naturelle, concise et utile. Si tu détectes une langue autre que le français dans les messages, adapte ta réponse à cette langue.`;
 
@@ -517,6 +674,34 @@ Réponds de manière naturelle, concise et utile. Si tu détectes une langue aut
     totalTokens += Math.ceil(notesText.length / TOKEN_RATIO);
   }
 
+  // Ajouter le vocabulaire trouvé (après les notes, avant la mémoire de conversation)
+  if (vocabularyChunks.length > 0) {
+    const vocabularyText = vocabularyChunks
+      .map((chunk, idx) => {
+        const similarity = (chunk.similarity * 100).toFixed(0);
+        const examplesText = chunk.examples.length > 0
+          ? `\nExemples: ${chunk.examples.join(", ")}`
+          : "";
+        return `📚 Vocabulaire ${idx + 1} (pertinence: ${similarity}%):\nMot: ${chunk.word}\nDéfinition: ${chunk.definition}${examplesText}\nCatégorie: ${chunk.category}`;
+      })
+      .join("\n\n");
+
+    // Ajouter aux sources utilisées
+    vocabularyChunks.forEach(chunk => {
+      vocabularyUsed.push({
+        vocabulary_id: chunk.vocabulary_id,
+        word: chunk.word
+      });
+    });
+
+    messages.push({
+      role: "system",
+      content: `VOCABULAIRE CENTRINOTE PERTINENT (dictionnaire personnel de l'utilisateur):\n\n${vocabularyText}\n\n⚠️ IMPORTANT: Utilise ce vocabulaire pour répondre aux questions sur les définitions, significations, ou exemples d'utilisation. Cite le mot quand tu utilises une information.`
+    });
+
+    totalTokens += Math.ceil(vocabularyText.length / TOKEN_RATIO);
+  }
+
   // Ajouter les résumés (mémoire long terme)
   if (summaries.length > 0) {
     const summariesText = summaries
@@ -570,7 +755,7 @@ Réponds de manière naturelle, concise et utile. Si tu détectes une langue aut
   });
   totalTokens += Math.ceil(userMessage.length / TOKEN_RATIO);
 
-  return { messages, totalTokensEstimate: totalTokens, notesUsed };
+  return { messages, totalTokensEstimate: totalTokens, notesUsed, vocabularyUsed };
 }
 
 // ============================================================================
@@ -812,6 +997,38 @@ serve(async (req) => {
       }
     }
 
+    // 4.6. Si aucune note trouvée par recherche sémantique, récupérer la dernière note
+    // (pour permettre à l'IA de répondre sur la "dernière note" sans nom explicite)
+    if (noteChunks.length === 0) {
+      try {
+        const lastNote = await getLastNote(user_id);
+        if (lastNote) {
+          logger.info(`Aucune note trouvée par recherche, utilisation de la dernière note`, {
+            noteId: lastNote.id.substring(0, 8) + "...",
+            title: lastNote.title
+          });
+          
+          // Créer un chunk factice pour la dernière note
+          noteChunks.push({
+            id: `last-note-${lastNote.id}`,
+            note_id: lastNote.id,
+            chunk_index: 0,
+            chunk_text: `${lastNote.title}\n\n${lastNote.content || ''}`,
+            similarity: 0.7, // Score moyen car pas de recherche sémantique
+            note_title: lastNote.title,
+            note_tags: [],
+            note_updated_at: lastNote.updated_at
+          });
+        }
+      } catch (err) {
+        logger.warn(`Erreur récupération dernière note`, {
+          error: err instanceof Error ? err : new Error(String(err)),
+          userId: user_id.substring(0, 8) + "..."
+        });
+        // Continuer sans la dernière note
+      }
+    }
+
     logger.debug(`Mémoire contextuelle récupérée`, {
       recentCount: recentMessages.length,
       semanticCount: semanticMessages.length,
@@ -820,13 +1037,87 @@ serve(async (req) => {
       conversationId: conversation.id.substring(0, 8) + "..."
     });
 
-    // 5. Construire le prompt (avec les notes)
-    const { messages: promptMessages, totalTokensEstimate, notesUsed } = buildPrompt(
+    // 4.7. Rechercher les chunks de vocabulaire pertinents (RAG)
+    let vocabularyChunks: VocabularyChunk[] = [];
+    if (queryEmbedding.length > 0) {
+      try {
+        vocabularyChunks = await retrieveRelevantVocabularyChunks(
+          user_id,
+          queryEmbedding,
+          MAX_VOCABULARY_CHUNKS,
+          MIN_VOCABULARY_SIMILARITY
+        );
+        
+        logger.debug(`Chunks de vocabulaire récupérés`, {
+          count: vocabularyChunks.length,
+          userId: user_id.substring(0, 8) + "..."
+        });
+      } catch (err) {
+        logger.warn(`Erreur recherche chunks de vocabulaire`, {
+          error: err instanceof Error ? err : new Error(String(err)),
+          userId: user_id.substring(0, 8) + "..."
+        });
+        // Continuer sans le vocabulaire plutôt que d'échouer
+      }
+    }
+
+    // 4.8. Si aucune entrée de vocabulaire trouvée par recherche sémantique, récupérer la dernière
+    // (pour permettre à l'IA de répondre sur le "dernier vocabulaire" sans nom explicite)
+    if (vocabularyChunks.length === 0) {
+      try {
+        const lastVocabulary = await getLastVocabulary(user_id);
+        if (lastVocabulary) {
+          logger.info(`Aucune entrée de vocabulaire trouvée par recherche, utilisation de la dernière`, {
+            vocabularyId: lastVocabulary.id.substring(0, 8) + "...",
+            word: lastVocabulary.word
+          });
+          
+          // Créer un chunk factice pour la dernière entrée de vocabulaire
+          const examplesText = lastVocabulary.examples.length > 0
+            ? `\nExemples: ${lastVocabulary.examples.join(", ")}`
+            : "";
+          const chunkText = `Mot: ${lastVocabulary.word}\nDéfinition: ${lastVocabulary.definition}${examplesText}\nCatégorie: ${lastVocabulary.category}`;
+          
+          vocabularyChunks.push({
+            id: `last-vocabulary-${lastVocabulary.id}`,
+            vocabulary_id: lastVocabulary.id,
+            chunk_text: chunkText,
+            similarity: 0.7, // Score moyen car pas de recherche sémantique
+            word: lastVocabulary.word,
+            definition: lastVocabulary.definition,
+            category: lastVocabulary.category,
+            examples: lastVocabulary.examples,
+            difficulty: 1,
+            mastery: 0,
+            vocabulary_updated_at: lastVocabulary.updated_at
+          });
+        }
+      } catch (err) {
+        logger.warn(`Erreur récupération dernier vocabulaire`, {
+          error: err instanceof Error ? err : new Error(String(err)),
+          userId: user_id.substring(0, 8) + "..."
+        });
+        // Continuer sans le dernier vocabulaire
+      }
+    }
+
+    logger.debug(`Mémoire contextuelle récupérée`, {
+      recentCount: recentMessages.length,
+      semanticCount: semanticMessages.length,
+      summariesCount: summaries.length,
+      noteChunksCount: noteChunks.length,
+      vocabularyChunksCount: vocabularyChunks.length,
+      conversationId: conversation.id.substring(0, 8) + "..."
+    });
+
+    // 5. Construire le prompt (avec les notes et le vocabulaire)
+    const { messages: promptMessages, totalTokensEstimate, notesUsed, vocabularyUsed } = buildPrompt(
       message,
       recentMessages,
       semanticMessages,
       summaries,
-      noteChunks
+      noteChunks,
+      vocabularyChunks
     );
 
     logger.debug(`Prompt construit`, {
@@ -869,7 +1160,9 @@ serve(async (req) => {
         semantic_messages_count: semanticMessages.length,
         summaries_count: summaries.length,
         note_chunks_count: noteChunks.length,
+        vocabulary_chunks_count: vocabularyChunks.length,
         notes_used: notesUsed.length > 0 ? notesUsed : undefined,
+        vocabulary_used: vocabularyUsed.length > 0 ? vocabularyUsed : undefined,
         total_tokens_estimate: totalTokensEstimate
       }
     };
