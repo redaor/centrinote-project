@@ -25,14 +25,9 @@ BEGIN
   END;
   
   -- Si pas d'URL configurée, utiliser l'URL par défaut de Supabase
-  -- IMPORTANT: Remplacez YOUR_PROJECT_REF par votre vraie référence de projet
+  -- URL par défaut basée sur votre projet actuel (en dur pour éviter les problèmes de permissions)
   IF supabase_url IS NULL OR supabase_url = '' THEN
-    BEGIN
-      supabase_url := current_setting('app.settings.supabase_url', true);
-    EXCEPTION WHEN OTHERS THEN
-      supabase_url := 'https://YOUR_PROJECT_REF.supabase.co';
-      RAISE WARNING 'URL Supabase non configurée, utilisation de la valeur par défaut. Veuillez configurer app.settings.supabase_url';
-    END;
+    supabase_url := 'https://wjzlicokhxitmeoxkjzv.supabase.co';
   END IF;
   
   -- Construire l'URL de l'Edge Function

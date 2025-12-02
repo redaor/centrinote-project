@@ -14,10 +14,21 @@ import { logger } from '../utils/logger';
  */
 export async function indexVocabulary(vocabularyId: string, userId: string): Promise<void> {
   try {
-    console.log('🚀 [vocabularyIndexService] Début indexation vocabulaire', {
+    console.log('🚀 [vocabularyIndexService] ===== DÉBUT INDEXATION VOCABULAIRE =====');
+    console.log('🚀 [vocabularyIndexService] Paramètres reçus:', {
       vocabularyId,
-      userId
+      userId,
+      vocabularyIdLength: vocabularyId?.length,
+      userIdLength: userId?.length
     });
+    
+    if (!vocabularyId || !userId) {
+      console.error('❌ [vocabularyIndexService] Paramètres manquants:', {
+        hasVocabularyId: !!vocabularyId,
+        hasUserId: !!userId
+      });
+      throw new Error('vocabularyId et userId sont requis');
+    }
     
     logger.debug('Indexation du vocabulaire', {
       vocabularyId: vocabularyId.substring(0, 8) + "...",
@@ -25,6 +36,8 @@ export async function indexVocabulary(vocabularyId: string, userId: string): Pro
     });
 
     console.log('📞 [vocabularyIndexService] Appel Edge Function index-vocabulary...');
+    console.log('📞 [vocabularyIndexService] URL Supabase:', import.meta.env.VITE_SUPABASE_URL);
+    
     const { data, error } = await supabase.functions.invoke('index-vocabulary', {
       body: {
         vocabulary_id: vocabularyId,
@@ -32,7 +45,12 @@ export async function indexVocabulary(vocabularyId: string, userId: string): Pro
       }
     });
 
-    console.log('📥 [vocabularyIndexService] Réponse Edge Function:', { data, error });
+    console.log('📥 [vocabularyIndexService] Réponse Edge Function reçue:', { 
+      hasData: !!data, 
+      hasError: !!error,
+      dataSuccess: data?.success,
+      errorMessage: error?.message
+    });
 
     if (error) {
       console.error('❌ [vocabularyIndexService] Erreur Edge Function:', error);

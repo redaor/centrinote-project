@@ -296,20 +296,40 @@ class VocabularyService {
       
       // Indexer le vocabulaire en arrière-plan (fallback si le trigger SQL ne fonctionne pas)
       // Utiliser setTimeout comme pour les notes pour éviter de bloquer
+      console.log('🚀 [VocabularyService] Préparation indexation vocabulaire...', {
+        hasNewEntryId: !!newEntry.id,
+        hasEntryUserId: !!entry.userId,
+        newEntryId: newEntry.id,
+        entryUserId: entry.userId
+      });
+      
       setTimeout(async () => {
         try {
-          console.log('🔄 [VocabularyService] Appel indexVocabulary pour:', {
+          console.log('🔄 [VocabularyService] setTimeout exécuté - Appel indexVocabulary pour:', {
             vocabularyId: newEntry.id,
             userId: entry.userId
           });
+          
+          if (!newEntry.id || !entry.userId) {
+            console.error('❌ [VocabularyService] IDs manquants pour indexation:', {
+              vocabularyId: newEntry.id,
+              userId: entry.userId
+            });
+            return;
+          }
+          
+          console.log('📦 [VocabularyService] Import du service vocabularyIndexService...');
           const { indexVocabulary } = await import('./vocabularyIndexService');
+          console.log('✅ [VocabularyService] Service importé, appel indexVocabulary...');
+          
           await indexVocabulary(newEntry.id, entry.userId);
           console.log('✅ [VocabularyService] Indexation vocabulaire réussie');
         } catch (err) {
           console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
+          console.error('❌ [VocabularyService] Stack:', err instanceof Error ? err.stack : 'N/A');
           logger.warn('⚠️ Erreur indexation vocabulaire (non bloquant):', err);
         }
-      }, 0);
+      }, 100); // Augmenté à 100ms pour être sûr que ça s'exécute
       
       return newEntry;
     } catch (error) {
