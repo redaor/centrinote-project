@@ -257,28 +257,46 @@ serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = buildCorsHeaders(origin, true);
 
+  logger.info("=== index-vocabulary appelé ===", {
+    method: req.method,
+    url: req.url,
+    origin: origin || "none"
+  });
+
   try {
     // Gérer OPTIONS (preflight CORS)
     if (req.method === "OPTIONS") {
+      logger.info("OPTIONS preflight request");
       const preflightHeaders = buildCorsHeaders(origin, false);
       return new Response(null, { status: 204, headers: preflightHeaders });
     }
 
     if (!OPENAI_API_KEY) {
+      logger.error("OPENAI_API_KEY manquante");
       throw new Error("OPENAI_API_KEY manquante");
     }
 
     // Valider et parser la requête
+    logger.info("Parsing request body...");
     const body: IndexRequest = await req.json();
+    logger.info("Request body parsé", {
+      vocabulary_id: body.vocabulary_id?.substring(0, 8) + "...",
+      user_id: body.user_id?.substring(0, 8) + "..."
+    });
+    
     const { vocabulary_id, user_id } = body;
 
     if (!vocabulary_id || !user_id) {
+      logger.error("Paramètres manquants", {
+        has_vocabulary_id: !!vocabulary_id,
+        has_user_id: !!user_id
+      });
       throw new Error("vocabulary_id et user_id sont requis");
     }
 
-    logger.info("Indexation de vocabulaire démarrée", {
-      vocabularyId: vocabulary_id.substring(0, 8) + "...",
-      userId: user_id.substring(0, 8) + "..."
+    logger.info("=== Indexation de vocabulaire démarrée ===", {
+      vocabularyId: vocabulary_id,
+      userId: user_id
     });
 
     // 1. Récupérer l'entrée de vocabulaire

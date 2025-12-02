@@ -295,7 +295,12 @@ class VocabularyService {
       logger.debug('✅ Mot converti et retourné:', newEntry);
       
       // Indexer le vocabulaire en arrière-plan (fallback si le trigger SQL ne fonctionne pas)
+      console.log('🔄 [VocabularyService] Appel indexVocabulary pour:', {
+        vocabularyId: newEntry.id,
+        userId: entry.userId
+      });
       indexVocabulary(newEntry.id, entry.userId).catch(err => {
+        console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
         logger.warn('Indexation vocabulaire échouée (non bloquant)', {
           vocabularyId: newEntry.id.substring(0, 8) + "...",
           error: err instanceof Error ? err.message : String(err)
@@ -455,7 +460,12 @@ class VocabularyService {
       
       // Indexer le vocabulaire mis à jour en arrière-plan (fallback si le trigger SQL ne fonctionne pas)
       if (entry.userId) {
+        console.log('🔄 [VocabularyService] Appel indexVocabulary pour mise à jour:', {
+          vocabularyId: entry.id,
+          userId: entry.userId
+        });
         indexVocabulary(entry.id, entry.userId).catch(err => {
+          console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
           logger.warn('Indexation vocabulaire échouée (non bloquant)', {
             vocabularyId: entry.id.substring(0, 8) + "...",
             error: err instanceof Error ? err.message : String(err)

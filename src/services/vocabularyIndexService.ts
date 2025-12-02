@@ -14,11 +14,17 @@ import { logger } from '../utils/logger';
  */
 export async function indexVocabulary(vocabularyId: string, userId: string): Promise<void> {
   try {
+    console.log('🚀 [vocabularyIndexService] Début indexation vocabulaire', {
+      vocabularyId,
+      userId
+    });
+    
     logger.debug('Indexation du vocabulaire', {
       vocabularyId: vocabularyId.substring(0, 8) + "...",
       userId: userId.substring(0, 8) + "..."
     });
 
+    console.log('📞 [vocabularyIndexService] Appel Edge Function index-vocabulary...');
     const { data, error } = await supabase.functions.invoke('index-vocabulary', {
       body: {
         vocabulary_id: vocabularyId,
@@ -26,7 +32,10 @@ export async function indexVocabulary(vocabularyId: string, userId: string): Pro
       }
     });
 
+    console.log('📥 [vocabularyIndexService] Réponse Edge Function:', { data, error });
+
     if (error) {
+      console.error('❌ [vocabularyIndexService] Erreur Edge Function:', error);
       logger.error('Erreur indexation vocabulaire', new Error(error.message), {
         vocabularyId: vocabularyId.substring(0, 8) + "...",
         errorDetails: error
@@ -35,6 +44,7 @@ export async function indexVocabulary(vocabularyId: string, userId: string): Pro
     }
 
     if (data && !data.success) {
+      console.warn('⚠️ [vocabularyIndexService] Indexation échouée:', data.error);
       logger.warn('Indexation vocabulaire échouée', {
         vocabularyId: vocabularyId.substring(0, 8) + "...",
         error: data.error
@@ -42,11 +52,17 @@ export async function indexVocabulary(vocabularyId: string, userId: string): Pro
       throw new Error(data.error || 'Indexation échouée');
     }
 
+    console.log('✅ [vocabularyIndexService] Vocabulaire indexé avec succès', {
+      vocabularyId,
+      chunkCount: data?.chunk_count || 0
+    });
+    
     logger.info('Vocabulaire indexé avec succès', {
       vocabularyId: vocabularyId.substring(0, 8) + "...",
       chunkCount: data?.chunk_count || 0
     });
   } catch (err) {
+    console.error('❌ [vocabularyIndexService] Exception indexation vocabulaire:', err);
     logger.error('Exception indexation vocabulaire', err instanceof Error ? err : new Error(String(err)), {
       vocabularyId: vocabularyId.substring(0, 8) + "..."
     });
