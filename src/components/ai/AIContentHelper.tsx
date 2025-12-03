@@ -1,5 +1,5 @@
 // Composant pour améliorer/corriger le contenu avec l'IA
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Sparkles, Check, X, Loader2, RefreshCw, Wand2, BookOpen, Zap } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -203,12 +203,7 @@ export function AIContentHelper({
       <Modal
         isOpen={isOpen}
         onClose={handleCancel}
-        title={
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            <span>Assistant IA - {contentType === 'note' ? 'Note' : 'Vocabulaire'}</span>
-          </div>
-        }
+        title={`Assistant IA - ${contentType === 'note' ? 'Note' : 'Vocabulaire'}`}
         size="xl"
       >
         <div className="p-6 space-y-6">
@@ -294,41 +289,111 @@ export function AIContentHelper({
           {selectedAction && error && !loading && (
             <div className="space-y-4">
               {error === 'EMPTY_CONTENT' ? (
-                // Message spécial pour contenu vide
-                <div className={`
-                  p-4 rounded-lg border
-                  ${darkMode
-                    ? 'bg-orange-900/20 border-orange-800 text-orange-300'
-                    : 'bg-orange-50 border-orange-200 text-orange-800'
-                  }
-                `}>
-                  <div className="flex items-start gap-2">
-                    <X className="w-5 h-5 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-medium mb-2">Le contenu est vide</p>
-                      <p className="text-sm mb-4">
-                        Pour utiliser l'IA, vous devez avoir du contenu à améliorer. 
-                        {title && title.trim() ? (
-                          <> Nous pouvons générer automatiquement un contenu à partir de votre titre "<strong>{title}</strong>".</>
-                        ) : (
-                          <> Veuillez d'abord ajouter du contenu à votre note.</>
-                        )}
-                      </p>
-                      {title && title.trim() && (
-                        <div className="mt-4 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-orange-300 dark:border-orange-700">
-                          <p className="text-sm font-medium mb-2">✨ Option disponible :</p>
-                          <Button
-                            variant="primary"
-                            onClick={handleGenerateFromTitle}
-                            className="w-full gap-2"
-                          >
-                            <Sparkles className="w-4 h-4" />
-                            Générer le contenu à partir du titre
-                          </Button>
-                        </div>
-                      )}
+                // Mini-carte sympathique pour contenu vide
+                <div 
+                  className={`
+                    relative p-6 rounded-xl border
+                    ${darkMode
+                      ? 'bg-gray-800/50 border-gray-700'
+                      : 'bg-white border-gray-200'
+                    }
+                  `}
+                  style={{
+                    animation: 'fadeInScale 150ms ease-out',
+                  }}
+                >
+                  <style>
+                    {`@keyframes fadeInScale {
+                      from { opacity: 0; transform: scale(0.95); }
+                      to { opacity: 1; transform: scale(1); }
+                    }`}
+                  </style>
+                  
+                  {/* Icône sparkles outline */}
+                  <div className="flex justify-center mb-4">
+                    <div className={`
+                      p-3 rounded-full
+                      ${darkMode
+                        ? 'bg-purple-500/10'
+                        : 'bg-purple-50'
+                      }
+                    `}>
+                      <Sparkles className={`
+                        w-6 h-6
+                        ${darkMode
+                          ? 'text-purple-400'
+                          : 'text-purple-600'
+                        }
+                      `} strokeWidth={1.5} />
                     </div>
                   </div>
+
+                  {/* Titre */}
+                  <h3 className={`
+                    text-center text-lg font-semibold mb-2
+                    ${darkMode ? 'text-white' : 'text-gray-900'}
+                  `}>
+                    Aucun texte pour l'instant
+                  </h3>
+
+                  {/* Sous-titre */}
+                  <p className={`
+                    text-center text-sm mb-6
+                    ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+                  `}>
+                    Je peux rédiger le contenu à partir de votre titre.
+                  </p>
+
+                  {/* Boutons */}
+                  {title && title.trim() ? (
+                    <div className="space-y-3">
+                      {/* Bouton principal "Générer" */}
+                      <Button
+                        variant="primary"
+                        onClick={handleGenerateFromTitle}
+                        className="w-full md:max-w-xs md:mx-auto gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Générer
+                      </Button>
+
+                      {/* Bouton secondaire "Plus tard" */}
+                      <Button
+                        variant="ghost"
+                        onClick={handleCancel}
+                        className={`
+                          w-full md:max-w-xs md:mx-auto
+                          ${darkMode
+                            ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700/50'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          }
+                        `}
+                      >
+                        Plus tard
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <p className={`
+                        text-sm mb-4
+                        ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+                      `}>
+                        Veuillez d'abord ajouter un titre à votre note.
+                      </p>
+                      <Button
+                        variant="ghost"
+                        onClick={handleCancel}
+                        className={`
+                          ${darkMode
+                            ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700/50'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          }
+                        `}
+                      >
+                        Fermer
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 // Erreur générique
@@ -349,17 +414,18 @@ export function AIContentHelper({
                 </div>
               )}
 
-              <div className="flex justify-end gap-3">
-                <Button variant="ghost" onClick={handleCancel}>
-                  Annuler
-                </Button>
-                {error !== 'EMPTY_CONTENT' && (
+              {/* Boutons pour erreurs génériques */}
+              {error !== 'EMPTY_CONTENT' && (
+                <div className="flex justify-end gap-3">
+                  <Button variant="ghost" onClick={handleCancel}>
+                    Annuler
+                  </Button>
                   <Button variant="primary" onClick={handleRetry}>
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Réessayer
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
