@@ -29,7 +29,9 @@ import {
   CreditCard,
   ChevronDown,
   ChevronUp,
-  MoreVertical
+  MoreVertical,
+  X,
+  Sparkles
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useNeuroFeedback } from '../../hooks/useNeuroFeedback';
@@ -893,108 +895,67 @@ export function NeuroVocabulary() {
           </div>
         </motion.div>
 
-        {/* Action Bar */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          {/* Search */}
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                id={`search-${searchId}`}
-                name={`search-${searchId}`}
-                type="text"
-                placeholder="Rechercher un mot..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className={`w-full pl-10 pr-4 py-2 rounded-lg ${
-                  darkMode
-                    ? 'bg-gray-800 text-white border-gray-700'
-                    : 'bg-white text-gray-900 border-gray-200'
-                } border focus:ring-2 focus:ring-blue-500`}
-              />
+        {/* 6. Barre de recherche sticky */}
+        <div className="sticky top-0 z-30 mb-4 pb-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              id={`search-${searchId}`}
+              name={`search-${searchId}`}
+              type="text"
+              placeholder="Rechercher un mot ou une définition…"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className={`w-full pl-10 pr-10 py-3 rounded-lg shadow-inner ${
+                darkMode
+                  ? 'bg-gray-800 text-white border-gray-700'
+                  : 'bg-white text-gray-900 border-gray-200'
+              } border focus:ring-2 focus:ring-blue-500`}
+              aria-label="Rechercher un mot ou une définition"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Vider la recherche"
+              >
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
+
+          {/* 8. Chips filtres scrollables */}
+          <div className="mt-3 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-2 pb-2">
+              {(['all', 'mastered', 'forgotten', 'recent'] as const).map((mode) => {
+                const labels: Record<typeof mode, string> = {
+                  all: 'Tous',
+                  mastered: 'Maîtrisés',
+                  forgotten: 'À réviser',
+                  recent: 'Récents'
+                };
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setFilterMode(mode)}
+                    className={`
+                      flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap
+                      ${filterMode === mode
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : darkMode
+                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }
+                    `}
+                    aria-label={`Filtrer par ${labels[mode]}`}
+                  >
+                    {labels[mode]}
+                  </button>
+                );
+              })}
             </div>
           </div>
-
-          {/* Filter Buttons */}
-          <div className="flex gap-2">
-            {(['all', 'mastered', 'forgotten', 'recent'] as const).map((mode) => (
-              <motion.button
-                key={mode}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setFilterMode(mode)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                  filterMode === mode
-                    ? 'bg-blue-500 text-white'
-                    : darkMode
-                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {mode === 'all' ? 'Tous' :
-                 mode === 'mastered' ? 'Maîtrisés' :
-                 mode === 'forgotten' ? 'Oubliés' : 'Récents'}
-              </motion.button>
-            ))}
-          </div>
-
-          {/* Action Buttons */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setShowDefinitions(!showDefinitions)}
-            className={`px-4 py-2 rounded-lg border backdrop-blur-sm transition-all duration-300 ${
-              darkMode
-                ? 'bg-gray-800/90 border-gray-700 text-gray-300 hover:border-gray-600'
-                : 'bg-white/90 border-gray-200 text-gray-700 hover:border-gray-300'
-            } shadow-lg hover:shadow-xl`}
-          >
-            {showDefinitions ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            onClick={startQuiz}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
-          >
-            <Zap className="w-5 h-5 inline mr-2" />
-            Quiz rapide
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => {
-              if (vocabulary.length < 3) {
-                triggerReward('Ajoutez plus de mots pour les flashcards!', { type: 'warning' });
-                return;
-              }
-              // ✅ Créer un snapshot du vocabulaire au moment de l'ouverture
-              setFlashcardVocabulary([...vocabulary]);
-              // 🔄 Réinitialiser les mises à jour en attente pour une nouvelle session
-              setPendingMasteryUpdates(new Map());
-              setIsFlashcardMode(true);
-            }}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
-          >
-            <CreditCard className="w-5 h-5 inline mr-2" />
-            Mode révision
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setIsAddingWord(true)}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-teal-500 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
-          >
-            <Plus className="w-5 h-5 inline mr-2" />
-            Ajouter
-          </motion.button>
         </div>
 
         {/* Add Word Form */}
@@ -1440,11 +1401,16 @@ export function NeuroVocabulary() {
                 </p>
               </motion.div>
             ) : (
-              <div className="animate-in fade-in duration-500">
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
-              <AnimatePresence>
-                {filteredVocabulary.map((word, index) => {
-                    const isExpanded = expandedWords.has(word.id);
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
+                <AnimatePresence mode="popLayout">
+                  {filteredVocabulary.map((word, index) => {
+                    // 4. Couleurs automatiques selon maîtrise
+                    const masteryColor = word.mastery >= 80 
+                      ? 'border-l-green-500' 
+                      : word.mastery >= 50 
+                        ? 'border-l-amber-500' 
+                        : 'border-l-rose-500';
+                    
                     // 3.2 Badge "À réviser" si dernière révision > 24h ET maîtrise < 80%
                     const lastReviewed = word.lastReviewed ? new Date(word.lastReviewed) : null;
                     const hoursSinceReview = lastReviewed 
@@ -1452,206 +1418,209 @@ export function NeuroVocabulary() {
                       : Infinity;
                     const needsReview = hoursSinceReview > 24 && word.mastery < 80;
                     
+                    // 5. Icône IA si généré par IA (supposons un champ isAIGenerated ou similaire)
+                    const isAIGenerated = (word as any).isAIGenerated || false;
+                    
+                    // Tronquer définition à 150px max
+                    const definitionText = (word.definition || '').trim();
+                    const maxLength = 150;
+                    const truncatedDefinition = definitionText.length > maxLength
+                      ? `${definitionText.slice(0, maxLength).trim()}…`
+                      : definitionText;
+                    
                     return (
-                    <motion.div
-                      key={word.id}
-                      id={`vocab-${word.id}`}
-                      layout
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ delay: index * 0.03, duration: 0.3 }}
-                      className={`
-                        relative rounded-xl border backdrop-blur-sm transition-all duration-200
-                        ${darkMode
-                          ? 'bg-gray-800/90 border-gray-700'
-                          : 'bg-white/90 border-gray-200'
-                        }
-                        ${word.mastery >= 80
-                          ? 'ring-2 ring-green-500 shadow-green-500/20'
-                          : word.difficulty >= 4 && word.mastery < 40
-                            ? 'ring-1 ring-red-400 shadow-red-400/10'
-                            : 'shadow-md'
-                        }
-                      `}
-                    >
-                      {/* 3.3 Menu ⋯ en haut à droite */}
-                      <div className="absolute top-3 right-3 z-10">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowWordMenu(showWordMenu === word.id ? null : word.id);
-                          }}
-                          className={`
-                            p-1.5 rounded-lg transition-colors
-                            ${darkMode
-                              ? 'hover:bg-gray-700 text-gray-400'
-                              : 'hover:bg-gray-100 text-gray-500'
-                            }
-                          `}
-                          title="Menu"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                        {showWordMenu === word.id && (
-                          <>
-                            <div 
-                              className="fixed inset-0 z-10" 
-                              onClick={() => setShowWordMenu(null)}
-                            />
-                            <div className={`
-                              absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg border z-20
-                              ${darkMode
-                                ? 'bg-gray-800 border-gray-700'
-                                : 'bg-white border-gray-200'
-                              }
-                            `}>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowWordMenu(null);
-                                  toggleMastery(word);
-                                }}
-                                className={`
-                                  w-full text-left px-4 py-2 text-sm rounded-t-lg transition-colors
-                                  ${darkMode
-                                    ? 'hover:bg-gray-700 text-gray-300'
-                                    : 'hover:bg-gray-100 text-gray-700'
-                                  }
-                                `}
-                              >
-                                {word.mastery >= 80 ? 'Marquer à revoir' : 'Marquer maîtrisé'}
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowWordMenu(null);
-                                  handleDeleteWord(word);
-                                }}
-                                className={`
-                                  w-full text-left px-4 py-2 text-sm rounded-b-lg transition-colors text-red-600 dark:text-red-400
-                                  ${darkMode
-                                    ? 'hover:bg-gray-700'
-                                    : 'hover:bg-gray-100'
-                                  }
-                                `}
-                              >
-                                <Trash2 className="w-4 h-4 inline mr-2" />
-                                Supprimer
-                              </button>
-                            </div>
-                          </>
+                      <motion.div
+                        key={word.id}
+                        id={`vocab-${word.id}`}
+                        layout
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ delay: index * 0.1, duration: 0.3 }}
+                        className={`
+                          relative rounded-lg border-l-4 border-r border-t border-b shadow-sm
+                          transition-all duration-200 hover:shadow-md
+                          ${darkMode
+                            ? 'bg-gray-800 border-gray-700'
+                            : 'bg-white border-gray-200'
+                          }
+                          ${masteryColor}
+                        `}
+                        tabIndex={0}
+                        role="article"
+                        aria-label={`Mot: ${word.word}`}
+                      >
+                        {/* 5. Icône IA en corner top-right */}
+                        {isAIGenerated && (
+                          <div className="absolute top-2 right-2 z-10">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-[10px] font-semibold">
+                              IA
+                            </span>
+                          </div>
                         )}
-                      </div>
 
-                      {/* 3.2 Badge "À réviser" */}
-                      {needsReview && (
-                        <div className="absolute top-3 left-3 z-10">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-500 text-white">
-                            À réviser
-                          </span>
-                        </div>
-                      )}
-
-                      {/* 3.1 Accordion : ligne du mot cliquable */}
-                      <div className="p-4">
-                        <div 
-                          className="flex items-center justify-between cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setExpandedWords(prev => {
-                              const newSet = new Set(prev);
-                              if (newSet.has(word.id)) {
-                                newSet.delete(word.id);
-                              } else {
-                                newSet.add(word.id);
-                              }
-                              return newSet;
-                            });
-                          }}
-                        >
-                          <h3 className={`
-                            text-lg font-semibold flex-1
-                            ${word.mastery >= 80
-                              ? 'text-green-500'
-                              : darkMode ? 'text-white' : 'text-gray-900'
-                            }
-                          `}>
-                            {word.word}
-                          </h3>
-                          <button
-                            type="button"
-                            className={`
-                              p-1 rounded transition-transform
-                              ${isExpanded ? 'rotate-180' : ''}
-                              ${darkMode ? 'text-gray-400' : 'text-gray-500'}
-                            `}
-                          >
-                            <ChevronDown className="w-5 h-5" />
-                          </button>
-                        </div>
-
-                        {/* 3.4 Progress-bar fine pour maîtrise (vert 500) */}
-                        <div className="mt-2 mb-3">
-                          <div className={`
-                            h-1 rounded-full overflow-hidden
-                            ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}
-                          `}>
-                            <div 
-                              className="h-full bg-green-500 transition-all duration-300"
-                              style={{ width: `${word.mastery}%` }}
-                            />
+                        {/* A. Header – mot + icône état */}
+                        <div className="p-4 pb-3 border-b border-gray-100 dark:border-gray-700">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className={`
+                              text-lg font-semibold flex-1
+                              ${darkMode ? 'text-white' : 'text-gray-900'}
+                            `}>
+                              {word.word}
+                            </h3>
+                            {/* Icône état selon maîtrise */}
+                            {word.mastery >= 80 ? (
+                              <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" aria-label="Maîtrisé" />
+                            ) : word.mastery >= 50 ? (
+                              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" aria-label="En cours" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-rose-500 flex-shrink-0" aria-label="À réviser" />
+                            )}
                           </div>
                         </div>
 
-                        {/* 3.1 Accordion : contenu déplié (définition + 1 exemple) */}
-                        <AnimatePresence>
-                          {isExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="overflow-hidden"
+                        {/* B. Body – définition tronquée + 1 exemple */}
+                        <div className="p-4 pt-3 space-y-2">
+                          <p className={`
+                            text-sm leading-relaxed line-clamp-2
+                            ${darkMode ? 'text-gray-300' : 'text-gray-700'}
+                          `}>
+                            {truncatedDefinition || 'Aucune définition enregistrée.'}
+                          </p>
+                          
+                          {/* 3. Exemple ou placeholder cliquable */}
+                          {word.examples && word.examples.length > 0 && word.examples[0] ? (
+                            <p className={`
+                              text-xs italic
+                              ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+                            `}>
+                              Ex: {word.examples[0]}
+                            </p>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditWord(word);
+                              }}
+                              className={`
+                                text-xs italic underline transition-colors
+                                ${darkMode ? 'text-gray-500 hover:text-gray-400' : 'text-gray-400 hover:text-gray-600'}
+                              `}
+                              aria-label="Ajouter un exemple"
                             >
-                              <div className="pt-3 space-y-3">
-                                {/* Définition */}
-                                <div>
-                                  <p className={`
-                                    text-sm leading-relaxed
-                                    ${darkMode ? 'text-gray-300' : 'text-gray-700'}
-                                  `}>
-                                    {word.definition || 'Aucune définition enregistrée.'}
-                                  </p>
-                                </div>
-
-                                {/* 1 exemple (s'il existe) */}
-                                {word.examples && word.examples.length > 0 && (
-                                  <div className={`
-                                    p-2 rounded-lg
-                                    ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}
-                                  `}>
-                                    <p className={`
-                                      text-xs italic
-                                      ${darkMode ? 'text-gray-400' : 'text-gray-600'}
-                                    `}>
-                                      Ex: {word.examples[0]}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </motion.div>
+                              Ajouter un exemple
+                            </button>
                           )}
-                        </AnimatePresence>
-                      </div>
-                    </motion.div>
+                        </div>
+
+                        {/* C. Footer – badges + menu ⋯ */}
+                        <div className="p-4 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Badge "À réviser" ou "Maîtrisé" */}
+                            {needsReview ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-500 text-white">
+                                À réviser
+                              </span>
+                            ) : word.mastery >= 80 ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500 text-white">
+                                Maîtrisé
+                              </span>
+                            ) : null}
+                          </div>
+                          
+                          {/* Menu ⋯ */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowWordMenu(showWordMenu === word.id ? null : word.id);
+                            }}
+                            className={`
+                              w-11 h-11 flex items-center justify-center rounded-lg transition-colors
+                              ${darkMode
+                                ? 'hover:bg-gray-700 text-gray-400'
+                                : 'hover:bg-gray-100 text-gray-500'
+                              }
+                            `}
+                            aria-label="Menu d'actions"
+                            title="Menu"
+                          >
+                            <MoreVertical className="w-5 h-5" />
+                          </button>
+                          {showWordMenu === word.id && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setShowWordMenu(null)}
+                              />
+                              <div className={`
+                                absolute right-0 bottom-full mb-2 w-48 rounded-lg shadow-lg border z-20
+                                ${darkMode
+                                  ? 'bg-gray-800 border-gray-700'
+                                  : 'bg-white border-gray-200'
+                                }
+                              `}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowWordMenu(null);
+                                    handleEditWord(word);
+                                  }}
+                                  className={`
+                                    w-full text-left px-4 py-2 text-sm rounded-t-lg transition-colors
+                                    ${darkMode
+                                      ? 'hover:bg-gray-700 text-gray-300'
+                                      : 'hover:bg-gray-100 text-gray-700'
+                                    }
+                                  `}
+                                >
+                                  <Edit2 className="w-4 h-4 inline mr-2" />
+                                  Modifier
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowWordMenu(null);
+                                    toggleMastery(word);
+                                  }}
+                                  className={`
+                                    w-full text-left px-4 py-2 text-sm transition-colors
+                                    ${darkMode
+                                      ? 'hover:bg-gray-700 text-gray-300'
+                                      : 'hover:bg-gray-100 text-gray-700'
+                                    }
+                                  `}
+                                >
+                                  {word.mastery >= 80 ? 'Marquer à revoir' : 'Marquer maîtrisé'}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowWordMenu(null);
+                                    handleDeleteWord(word);
+                                  }}
+                                  className={`
+                                    w-full text-left px-4 py-2 text-sm rounded-b-lg transition-colors text-red-600 dark:text-red-400
+                                    ${darkMode
+                                      ? 'hover:bg-gray-700'
+                                      : 'hover:bg-gray-100'
+                                    }
+                                  `}
+                                >
+                                  <Trash2 className="w-4 h-4 inline mr-2" />
+                                  Supprimer
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
                     );
-                })}
-              </AnimatePresence>
-            </div>
-          </div>
-        )}
+                  })}
+                </AnimatePresence>
+              </div>
+            )}
           </>
         )}
 
@@ -1987,6 +1956,28 @@ export function NeuroVocabulary() {
           />,
           document.body
         )}
+
+        {/* 7. FAB rond fixe pour "Ajouter" */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsAddingWord(true)}
+          className={`
+            fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-lg
+            flex items-center justify-center z-40
+            bg-gradient-to-r from-blue-500 to-teal-500 text-white
+            hover:from-blue-600 hover:to-teal-600
+            transition-all duration-300
+            group
+          `}
+          aria-label="Ajouter un nouveau mot"
+          title="Nouveau mot"
+        >
+          <Plus className="w-6 h-6" />
+          <span className="absolute right-full mr-3 px-3 py-1 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Nouveau mot
+          </span>
+        </motion.button>
       </div>
     </div>
   );
