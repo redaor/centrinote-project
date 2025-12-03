@@ -618,59 +618,27 @@ export function ModernNotesManager() {
                   <List className="w-4 h-4" />
                 </button>
                 <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                {/* 2.3 Aide IA dans barre d'outils */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowAIMenu(!showAIMenu)}
-                    className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                    title="Aide IA"
-                  >
-                    <Star className="w-4 h-4 text-yellow-500" />
-                  </button>
-                  {showAIMenu && (
-                    <>
-                      <div 
-                        className="fixed inset-0 z-10" 
-                        onClick={() => setShowAIMenu(false)}
-                      />
-                      <div className="absolute left-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowAIMenu(false);
-                            // TODO: Implémenter "Résumer"
-                            setMessage({ type: 'info', text: 'Fonctionnalité "Résumer" à venir' });
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        >
-                          Résumer
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowAIMenu(false);
-                            // TODO: Implémenter "Corriger les fautes"
-                            setMessage({ type: 'info', text: 'Fonctionnalité "Corriger les fautes" à venir' });
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        >
-                          Corriger les fautes
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowAIMenu(false);
-                            // TODO: Implémenter "Suggérer un titre"
-                            setMessage({ type: 'info', text: 'Fonctionnalité "Suggérer un titre" à venir' });
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        >
-                          Suggérer un titre
-                        </button>
-                      </div>
-                    </>
-                  )}
+                {/* 2.3 Aide IA dans barre d'outils - Utilise AIContentHelper directement */}
+                <div className="relative inline-block">
+                  <AIContentHelper
+                    content={formData.content || ''}
+                    title={formData.title || ''}
+                    contentType="note"
+                    onApply={async (improvedContent) => {
+                      try {
+                        handleFormDataChange('content', improvedContent);
+                        setHasUnsavedChanges(true);
+                        setMessage({ type: 'success', text: 'Contenu amélioré par l\'IA. N\'oubliez pas de sauvegarder.' });
+                      } catch (error) {
+                        console.error('❌ Erreur lors de l\'application du contenu amélioré:', error);
+                        setMessage({ 
+                          type: 'error', 
+                          text: `Erreur: ${error instanceof Error ? error.message : 'Inconnue'}` 
+                        });
+                      }
+                    }}
+                    darkMode={darkMode}
+                  />
                 </div>
               </div>
               {/* 2.1 Textarea auto-grow (max-h-96) */}
@@ -1071,19 +1039,23 @@ export function ModernNotesManager() {
     }
   }, [formData.title, formData.content, formData.tags, originalFormData.title, originalFormData.content, originalFormData.tags]);
 
-  // Auto-save avec debounce (3 secondes après changement)
+  // Auto-save avec debounce (10 secondes après changement) - DÉSACTIVÉ pour éviter les problèmes de performance
+  // L'utilisateur peut sauvegarder manuellement avec Ctrl/Cmd + S
   useEffect(() => {
-    if (hasUnsavedChanges && selectedNote) {
+    // DÉSACTIVÉ : L'auto-save causait des problèmes de performance
+    // Si vous souhaitez le réactiver, décommentez le code ci-dessous et augmentez le délai à 10-15 secondes
+    /*
+    if (hasUnsavedChanges && selectedNote && isEditing) {
       // Annuler le timeout précédent
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
       
-      // Programmer la sauvegarde
+      // Programmer la sauvegarde après 10 secondes d'inactivité
       autoSaveTimeoutRef.current = setTimeout(() => {
-        console.log('⏰ Déclenchement auto-save après 3 secondes');
+        console.log('⏰ Déclenchement auto-save après 10 secondes');
         performAutoSave();
-      }, 3000);
+      }, 10000); // Augmenté à 10 secondes pour réduire les appels
     }
 
     return () => {
@@ -1091,7 +1063,8 @@ export function ModernNotesManager() {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [hasUnsavedChanges, selectedNote]);
+    */
+  }, [hasUnsavedChanges, selectedNote, isEditing]);
 
   // Auto-hide des messages
   useEffect(() => {
