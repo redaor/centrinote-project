@@ -26,7 +26,10 @@ import {
   Clock,
   Edit2,
   Trash2,
-  CreditCard
+  CreditCard,
+  ChevronDown,
+  ChevronUp,
+  MoreVertical
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useNeuroFeedback } from '../../hooks/useNeuroFeedback';
@@ -80,6 +83,14 @@ export function NeuroVocabulary() {
   // États pour l'édition et la suppression
   const [editingWord, setEditingWord] = useState<VocabularyEntry | null>(null);
   const [wordToDelete, setWordToDelete] = useState<VocabularyEntry | null>(null);
+  
+  // États pour l'accordion et le menu (3.1, 3.3)
+  const [expandedWords, setExpandedWords] = useState<Set<string>>(new Set());
+  const [showWordMenu, setShowWordMenu] = useState<string | null>(null);
+  
+  // États pour le mode édition (4.2, 4.4)
+  const [contextSentence, setContextSentence] = useState<string>('');
+  const [showAIVocabMenu, setShowAIVocabMenu] = useState(false);
 
   // ✅ Mémoïser le vocabulaire pour le mode révision pour éviter les re-renders non désirés
   const [flashcardVocabulary, setFlashcardVocabulary] = useState<VocabularyEntry[]>([]);
@@ -1433,12 +1444,14 @@ export function NeuroVocabulary() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
               <AnimatePresence>
                 {filteredVocabulary.map((word, index) => {
-                    const definitionText = (word.definition ?? '').trim();
-                    const previewLimit = 160;
-                    const hasMoreDefinition = definitionText.length > previewLimit;
-                    const previewDefinition = hasMoreDefinition
-                      ? `${definitionText.slice(0, previewLimit).trim()}…`
-                      : definitionText;
+                    const isExpanded = expandedWords.has(word.id);
+                    // 3.2 Badge "À réviser" si dernière révision > 24h ET maîtrise < 80%
+                    const lastReviewed = word.lastReviewed ? new Date(word.lastReviewed) : null;
+                    const hoursSinceReview = lastReviewed 
+                      ? (Date.now() - lastReviewed.getTime()) / (1000 * 60 * 60)
+                      : Infinity;
+                    const needsReview = hoursSinceReview > 24 && word.mastery < 80;
+                    
                     return (
                     <motion.div
                       key={word.id}
@@ -1448,11 +1461,8 @@ export function NeuroVocabulary() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ delay: index * 0.03, duration: 0.3 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => selectWord(word)}
-                      onDoubleClick={() => handleEditWord(word)}
                       className={`
-                        relative p-5 rounded-2xl cursor-pointer border backdrop-blur-sm transition-all duration-200
+                        relative rounded-xl border backdrop-blur-sm transition-all duration-200
                         ${darkMode
                           ? 'bg-gray-800/90 border-gray-700'
                           : 'bg-white/90 border-gray-200'
@@ -1463,88 +1473,177 @@ export function NeuroVocabulary() {
                             ? 'ring-1 ring-red-400 shadow-red-400/10'
                             : 'shadow-md'
                         }
-                        ${selectedWord?.id === word.id ? 'border-2 border-blue-400 shadow-xl dark:border-blue-500' : ''}
                       `}
                     >
-                      {word.mastery >= 80 && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1"
+                      {/* 3.3 Menu ⋯ en haut à droite */}
+                      <div className="absolute top-3 right-3 z-10">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowWordMenu(showWordMenu === word.id ? null : word.id);
+                          }}
+                          className={`
+                            p-1.5 rounded-lg transition-colors
+                            ${darkMode
+                              ? 'hover:bg-gray-700 text-gray-400'
+                              : 'hover:bg-gray-100 text-gray-500'
+                            }
+                          `}
+                          title="Menu"
                         >
-                          <CheckCircle className="w-4 h-4 text-white" />
-                        </motion.div>
-                      )}
-
-                      {word.difficulty >= 4 && word.mastery < 40 && (
-                        <motion.div
-                          animate={{ scale: [1, 1.1, 1] }}
-                          transition={{ repeat: Infinity, duration: 2 }}
-                          className="absolute -top-2 -left-2 bg-red-500 rounded-full p-1"
-                        >
-                          <AlertTriangle className="w-4 h-4 text-white" />
-                        </motion.div>
-                      )}
-
-                      <div>
-                        <h3 className={`text-lg font-semibold mb-2 ${
-                          word.mastery >= 80
-                            ? 'text-green-500'
-                            : darkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          {word.word}
-                        </h3>
-
-                        {showDefinitions && (
-                      <div className="space-y-2 mb-3">
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} line-clamp-3`}>
-                          {previewDefinition || 'Aucune définition enregistrée.'}
-                        </p>
-                        {hasMoreDefinition && (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-300 hover:underline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedWord(word);
-                            }}
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            Lire la suite
-                          </button>
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {showWordMenu === word.id && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-10" 
+                              onClick={() => setShowWordMenu(null)}
+                            />
+                            <div className={`
+                              absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg border z-20
+                              ${darkMode
+                                ? 'bg-gray-800 border-gray-700'
+                                : 'bg-white border-gray-200'
+                              }
+                            `}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowWordMenu(null);
+                                  toggleMastery(word);
+                                }}
+                                className={`
+                                  w-full text-left px-4 py-2 text-sm rounded-t-lg transition-colors
+                                  ${darkMode
+                                    ? 'hover:bg-gray-700 text-gray-300'
+                                    : 'hover:bg-gray-100 text-gray-700'
+                                  }
+                                `}
+                              >
+                                {word.mastery >= 80 ? 'Marquer à revoir' : 'Marquer maîtrisé'}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowWordMenu(null);
+                                  handleDeleteWord(word);
+                                }}
+                                className={`
+                                  w-full text-left px-4 py-2 text-sm rounded-b-lg transition-colors text-red-600 dark:text-red-400
+                                  ${darkMode
+                                    ? 'hover:bg-gray-700'
+                                    : 'hover:bg-gray-100'
+                                  }
+                                `}
+                              >
+                                <Trash2 className="w-4 h-4 inline mr-2" />
+                                Supprimer
+                              </button>
+                            </div>
+                          </>
                         )}
                       </div>
-                        )}
 
-                        {word.examples && word.examples.length > 0 && (
-                          <p className={`text-xs italic ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                            Ex: {word.examples[0]}
-                          </p>
-                        )}
-
-                      <div className="flex items-center justify-between mt-4 text-xs text-gray-500 dark:text-gray-400">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-                            Maîtrise {word.mastery}%
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-                            Difficulté {word.difficulty}/5
+                      {/* 3.2 Badge "À réviser" */}
+                      {needsReview && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-500 text-white">
+                            À réviser
                           </span>
                         </div>
-                        {hasMoreDefinition && (
+                      )}
+
+                      {/* 3.1 Accordion : ligne du mot cliquable */}
+                      <div className="p-4">
+                        <div 
+                          className="flex items-center justify-between cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedWords(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(word.id)) {
+                                newSet.delete(word.id);
+                              } else {
+                                newSet.add(word.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                        >
+                          <h3 className={`
+                            text-lg font-semibold flex-1
+                            ${word.mastery >= 80
+                              ? 'text-green-500'
+                              : darkMode ? 'text-white' : 'text-gray-900'
+                            }
+                          `}>
+                            {word.word}
+                          </h3>
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-900/60"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              selectWord(word);
-                            }}
+                            className={`
+                              p-1 rounded transition-transform
+                              ${isExpanded ? 'rotate-180' : ''}
+                              ${darkMode ? 'text-gray-400' : 'text-gray-500'}
+                            `}
                           >
-                            <Eye className="w-3 h-3" />
-                            Voir tout
+                            <ChevronDown className="w-5 h-5" />
                           </button>
-                        )}
-                      </div>
+                        </div>
+
+                        {/* 3.4 Progress-bar fine pour maîtrise (vert 500) */}
+                        <div className="mt-2 mb-3">
+                          <div className={`
+                            h-1 rounded-full overflow-hidden
+                            ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}
+                          `}>
+                            <div 
+                              className="h-full bg-green-500 transition-all duration-300"
+                              style={{ width: `${word.mastery}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* 3.1 Accordion : contenu déplié (définition + 1 exemple) */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-3 space-y-3">
+                                {/* Définition */}
+                                <div>
+                                  <p className={`
+                                    text-sm leading-relaxed
+                                    ${darkMode ? 'text-gray-300' : 'text-gray-700'}
+                                  `}>
+                                    {word.definition || 'Aucune définition enregistrée.'}
+                                  </p>
+                                </div>
+
+                                {/* 1 exemple (s'il existe) */}
+                                {word.examples && word.examples.length > 0 && (
+                                  <div className={`
+                                    p-2 rounded-lg
+                                    ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}
+                                  `}>
+                                    <p className={`
+                                      text-xs italic
+                                      ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+                                    `}>
+                                      Ex: {word.examples[0]}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </motion.div>
                     );
@@ -1624,9 +1723,24 @@ export function NeuroVocabulary() {
                   </div>
 
                   <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Définition *
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Définition *
+                      </label>
+                      {/* 4.4 Aide IA dans barre d'outils - action "Générer un exemple" */}
+                      <div className="relative inline-block">
+                        <AIContentHelper
+                          content={editingWord.definition || ''}
+                          title={editingWord.word}
+                          contentType="vocabulaire"
+                          onApply={(improvedContent) => {
+                            setEditingWord({ ...editingWord, definition: improvedContent });
+                            triggerReward('Définition améliorée avec l\'IA ✨', { type: 'success' });
+                          }}
+                          darkMode={darkMode}
+                        />
+                      </div>
+                    </div>
                     <textarea
                       value={editingWord.definition}
                       onChange={(e) => setEditingWord({ ...editingWord, definition: e.target.value })}
@@ -1640,74 +1754,138 @@ export function NeuroVocabulary() {
                   </div>
 
                   <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Exemples (séparés par des virgules)
-                    </label>
-                    <input
-                      type="text"
+                    <div className="flex items-center justify-between mb-2">
+                      <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Exemples
+                      </label>
+                      {/* 4.2 Bouton "Voir en contexte" */}
+                      {editingWord.word && editingWord.examples && editingWord.examples.length > 0 && editingWord.examples[0] && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              // Générer une phrase utilisant le mot et l'exemple
+                              const response = await fetch('/.netlify/functions/improve-content', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  action: 'enrichir',
+                                  contentType: 'vocabulaire',
+                                  content: `Génère une phrase complète utilisant le mot "${editingWord.word}" et l'exemple "${editingWord.examples[0]}".`,
+                                  title: editingWord.word,
+                                }),
+                              });
+                              const data = await response.json();
+                              if (data.success && data.improved) {
+                                setContextSentence(data.improved);
+                              }
+                            } catch (error) {
+                              console.error('Erreur génération contexte:', error);
+                            }
+                          }}
+                          className={`
+                            text-xs px-3 py-1 rounded-lg transition-colors
+                            ${darkMode
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              : 'bg-blue-500 hover:bg-blue-600 text-white'
+                            }
+                          `}
+                        >
+                          Voir en contexte
+                        </button>
+                      )}
+                    </div>
+                    {/* 4.1 Textarea avec placeholder correct */}
+                    <textarea
                       value={Array.isArray(editingWord.examples) ? editingWord.examples.join(', ') : ''}
                       onChange={(e) => setEditingWord({
                         ...editingWord,
                         examples: e.target.value.split(',').map(ex => ex.trim()).filter(Boolean)
                       })}
+                      rows={3}
+                      placeholder="Ex. : Le client a changé le vocabulaire de la dernière minute."
                       className={`w-full px-4 py-2 rounded-lg ${
                         darkMode
                           ? 'bg-gray-700 text-white border-gray-600'
                           : 'bg-gray-50 text-gray-900 border-gray-200'
                       } border focus:ring-2 focus:ring-blue-500`}
                     />
+                    {/* 4.2 Affichage de la phrase générée en italique */}
+                    {contextSentence && (
+                      <p className={`
+                        mt-2 text-sm italic
+                        ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+                      `}>
+                        {contextSentence}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Difficulté (1-5)
-                      </label>
+                  {/* 4.3 Slider Difficulté (1-5) avec labels "facile → difficile" */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Difficulté
+                    </label>
+                    <div className="space-y-2">
                       <input
-                        type="number"
+                        type="range"
                         min="1"
                         max="5"
                         value={editingWord.difficulty}
-                        onChange={(e) => setEditingWord({ ...editingWord, difficulty: parseInt(e.target.value) || 1 })}
-                        className={`w-full px-4 py-2 rounded-lg ${
-                          darkMode
-                            ? 'bg-gray-700 text-white border-gray-600'
-                            : 'bg-gray-50 text-gray-900 border-gray-200'
-                        } border focus:ring-2 focus:ring-blue-500`}
+                        onChange={(e) => setEditingWord({ ...editingWord, difficulty: parseInt(e.target.value) as 1 | 2 | 3 | 4 | 5 })}
+                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                       />
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span>Facile</span>
+                        <span>Difficile</span>
+                      </div>
+                      <div className="text-center text-sm font-medium text-blue-600 dark:text-blue-400">
+                        {editingWord.difficulty}/5
+                      </div>
                     </div>
+                  </div>
 
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Maîtrise (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={editingWord.mastery}
-                        onChange={(e) => setEditingWord({ ...editingWord, mastery: parseInt(e.target.value) || 0 })}
-                        className={`w-full px-4 py-2 rounded-lg ${
-                          darkMode
-                            ? 'bg-gray-700 text-white border-gray-600'
-                            : 'bg-gray-50 text-gray-900 border-gray-200'
-                        } border focus:ring-2 focus:ring-blue-500`}
-                      />
+                  {/* 4.3 5 étoiles cliquables pour maîtrise (0-100%) */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Maîtrise
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const starValue = star * 20; // 20, 40, 60, 80, 100
+                        const isFilled = editingWord.mastery >= starValue;
+                        return (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setEditingWord({ ...editingWord, mastery: starValue })}
+                            className={`
+                              transition-colors
+                              ${isFilled
+                                ? 'text-yellow-400'
+                                : darkMode ? 'text-gray-600' : 'text-gray-300'
+                              }
+                              hover:scale-110
+                            `}
+                          >
+                            <Star 
+                              className="w-6 h-6" 
+                              fill={isFilled ? 'currentColor' : 'none'}
+                            />
+                          </button>
+                        );
+                      })}
+                      <span className={`
+                        ml-2 text-sm font-medium
+                        ${darkMode ? 'text-gray-300' : 'text-gray-700'}
+                      `}>
+                        {editingWord.mastery}%
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center gap-3 mt-6">
-                  <AIContentHelper
-                    content={editingWord.definition}
-                    title={editingWord.word}
-                    contentType="vocabulaire"
-                    onApply={(improvedContent) => {
-                      setEditingWord({ ...editingWord, definition: improvedContent });
-                      triggerReward('Définition améliorée avec l\'IA ✨', { type: 'success' });
-                    }}
-                    darkMode={darkMode}
-                  />
+                <div className="flex justify-end gap-3 mt-6">
                   <div className="flex gap-3">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
