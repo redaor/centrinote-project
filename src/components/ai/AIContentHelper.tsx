@@ -73,6 +73,12 @@ export function AIContentHelper({
     try {
       console.log(`[AI-Helper] 🎨 Action sélectionnée: ${action}`);
 
+      // Vérifier si le contenu est vide
+      const trimmedContent = content.trim();
+      if (!trimmedContent) {
+        throw new Error('EMPTY_CONTENT');
+      }
+
       const response = await fetch('/.netlify/functions/improve-content', {
         method: 'POST',
         headers: {
@@ -81,7 +87,7 @@ export function AIContentHelper({
         body: JSON.stringify({
           action,
           contentType,
-          content: content.trim(),
+          content: trimmedContent,
           title: title || undefined,
         }),
       });
@@ -89,14 +95,68 @@ export function AIContentHelper({
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Erreur lors de l\'amélioration du contenu');
+        // Améliorer le message d'erreur si c'est "Contenu requis"
+        const errorMessage = data.error || 'Erreur lors de l\'amélioration du contenu';
+        if (errorMessage.includes('requis') || errorMessage.includes('required') || errorMessage.includes('vide') || errorMessage.includes('empty')) {
+          throw new Error('EMPTY_CONTENT');
+        }
+        throw new Error(errorMessage);
       }
 
       console.log(`[AI-Helper] ✅ Contenu amélioré en ${data.duration_ms}ms`);
       setImprovedContent(data.improved);
     } catch (err) {
       console.error('[AI-Helper] ❌ Erreur:', err);
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      if (err instanceof Error && err.message === 'EMPTY_CONTENT') {
+        setError('EMPTY_CONTENT');
+      } else {
+        setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fonction pour générer le contenu à partir du titre
+  const handleGenerateFromTitle = async () => {
+    if (!title || !title.trim()) {
+      setError('Un titre est requis pour générer le contenu');
+      return;
+    }
+
+    setSelectedAction('enrichir');
+    setError(null);
+    setLoading(true);
+    setImprovedContent('');
+
+    try {
+      console.log(`[AI-Helper] 🎨 Génération de contenu à partir du titre: ${title}`);
+
+      const response = await fetch('/.netlify/functions/improve-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'enrichir',
+          contentType,
+          content: '', // Contenu vide, on génère à partir du titre
+          title: title.trim(),
+          generateFromTitle: true, // Flag pour indiquer qu'on génère depuis le titre
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Erreur lors de la génération du contenu');
+      }
+
+      console.log(`[AI-Helper] ✅ Contenu généré en ${data.duration_ms}ms`);
+      setImprovedContent(data.improved || data.generated);
+    } catch (err) {
+      console.error('[AI-Helper] ❌ Erreur:', err);
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la génération');
     } finally {
       setLoading(false);
     }
@@ -233,30 +293,72 @@ export function AIContentHelper({
           {/* Étape 3: Erreur */}
           {selectedAction && error && !loading && (
             <div className="space-y-4">
-              <div className={`
-                p-4 rounded-lg border
-                ${darkMode
-                  ? 'bg-red-900/20 border-red-800 text-red-300'
-                  : 'bg-red-50 border-red-200 text-red-800'
-                }
-              `}>
-                <div className="flex items-start gap-2">
-                  <X className="w-5 h-5 mt-0.5" />
-                  <div>
-                    <p className="font-medium">Erreur</p>
-                    <p className="text-sm mt-1">{error}</p>
+              {error === 'EMPTY_CONTENT' ? (
+                // Message spécial pour contenu vide
+                <div className={`
+                  p-4 rounded-lg border
+                  ${darkMode
+                    ? 'bg-orange-900/20 border-orange-800 text-orange-300'
+                    : 'bg-orange-50 border-orange-200 text-orange-800'
+                  }
+                `}>
+                  <div className="flex items-start gap-2">
+                    <X className="w-5 h-5 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-medium mb-2">Le contenu est vide</p>
+                      <p className="text-sm mb-4">
+                        Pour utiliser l'IA, vous devez avoir du contenu à améliorer. 
+                        {title && title.trim() ? (
+                          <> Nous pouvons générer automatiquement un contenu à partir de votre titre "<strong>{title}</strong>".</>
+                        ) : (
+                          <> Veuillez d'abord ajouter du contenu à votre note.</>
+                        )}
+                      </p>
+                      {title && title.trim() && (
+                        <div className="mt-4 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-orange-300 dark:border-orange-700">
+                          <p className="text-sm font-medium mb-2">✨ Option disponible :</p>
+                          <Button
+                            variant="primary"
+                            onClick={handleGenerateFromTitle}
+                            className="w-full gap-2"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            Générer le contenu à partir du titre
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                // Erreur générique
+                <div className={`
+                  p-4 rounded-lg border
+                  ${darkMode
+                    ? 'bg-red-900/20 border-red-800 text-red-300'
+                    : 'bg-red-50 border-red-200 text-red-800'
+                  }
+                `}>
+                  <div className="flex items-start gap-2">
+                    <X className="w-5 h-5 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Erreur</p>
+                      <p className="text-sm mt-1">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3">
                 <Button variant="ghost" onClick={handleCancel}>
                   Annuler
                 </Button>
-                <Button variant="primary" onClick={handleRetry}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Réessayer
-                </Button>
+                {error !== 'EMPTY_CONTENT' && (
+                  <Button variant="primary" onClick={handleRetry}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Réessayer
+                  </Button>
+                )}
               </div>
             </div>
           )}

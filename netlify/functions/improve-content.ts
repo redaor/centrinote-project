@@ -144,7 +144,7 @@ export const handler: Handler = async (event, context) => {
 
     // Parser le body
     const body = JSON.parse(event.body || '{}');
-    const { action, contentType, content, title } = body;
+    const { action, contentType, content, title, generateFromTitle } = body;
 
     // Validation
     if (!action || !['corriger', 'améliorer', 'reformuler', 'enrichir'].includes(action)) {
@@ -167,23 +167,56 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders(origin),
-        body: JSON.stringify({ error: 'Contenu requis' }),
-      };
+    // Si generateFromTitle est true, on génère le contenu à partir du titre
+    const shouldGenerateFromTitle = generateFromTitle === true;
+    
+    if (shouldGenerateFromTitle) {
+      if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders(origin),
+          body: JSON.stringify({ error: 'Un titre est requis pour générer le contenu' }),
+        };
+      }
+    } else {
+      // Validation normale : contenu requis si on n'est pas en mode génération
+      if (!content || typeof content !== 'string' || content.trim().length === 0) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders(origin),
+          body: JSON.stringify({ error: 'Contenu requis' }),
+        };
+      }
     }
 
-    console.log(`[improve-content] 🎨 Action: ${action}, Type: ${contentType}, Longueur: ${content.length}`);
+    const actualContent = shouldGenerateFromTitle ? '' : (content || '');
+    console.log(`[improve-content] 🎨 Action: ${action}, Type: ${contentType}, Génération depuis titre: ${shouldGenerateFromTitle}, Longueur: ${actualContent.length}`);
 
-    // Construire le prompt
-    const systemPrompt = buildPromptForAction(
-      action as ActionType,
-      contentType as ContentType,
-      content,
-      title
-    );
+    let systemPrompt: string;
+    let userMessage: string;
+
+    if (shouldGenerateFromTitle) {
+      // Génération à partir du titre
+      systemPrompt = `Tu es un assistant d'écriture expert. Génère un contenu complet et structuré pour une note intitulée "${title}".
+
+Règles:
+- Génère un contenu pertinent et détaillé basé sur le titre
+- Structure le contenu avec des paragraphes clairs
+- Sois informatif et utile
+- Adapte le ton au type de note (professionnel, personnel, éducatif, etc.)
+- Longueur recommandée: 200-500 mots
+- Retourne UNIQUEMENT le contenu généré, sans commentaire ni métadonnées`;
+      userMessage = `Génère le contenu pour la note: "${title}"`;
+    } else {
+      // Amélioration du contenu existant
+      systemPrompt = buildPromptForAction(
+        action as ActionType,
+        contentType as ContentType,
+        actualContent,
+        title
+      );
+      userMessage = actualContent;
+    }
 
     // Appeler OpenAI
     console.log(`[improve-content] 🔄 Appel OpenAI...`);
@@ -191,13 +224,13 @@ export const handler: Handler = async (event, context) => {
       model: 'gpt-3.5-turbo',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: content },
+        { role: 'user', content: userMessage },
       ],
       temperature: 0.7,
       max_tokens: 1000,
     });
 
-    const improvedContent = completion.choices[0]?.message?.content || content;
+    const improvedContent = completion.choices[0]?.message?.content || actualContent;
     const duration = Date.now() - startTime;
 
     console.log(`[improve-content] ✅ Contenu amélioré en ${duration}ms`);
