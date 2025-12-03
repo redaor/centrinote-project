@@ -42,6 +42,11 @@ import {
   CheckSquare,
   GraduationCap,
   Lightbulb,
+  Bold,
+  Italic,
+  Code,
+  List,
+  Star,
   type LucideIcon
 } from 'lucide-react';
 import { useNotes } from '../../hooks/useNotes';
@@ -182,6 +187,9 @@ export function ModernNotesManager() {
 
   // Form data
   const [formData, setFormData] = useState(emptyFormState);
+  const [showNoteMenu, setShowNoteMenu] = useState<string | null>(null);
+  const [showAIMenu, setShowAIMenu] = useState(false);
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout>();
   
@@ -469,6 +477,7 @@ export function ModernNotesManager() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                {/* 2.2 Bouton Annuler (restore dernière version sauvegardée) */}
                 <Button
                   variant="ghost"
                   onClick={handleCancelEdit}
@@ -494,11 +503,15 @@ export function ModernNotesManager() {
                     darkMode={darkMode}
                   />
                 )}
-                {/* FIX: Bouton "Aide IA" supprimé en mode édition pour éviter la duplication */}
+                {/* 2.4 Désactiver Enregistrer si identique */}
                 <Button
                   variant="primary"
                   onClick={handleUpdateNote}
-                  disabled={isSaving || !hasUnsavedChanges}
+                  disabled={isSaving || !hasUnsavedChanges || (
+                    formData.title === originalFormData.title &&
+                    formData.content === originalFormData.content &&
+                    formData.tags === originalFormData.tags
+                  )}
                   className="gap-2 focus-visible:ring-2 focus-visible:ring-blue-400"
                 >
                   {isSaving ? 'Enregistrement…' : 'Enregistrer'}
@@ -524,11 +537,156 @@ export function ModernNotesManager() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Contenu
               </label>
+              {/* 2.1 Barre d'outils éditeur minimal */}
+              <div className="flex items-center gap-1 p-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-t-xl border-b-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textarea = contentTextareaRef.current;
+                    if (!textarea) return;
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+                    const selectedText = formData.content.substring(start, end);
+                    const newText = formData.content.substring(0, start) + `**${selectedText || 'texte'}**` + formData.content.substring(end);
+                    handleFormDataChange('content', newText);
+                    setTimeout(() => {
+                      textarea.focus();
+                      textarea.setSelectionRange(start + 2, start + 2 + (selectedText || 'texte').length);
+                    }, 0);
+                  }}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                  title="Gras"
+                >
+                  <Bold className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textarea = contentTextareaRef.current;
+                    if (!textarea) return;
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+                    const selectedText = formData.content.substring(start, end);
+                    const newText = formData.content.substring(0, start) + `*${selectedText || 'texte'}*` + formData.content.substring(end);
+                    handleFormDataChange('content', newText);
+                    setTimeout(() => {
+                      textarea.focus();
+                      textarea.setSelectionRange(start + 1, start + 1 + (selectedText || 'texte').length);
+                    }, 0);
+                  }}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                  title="Italique"
+                >
+                  <Italic className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textarea = contentTextareaRef.current;
+                    if (!textarea) return;
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+                    const selectedText = formData.content.substring(start, end);
+                    const newText = formData.content.substring(0, start) + `\`${selectedText || 'code'}\`` + formData.content.substring(end);
+                    handleFormDataChange('content', newText);
+                    setTimeout(() => {
+                      textarea.focus();
+                      textarea.setSelectionRange(start + 1, start + 1 + (selectedText || 'code').length);
+                    }, 0);
+                  }}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                  title="Code"
+                >
+                  <Code className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textarea = contentTextareaRef.current;
+                    if (!textarea) return;
+                    const start = textarea.selectionStart;
+                    const newText = formData.content.substring(0, start) + '\n- ' + formData.content.substring(start);
+                    handleFormDataChange('content', newText);
+                    setTimeout(() => {
+                      textarea.focus();
+                      textarea.setSelectionRange(start + 3, start + 3);
+                    }, 0);
+                  }}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                  title="Liste à puces"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+                <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                {/* 2.3 Aide IA dans barre d'outils */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowAIMenu(!showAIMenu)}
+                    className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                    title="Aide IA"
+                  >
+                    <Star className="w-4 h-4 text-yellow-500" />
+                  </button>
+                  {showAIMenu && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={() => setShowAIMenu(false)}
+                      />
+                      <div className="absolute left-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAIMenu(false);
+                            // TODO: Implémenter "Résumer"
+                            setMessage({ type: 'info', text: 'Fonctionnalité "Résumer" à venir' });
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                          Résumer
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAIMenu(false);
+                            // TODO: Implémenter "Corriger les fautes"
+                            setMessage({ type: 'info', text: 'Fonctionnalité "Corriger les fautes" à venir' });
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                          Corriger les fautes
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAIMenu(false);
+                            // TODO: Implémenter "Suggérer un titre"
+                            setMessage({ type: 'info', text: 'Fonctionnalité "Suggérer un titre" à venir' });
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                          Suggérer un titre
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              {/* 2.1 Textarea auto-grow (max-h-96) */}
               <textarea
+                ref={contentTextareaRef}
                 value={formData.content}
-                onChange={(e) => handleFormDataChange('content', e.target.value)}
+                onChange={(e) => {
+                  handleFormDataChange('content', e.target.value);
+                  // Auto-grow
+                  const textarea = e.target;
+                  textarea.style.height = 'auto';
+                  textarea.style.height = `${Math.min(textarea.scrollHeight, 384)}px`; // max-h-96 = 384px
+                }}
                 rows={10}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-y min-h-[240px]"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none overflow-y-auto"
+                style={{ maxHeight: '384px' }}
                 placeholder="Développez vos idées…"
               />
             </div>
@@ -590,27 +748,29 @@ export function ModernNotesManager() {
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
               {selectedNote.title}
             </h2>
+            {/* 1.1 Aperçu 3 lignes sous le titre */}
+            {selectedNote.content && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3" style={{ color: '#6b7280' }}>
+                {selectedNote.content.split('\n').slice(0, 3).join('\n')}
+              </p>
+            )}
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Créée le {createdAtLabel}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 bg-gray-100/70 dark:bg-gray-800/50 px-4 py-2 rounded-xl shadow-inner">
+            {/* 1.4 Icône Épingler seule (sans texte) */}
             <Button
               variant="ghost"
               onClick={() => handleTogglePin(selectedNote)}
-              className="gap-2 focus-visible:ring-2 focus-visible:ring-blue-400"
+              className="p-2 focus-visible:ring-2 focus-visible:ring-blue-400"
+              title={selectedNote.is_pinned ? 'Désépingler' : 'Épingler'}
             >
               {selectedNote.is_pinned ? (
-                <>
-                  <PinOff className="w-4 h-4" />
-                  Désépingler
-                </>
+                <PinOff className="w-4 h-4" />
               ) : (
-                <>
-                  <Pin className="w-4 h-4" />
-                  Épingler
-                </>
+                <Pin className="w-4 h-4" />
               )}
             </Button>
             <Button
@@ -638,36 +798,51 @@ export function ModernNotesManager() {
                 darkMode={darkMode}
               />
             )}
-            <AIContentHelper
-              content={selectedNote.content || ''}
-              title={selectedNote.title}
-              contentType="note"
-              onApply={(improvedContent) => {
-                // Mettre à jour directement la note avec le contenu amélioré
-                setFormData(prev => ({ ...prev, content: improvedContent }));
-                setOriginalFormData(prev => ({ ...prev, content: improvedContent }));
-                // Sauvegarder immédiatement
-                updateNote(
-                  selectedNote.id,
-                  { title: selectedNote.title, content: improvedContent },
-                  selectedNote.tags?.map(tag => tag.name) || []
-                ).then((updatedNote) => {
-                  if (updatedNote) {
-                    setSelectedNote(updatedNote);
-                    setMessage({ type: 'success', text: 'Contenu amélioré et sauvegardé avec l\'IA' });
-                  }
-                });
-              }}
-              darkMode={darkMode}
-            />
-            <Button
-              variant="danger"
-              onClick={handleDeleteNote}
-              className="gap-2 focus-visible:ring-2 focus-visible:ring-red-400"
-            >
-              <Trash2 className="w-4 h-4" />
-              Supprimer
-            </Button>
+            {/* 1.2 Badge auto-sauvegarde (remplace Aide IA) */}
+            {hasUnsavedChanges ? (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-orange-400 text-white">
+                Modifications non sauvegardées
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-500 text-white">
+                Auto-sauvegardé à {formatTime(selectedNote.updated_at)}
+              </span>
+            )}
+            {/* 1.3 Menu ⋯ pour Supprimer */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowNoteMenu(showNoteMenu === selectedNote.id ? null : selectedNote.id);
+                }}
+                className="p-2 focus-visible:ring-2 focus-visible:ring-blue-400"
+                title="Menu"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+              {showNoteMenu === selectedNote.id && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowNoteMenu(null)}
+                  />
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowNoteMenu(null);
+                        handleDeleteNote();
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4 inline mr-2" />
+                      Supprimer
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -873,20 +1048,28 @@ export function ModernNotesManager() {
     }
   };
 
-  // Détection des changements
+  // Détection des changements (avec memoization pour éviter les boucles)
   useEffect(() => {
+    // Utiliser useMemo pour éviter les comparaisons inutiles
     const hasChanged = 
       formData.title !== originalFormData.title ||
       formData.content !== originalFormData.content ||
       formData.tags !== originalFormData.tags;
     
     setHasUnsavedChanges(hasChanged);
-    console.log('🔍 Changements détectés:', hasChanged, {
-      titleChanged: formData.title !== originalFormData.title,
-      contentChanged: formData.content !== originalFormData.content,
-      tagsChanged: formData.tags !== originalFormData.tags
-    });
-  }, [formData, originalFormData]);
+    
+    // Log uniquement si vraiment nécessaire (éviter le spam)
+    if (hasChanged || (formData.title || formData.content || formData.tags)) {
+      // Log seulement en mode dev ou si des changements sont détectés
+      if (process.env.NODE_ENV === 'development' && hasChanged) {
+        console.log('🔍 Changements détectés:', hasChanged, {
+          titleChanged: formData.title !== originalFormData.title,
+          contentChanged: formData.content !== originalFormData.content,
+          tagsChanged: formData.tags !== originalFormData.tags
+        });
+      }
+    }
+  }, [formData.title, formData.content, formData.tags, originalFormData.title, originalFormData.content, originalFormData.tags]);
 
   // Auto-save avec debounce (3 secondes après changement)
   useEffect(() => {
@@ -988,6 +1171,15 @@ export function ModernNotesManager() {
     setOriginalFormData({ ...emptyFormState });
     setHasUnsavedChanges(false);
   };
+
+  // Format heure HH:mm
+  const formatTime = useCallback((dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('fr-FR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  }, []);
 
   // Mémoïsation de la fonction formatDate pour éviter recréation
   const formatDate = useCallback((dateString: string) => {

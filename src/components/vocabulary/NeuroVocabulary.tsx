@@ -137,16 +137,19 @@ export function NeuroVocabulary() {
     // Ne faire quelque chose que si on est en train d'ajouter (handleAddWord a été appelé)
     // On ne touche PAS à isAddingWord si l'utilisateur a juste ouvert le formulaire
     // On ne réinitialise que si vocabularyLoading reste true trop longtemps pendant un ajout actif
-    if (vocabularyLoading) {
+    if (vocabularyLoading && isAddingWord) {
       const timeoutId = setTimeout(() => {
         // ✅ CORRECTION: Vérifier l'état actuel au lieu d'utiliser la closure
         // On utilise une fonction de callback pour obtenir la valeur actuelle
         setIsAddingWord((currentIsAdding) => {
           // Vérifier si le loading est toujours actif (via un état de référence ou simplement fermer si nécessaire)
-          console.warn('⚠️ [NeuroVocabulary] Timeout: vocabularyLoading bloqué > 30s, réinitialisation de sécurité');
-          console.warn('⚠️ [NeuroVocabulary] Cela peut indiquer un problème réseau ou une erreur Supabase non propagée');
-          // Si le formulaire est encore ouvert et que le loading est bloqué, le fermer
-          return false; // Fermer le formulaire en cas de timeout
+          if (currentIsAdding) {
+            console.warn('⚠️ [NeuroVocabulary] Timeout: vocabularyLoading bloqué > 30s, réinitialisation de sécurité');
+            console.warn('⚠️ [NeuroVocabulary] Cela peut indiquer un problème réseau ou une erreur Supabase non propagée');
+            // Si le formulaire est encore ouvert et que le loading est bloqué, le fermer
+            return false; // Fermer le formulaire en cas de timeout
+          }
+          return currentIsAdding; // Ne pas changer si déjà fermé
         });
       }, 30000); // 30 secondes max (plus long pour les connexions lentes)
       
@@ -154,7 +157,7 @@ export function NeuroVocabulary() {
         clearTimeout(timeoutId);
       };
     }
-  }, [vocabularyLoading]);
+  }, [vocabularyLoading, isAddingWord]);
 
   // Calculate vocabulary statistics
   const stats: VocabularyStats = useMemo(() => {
