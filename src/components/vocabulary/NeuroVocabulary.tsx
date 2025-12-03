@@ -31,7 +31,12 @@ import {
   ChevronUp,
   MoreVertical,
   X,
-  Sparkles
+  Sparkles,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpToLine,
+  ArrowDownAZ,
+  ArrowUpZA
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useNeuroFeedback } from '../../hooks/useNeuroFeedback';
@@ -75,6 +80,8 @@ export function NeuroVocabulary() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'mastered' | 'forgotten' | 'recent'>('all');
   const [showDefinitions, setShowDefinitions] = useState(true);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc'); // A-Z par défaut
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null); // Pour l'accordion des cards
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [quizScore, setQuizScore] = useState(0);
@@ -230,9 +237,15 @@ export function NeuroVocabulary() {
     }
   ];
 
-  // Filter vocabulary based on selected mode
-  // 🚀 PERFORMANCE: Utilise debouncedSearchTerm au lieu de searchTerm
-  // pour éviter le recalcul du filtre à chaque frappe
+  // Normaliser les accents pour la recherche
+  const normalizeText = (text: string) => {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  };
+
+  // Filter vocabulary based on selected mode + tri alphabétique
   const filteredVocabulary = useMemo(() => {
     let filtered = [...vocabulary];
 
@@ -242,38 +255,52 @@ export function NeuroVocabulary() {
         filtered = filtered.filter(v => v.mastery >= 80);
         break;
       case 'forgotten':
-        filtered = filtered.filter(v => v.difficulty >= 4 && v.mastery < 40);
+        // "À réviser" = dernière révision > 24h ET maîtrise < 80%
+        filtered = filtered.filter(v => {
+          const lastReviewed = v.lastReviewed ? new Date(v.lastReviewed) : null;
+          const hoursSinceReview = lastReviewed 
+            ? (Date.now() - lastReviewed.getTime()) / (1000 * 60 * 60)
+            : Infinity;
+          return hoursSinceReview > 24 && v.mastery < 80;
+        });
         break;
       case 'recent':
-        // ✅ CORRECTION: Utiliser createdAt si disponible (ajouté par vocabularyService)
-        // Sinon, trier par ID comme fallback
         filtered = filtered
-          .filter(v => v.id) // S'assurer que l'ID existe
+          .filter(v => v.id)
           .sort((a, b) => {
-            // Utiliser createdAt s'il existe (propriété ajoutée par le service)
             const aCreated = (a as any).createdAt;
             const bCreated = (b as any).createdAt;
             if (aCreated && bCreated) {
               return new Date(bCreated).getTime() - new Date(aCreated).getTime();
             }
-            // Fallback: trier par ID (les UUIDs plus récents ont généralement des valeurs plus élevées)
             return b.id.localeCompare(a.id);
           })
           .slice(0, 10);
         break;
     }
 
-    // Apply search - OPTIMISÉ avec debouncing
+    // Apply search - case-insensitive, accents normalisés
     if (debouncedSearchTerm) {
-      const searchLower = debouncedSearchTerm.toLowerCase();
+      const searchNormalized = normalizeText(debouncedSearchTerm);
       filtered = filtered.filter(v =>
-        v.word.toLowerCase().includes(searchLower) ||
-        v.definition.toLowerCase().includes(searchLower)
+        normalizeText(v.word).includes(searchNormalized) ||
+        normalizeText(v.definition).includes(searchNormalized)
       );
     }
 
+    // Tri alphabétique (sauf pour 'recent' qui est déjà trié)
+    if (filterMode !== 'recent') {
+      filtered.sort((a, b) => {
+        const aWord = normalizeText(a.word);
+        const bWord = normalizeText(b.word);
+        return sortOrder === 'asc' 
+          ? aWord.localeCompare(bWord)
+          : bWord.localeCompare(aWord);
+      });
+    }
+
     return filtered;
-  }, [vocabulary, filterMode, debouncedSearchTerm]);
+  }, [vocabulary, filterMode, debouncedSearchTerm, sortOrder]);
 
   useEffect(() => {
     if (!selectedWord) return;
@@ -282,6 +309,24 @@ export function NeuroVocabulary() {
       setSelectedWord(null);
     }
   }, [filteredVocabulary, selectedWord]);
+
+  // Raccourci clavier "/" pour focus la barre de recherche
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const target = e.target as HTMLElement;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          const searchInput = document.getElementById(`search-${searchId}`);
+          if (searchInput) {
+            (searchInput as HTMLInputElement).focus();
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchId]);
 
   // 🚀 PERFORMANCE: Mémoïser les handlers pour éviter les re-renders inutiles
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -895,44 +940,90 @@ export function NeuroVocabulary() {
           </div>
         </motion.div>
 
-        {/* 6. Barre de recherche sticky */}
-        <div className="sticky top-0 z-30 mb-4 pb-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              id={`search-${searchId}`}
-              name={`search-${searchId}`}
-              type="text"
-              placeholder="Rechercher un mot ou une définition…"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              className={`w-full pl-10 pr-10 py-3 rounded-lg shadow-inner ${
-                darkMode
-                  ? 'bg-gray-800 text-white border-gray-700'
-                  : 'bg-white text-gray-900 border-gray-200'
-              } border focus:ring-2 focus:ring-blue-500`}
-              aria-label="Rechercher un mot ou une définition"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                aria-label="Vider la recherche"
-              >
-                <X className="w-4 h-4 text-gray-400" />
-              </button>
-            )}
+        {/* Header sticky : titre + recherche + A-Z */}
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-4 py-4">
+            {/* Gauche : titre */}
+            <h1 className={`text-2xl font-semibold flex-shrink-0 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Vocabulaire
+            </h1>
+
+            {/* Milieu : barre de recherche */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                id={`search-${searchId}`}
+                name={`search-${searchId}`}
+                type="text"
+                role="searchbox"
+                placeholder="Rechercher un mot ou une définition…"
+                value={searchTerm}
+                onChange={handleSearchChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearchTerm('');
+                    setSortOrder('asc');
+                  }
+                }}
+                className={`w-full pl-10 pr-10 py-2.5 rounded-lg border ${
+                  darkMode
+                    ? 'bg-gray-800 text-white border-gray-700'
+                    : 'bg-white text-gray-900 border-gray-200'
+                } focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                aria-label="Rechercher un mot ou une définition"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSortOrder('asc');
+                  }}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  aria-label="Vider la recherche"
+                >
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              )}
+            </div>
+
+            {/* Droite : bouton A-Z avec rotation */}
+            <motion.button
+              type="button"
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              animate={{ rotate: sortOrder === 'desc' ? 180 : 0 }}
+              transition={{ duration: 0.3 }}
+              className={`
+                flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors
+                ${darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }
+              `}
+              aria-label={sortOrder === 'asc' ? 'Trier A-Z' : 'Trier Z-A'}
+            >
+              {sortOrder === 'asc' ? (
+                <>
+                  <ArrowDownAZ className="w-5 h-5" />
+                  <span className="hidden sm:inline">A-Z</span>
+                </>
+              ) : (
+                <>
+                  <ArrowUpZA className="w-5 h-5" />
+                  <span className="hidden sm:inline">Z-A</span>
+                </>
+              )}
+            </motion.button>
           </div>
 
-          {/* 8. Chips filtres scrollables */}
-          <div className="mt-3 overflow-x-auto scrollbar-hide">
-            <div className="flex gap-2 pb-2">
-              {(['all', 'mastered', 'forgotten', 'recent'] as const).map((mode) => {
+          {/* Sous-header : chips filtres */}
+          <div className="pb-3 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-2">
+              {(['all', 'forgotten', 'mastered', 'recent'] as const).map((mode) => {
                 const labels: Record<typeof mode, string> = {
                   all: 'Tous',
-                  mastered: 'Maîtrisés',
                   forgotten: 'À réviser',
+                  mastered: 'Maîtrisés',
                   recent: 'Récents'
                 };
                 return (
@@ -956,6 +1047,18 @@ export function NeuroVocabulary() {
               })}
             </div>
           </div>
+        </div>
+
+        {/* Zone résultats avec aria-live */}
+        <div 
+          className="mt-4"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span className="sr-only">
+            {filteredVocabulary.length} {filteredVocabulary.length === 1 ? 'mot trouvé' : 'mots trouvés'}
+          </span>
         </div>
 
         {/* Add Word Form */}
@@ -1401,9 +1504,20 @@ export function NeuroVocabulary() {
                 </p>
               </motion.div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
-                <AnimatePresence mode="popLayout">
-                  {filteredVocabulary.map((word, index) => {
+              <div className="relative">
+                {/* Zone résultats avec aria-live */}
+                <div 
+                  className="sr-only" 
+                  role="status" 
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {filteredVocabulary.length} {filteredVocabulary.length === 1 ? 'mot trouvé' : 'mots trouvés'}
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
+                  <AnimatePresence mode="popLayout">
+                    {filteredVocabulary.map((word, index) => {
                     // 4. Couleurs automatiques selon maîtrise
                     const masteryColor = word.mastery >= 80 
                       ? 'border-l-green-500' 
@@ -1421,12 +1535,8 @@ export function NeuroVocabulary() {
                     // 5. Icône IA si généré par IA (supposons un champ isAIGenerated ou similaire)
                     const isAIGenerated = (word as any).isAIGenerated || false;
                     
-                    // Tronquer définition à 150px max
+                    // Définition pour affichage (tronquée à 120px visuellement)
                     const definitionText = (word.definition || '').trim();
-                    const maxLength = 150;
-                    const truncatedDefinition = definitionText.length > maxLength
-                      ? `${definitionText.slice(0, maxLength).trim()}…`
-                      : definitionText;
                     
                     return (
                       <motion.div
@@ -1459,8 +1569,22 @@ export function NeuroVocabulary() {
                           </div>
                         )}
 
-                        {/* A. Header – mot + icône état */}
-                        <div className="p-4 pb-3 border-b border-gray-100 dark:border-gray-700">
+                        {/* A. Header – mot + icône état + chevron accordion */}
+                        <div 
+                          className="p-4 pb-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedWords(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(word.id)) {
+                                newSet.delete(word.id);
+                              } else {
+                                newSet.add(word.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                        >
                           <div className="flex items-center justify-between gap-2">
                             <h3 className={`
                               text-lg font-semibold flex-1
@@ -1468,27 +1592,39 @@ export function NeuroVocabulary() {
                             `}>
                               {word.word}
                             </h3>
-                            {/* Icône état selon maîtrise */}
-                            {word.mastery >= 80 ? (
-                              <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" aria-label="Maîtrisé" />
-                            ) : word.mastery >= 50 ? (
-                              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" aria-label="En cours" />
-                            ) : (
-                              <XCircle className="w-5 h-5 text-rose-500 flex-shrink-0" aria-label="À réviser" />
-                            )}
+                            <div className="flex items-center gap-2">
+                              {/* Icône état selon maîtrise */}
+                              {word.mastery >= 80 ? (
+                                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" aria-label="Maîtrisé" />
+                              ) : word.mastery >= 50 ? (
+                                <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" aria-label="En cours" />
+                              ) : (
+                                <XCircle className="w-5 h-5 text-rose-500 flex-shrink-0" aria-label="À réviser" />
+                              )}
+                              {/* Chevron accordion */}
+                              <ChevronDown 
+                                className={`
+                                  w-5 h-5 transition-transform flex-shrink-0
+                                  ${expandedWords.has(word.id) ? 'rotate-180' : ''}
+                                  ${darkMode ? 'text-gray-400' : 'text-gray-500'}
+                                `}
+                              />
+                            </div>
                           </div>
                         </div>
 
-                        {/* B. Body – définition tronquée + 1 exemple */}
+                        {/* B. Body – définition tronquée 120px + 1 exemple (toujours visible) */}
                         <div className="p-4 pt-3 space-y-2">
                           <p className={`
-                            text-sm leading-relaxed line-clamp-2
+                            text-sm leading-relaxed
                             ${darkMode ? 'text-gray-300' : 'text-gray-700'}
-                          `}>
-                            {truncatedDefinition || 'Aucune définition enregistrée.'}
+                          `}
+                          style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {definitionText || 'Aucune définition enregistrée.'}
                           </p>
                           
-                          {/* 3. Exemple ou placeholder cliquable */}
+                          {/* Exemple ou placeholder cliquable */}
                           {word.examples && word.examples.length > 0 && word.examples[0] ? (
                             <p className={`
                               text-xs italic
@@ -1514,8 +1650,109 @@ export function NeuroVocabulary() {
                           )}
                         </div>
 
-                        {/* C. Footer – badges + menu ⋯ */}
-                        <div className="p-4 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
+                        {/* Accordion : définition complète + exemple + actions (déplié) */}
+                        <AnimatePresence>
+                          {expandedWords.has(word.id) && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-4 pb-4 pt-0 space-y-3 pe-12">
+                                {/* Définition complète */}
+                                <div>
+                                  <p className={`
+                                    text-sm leading-relaxed
+                                    ${darkMode ? 'text-gray-300' : 'text-gray-700'}
+                                  `}>
+                                    {word.definition || 'Aucune définition enregistrée.'}
+                                  </p>
+                                </div>
+
+                                {/* Exemple complet si présent */}
+                                {word.examples && word.examples.length > 0 && word.examples[0] && (
+                                  <div className={`
+                                    p-2 rounded-lg
+                                    ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}
+                                  `}>
+                                    <p className={`
+                                      text-xs italic
+                                      ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+                                    `}>
+                                      Ex: {word.examples[0]}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Menu actions : Modifier / Marquer maîtrisé / Supprimer */}
+                                <div className={`
+                                  flex flex-wrap gap-2 pt-2 border-t
+                                  ${darkMode ? 'border-gray-700' : 'border-gray-200'}
+                                `}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditWord(word);
+                                    }}
+                                    className={`
+                                      flex-1 min-w-[120px] sm:flex-initial px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                      ${darkMode
+                                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                      }
+                                    `}
+                                    aria-label="Modifier le mot"
+                                  >
+                                    <Edit2 className="w-4 h-4 inline mr-2" />
+                                    Modifier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleMastery(word);
+                                    }}
+                                    className={`
+                                      flex-1 min-w-[120px] sm:flex-initial px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                      ${darkMode
+                                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                      }
+                                    `}
+                                    aria-label={word.mastery >= 80 ? 'Marquer à revoir' : 'Marquer maîtrisé'}
+                                  >
+                                    <CheckCircle className="w-4 h-4 inline mr-2" />
+                                    {word.mastery >= 80 ? 'À revoir' : 'Maîtrisé'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteWord(word);
+                                    }}
+                                    className={`
+                                      flex-1 min-w-[120px] sm:flex-initial px-4 py-2 rounded-lg text-sm font-medium transition-colors text-red-600 dark:text-red-400
+                                      ${darkMode
+                                        ? 'bg-gray-700 hover:bg-gray-600'
+                                        : 'bg-gray-100 hover:bg-gray-200'
+                                      }
+                                    `}
+                                    aria-label="Supprimer le mot"
+                                  >
+                                    <Trash2 className="w-4 h-4 inline mr-2" />
+                                    Supprimer
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* C. Footer – badges uniquement */}
+                        <div className="p-4 pt-3 border-t border-gray-100 dark:border-gray-700">
                           <div className="flex items-center gap-2 flex-wrap">
                             {/* Badge "À réviser" ou "Maîtrisé" */}
                             {needsReview ? (
@@ -1528,97 +1765,80 @@ export function NeuroVocabulary() {
                               </span>
                             ) : null}
                           </div>
-                          
-                          {/* Menu ⋯ */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowWordMenu(showWordMenu === word.id ? null : word.id);
-                            }}
-                            className={`
-                              w-11 h-11 flex items-center justify-center rounded-lg transition-colors
-                              ${darkMode
-                                ? 'hover:bg-gray-700 text-gray-400'
-                                : 'hover:bg-gray-100 text-gray-500'
-                              }
-                            `}
-                            aria-label="Menu d'actions"
-                            title="Menu"
-                          >
-                            <MoreVertical className="w-5 h-5" />
-                          </button>
-                          {showWordMenu === word.id && (
-                            <>
-                              <div 
-                                className="fixed inset-0 z-10" 
-                                onClick={() => setShowWordMenu(null)}
-                              />
-                              <div className={`
-                                absolute right-0 bottom-full mb-2 w-48 rounded-lg shadow-lg border z-20
-                                ${darkMode
-                                  ? 'bg-gray-800 border-gray-700'
-                                  : 'bg-white border-gray-200'
-                                }
-                              `}>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowWordMenu(null);
-                                    handleEditWord(word);
-                                  }}
-                                  className={`
-                                    w-full text-left px-4 py-2 text-sm rounded-t-lg transition-colors
-                                    ${darkMode
-                                      ? 'hover:bg-gray-700 text-gray-300'
-                                      : 'hover:bg-gray-100 text-gray-700'
-                                    }
-                                  `}
-                                >
-                                  <Edit2 className="w-4 h-4 inline mr-2" />
-                                  Modifier
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowWordMenu(null);
-                                    toggleMastery(word);
-                                  }}
-                                  className={`
-                                    w-full text-left px-4 py-2 text-sm transition-colors
-                                    ${darkMode
-                                      ? 'hover:bg-gray-700 text-gray-300'
-                                      : 'hover:bg-gray-100 text-gray-700'
-                                    }
-                                  `}
-                                >
-                                  {word.mastery >= 80 ? 'Marquer à revoir' : 'Marquer maîtrisé'}
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowWordMenu(null);
-                                    handleDeleteWord(word);
-                                  }}
-                                  className={`
-                                    w-full text-left px-4 py-2 text-sm rounded-b-lg transition-colors text-red-600 dark:text-red-400
-                                    ${darkMode
-                                      ? 'hover:bg-gray-700'
-                                      : 'hover:bg-gray-100'
-                                    }
-                                  `}
-                                >
-                                  <Trash2 className="w-4 h-4 inline mr-2" />
-                                  Supprimer
-                                </button>
-                              </div>
-                            </>
-                          )}
                         </div>
                       </motion.div>
                     );
-                  })}
-                </AnimatePresence>
+                    })}
+                  </AnimatePresence>
+                </div>
+
+                {/* Index A-Z vertical (desktop uniquement) */}
+                {filteredVocabulary.length > 0 && (
+                  <>
+                    {/* Desktop : index A-Z vertical fixe droite */}
+                    <div className="hidden lg:block fixed right-6 top-1/2 transform -translate-y-1/2 z-20">
+                      <div className={`
+                        flex flex-col gap-1 p-2 rounded-lg shadow-lg
+                        ${darkMode ? 'bg-gray-800' : 'bg-white'}
+                      `}>
+                        {Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)).map((letter) => {
+                          const firstWordWithLetter = filteredVocabulary.find(w => 
+                            normalizeText(w.word).charAt(0) === letter.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={letter}
+                              type="button"
+                              onClick={() => {
+                                if (firstWordWithLetter) {
+                                  const element = document.getElementById(`vocab-${firstWordWithLetter.id}`);
+                                  if (element) {
+                                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                  }
+                                }
+                              }}
+                              className={`
+                                w-6 h-6 text-xs font-medium rounded transition-colors
+                                ${firstWordWithLetter
+                                  ? darkMode
+                                    ? 'text-gray-300 hover:text-white hover:bg-gray-700'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                  : darkMode
+                                    ? 'text-gray-600 cursor-not-allowed'
+                                    : 'text-gray-300 cursor-not-allowed'
+                                }
+                              `}
+                              disabled={!firstWordWithLetter}
+                              aria-label={`Aller aux mots commençant par ${letter}`}
+                            >
+                              {letter}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Mobile : bouton jump-to-top */}
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                      className={`
+                        lg:hidden fixed bottom-20 right-6 w-12 h-12 rounded-full shadow-lg
+                        flex items-center justify-center z-30
+                        ${darkMode
+                          ? 'bg-gray-800 text-gray-300'
+                          : 'bg-white text-gray-700'
+                        }
+                      `}
+                      aria-label="Retour en haut"
+                    >
+                      <ArrowUpToLine className="w-5 h-5" />
+                    </motion.button>
+                  </>
+                )}
               </div>
             )}
           </>
