@@ -1666,74 +1666,151 @@ export function NeuroVocabulary() {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className={`max-w-2xl w-full p-6 rounded-2xl ${
-                  darkMode ? 'bg-gray-800' : 'bg-white'
-                } shadow-2xl`}
+                className={`
+                  max-w-2xl w-full mx-auto rounded-lg shadow-md
+                  p-4 sm:p-6
+                  ${darkMode ? 'bg-gray-800' : 'bg-white'}
+                `}
               >
-                <h2 className={`text-2xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  ✏️ Modifier le vocabulaire
-                </h2>
+                {/* 2. Titre avec Aide IA aligné à droite */}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Modifier le mot
+                  </h2>
+                  <div className="relative inline-block">
+                    <AIContentHelper
+                      content={editingWord.definition || ''}
+                      title={editingWord.word}
+                      contentType="vocabulaire"
+                      onApply={(improvedContent) => {
+                        setEditingWord({ ...editingWord, definition: improvedContent });
+                        triggerReward('Définition améliorée avec l\'IA ✨', { type: 'success' });
+                      }}
+                      darkMode={darkMode}
+                    />
+                  </div>
+                </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Mot ou expression *
-                    </label>
-                    <input
-                      type="text"
-                      value={editingWord.word}
-                      onChange={(e) => setEditingWord({ ...editingWord, word: e.target.value })}
-                      className={`w-full px-4 py-2 rounded-lg ${
-                        darkMode
-                          ? 'bg-gray-700 text-white border-gray-600'
-                          : 'bg-gray-50 text-gray-900 border-gray-200'
-                      } border focus:ring-2 focus:ring-blue-500`}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Définition *
+                  {/* 3. Grid 2 colonnes desktop / 1 colonne mobile */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Colonne 1 : Mot ou expression */}
+                    <div>
+                      <label 
+                        className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                        htmlFor="edit-word-input"
+                      >
+                        Mot ou expression *
                       </label>
-                      {/* 4.4 Aide IA dans barre d'outils - action "Générer un exemple" */}
-                      <div className="relative inline-block">
-                        <AIContentHelper
-                          content={editingWord.definition || ''}
-                          title={editingWord.word}
-                          contentType="vocabulaire"
-                          onApply={(improvedContent) => {
-                            setEditingWord({ ...editingWord, definition: improvedContent });
-                            triggerReward('Définition améliorée avec l\'IA ✨', { type: 'success' });
-                          }}
-                          darkMode={darkMode}
+                      <input
+                        id="edit-word-input"
+                        type="text"
+                        value={editingWord.word}
+                        onChange={(e) => setEditingWord({ ...editingWord, word: e.target.value })}
+                        className={`
+                          w-full px-4 py-2.5 rounded-lg border
+                          ${darkMode
+                            ? 'bg-gray-700 text-white border-gray-600'
+                            : 'bg-gray-50 text-gray-900 border-gray-200'
+                          }
+                          focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                        `}
+                        aria-label="Mot ou expression"
+                        aria-required="true"
+                      />
+                    </div>
+
+                    {/* Colonne 2 : Difficulté */}
+                    <div>
+                      <label 
+                        className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                        htmlFor="edit-difficulty-slider"
+                      >
+                        Difficulté
+                      </label>
+                      <div className="space-y-2">
+                        <input
+                          id="edit-difficulty-slider"
+                          type="range"
+                          min="1"
+                          max="5"
+                          value={editingWord.difficulty}
+                          onChange={(e) => setEditingWord({ ...editingWord, difficulty: parseInt(e.target.value) as 1 | 2 | 3 | 4 | 5 })}
+                          className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                          aria-label="Niveau de difficulté"
                         />
+                        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                          <span>Facile</span>
+                          <span>Difficile</span>
+                        </div>
+                        <div className="text-center text-sm font-medium text-blue-600 dark:text-blue-400">
+                          {editingWord.difficulty}/5
+                        </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* 4. Définition */}
+                  <div>
+                    <label 
+                      className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                      htmlFor="edit-definition-textarea"
+                    >
+                      Définition *
+                    </label>
                     <textarea
+                      id="edit-definition-textarea"
                       value={editingWord.definition}
                       onChange={(e) => setEditingWord({ ...editingWord, definition: e.target.value })}
-                      rows={4}
-                      className={`w-full px-4 py-2 rounded-lg ${
-                        darkMode
+                      rows={3}
+                      placeholder="Définissez le mot en une phrase…"
+                      className={`
+                        w-full px-4 py-2.5 rounded-lg border resize-none
+                        ${darkMode
                           ? 'bg-gray-700 text-white border-gray-600'
                           : 'bg-gray-50 text-gray-900 border-gray-200'
-                      } border focus:ring-2 focus:ring-blue-500`}
+                        }
+                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                      `}
+                      aria-label="Définition"
+                      aria-required="true"
                     />
                   </div>
 
+                  {/* 5. Exemples */}
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Exemples
-                      </label>
-                      {/* 4.2 Bouton "Voir en contexte" */}
-                      {editingWord.word && editingWord.examples && editingWord.examples.length > 0 && editingWord.examples[0] && (
+                    <label 
+                      className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                      htmlFor="edit-examples-textarea"
+                    >
+                      Exemples
+                    </label>
+                    <textarea
+                      id="edit-examples-textarea"
+                      value={Array.isArray(editingWord.examples) ? editingWord.examples.join(', ') : ''}
+                      onChange={(e) => setEditingWord({
+                        ...editingWord,
+                        examples: e.target.value.split(',').map(ex => ex.trim()).filter(Boolean)
+                      })}
+                      rows={4}
+                      placeholder="Ex. : Le client a changé le vocabulaire de la dernière minute."
+                      className={`
+                        w-full px-4 py-2.5 rounded-lg border resize-none
+                        ${darkMode
+                          ? 'bg-gray-700 text-white border-gray-600'
+                          : 'bg-gray-50 text-gray-900 border-gray-200'
+                        }
+                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                      `}
+                      aria-label="Exemples d'utilisation"
+                    />
+                    {/* Bouton "Voir en contexte" à droite sous le champ */}
+                    {editingWord.word && editingWord.examples && editingWord.examples.length > 0 && editingWord.examples[0] && (
+                      <div className="flex justify-end mt-2">
                         <button
                           type="button"
                           onClick={async () => {
                             try {
-                              // Générer une phrase utilisant le mot et l'exemple
                               const response = await fetch('/.netlify/functions/improve-content', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -1753,33 +1830,19 @@ export function NeuroVocabulary() {
                             }
                           }}
                           className={`
-                            text-xs px-3 py-1 rounded-lg transition-colors
+                            px-4 py-2 text-sm rounded-lg transition-colors
                             ${darkMode
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                              : 'bg-blue-500 hover:bg-blue-600 text-white'
+                              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }
                           `}
+                          aria-label="Voir en contexte"
                         >
                           Voir en contexte
                         </button>
-                      )}
-                    </div>
-                    {/* 4.1 Textarea avec placeholder correct */}
-                    <textarea
-                      value={Array.isArray(editingWord.examples) ? editingWord.examples.join(', ') : ''}
-                      onChange={(e) => setEditingWord({
-                        ...editingWord,
-                        examples: e.target.value.split(',').map(ex => ex.trim()).filter(Boolean)
-                      })}
-                      rows={3}
-                      placeholder="Ex. : Le client a changé le vocabulaire de la dernière minute."
-                      className={`w-full px-4 py-2 rounded-lg ${
-                        darkMode
-                          ? 'bg-gray-700 text-white border-gray-600'
-                          : 'bg-gray-50 text-gray-900 border-gray-200'
-                      } border focus:ring-2 focus:ring-blue-500`}
-                    />
-                    {/* 4.2 Affichage de la phrase générée en italique */}
+                      </div>
+                    )}
+                    {/* Affichage de la phrase générée en italique */}
                     {contextSentence && (
                       <p className={`
                         mt-2 text-sm italic
@@ -1790,36 +1853,20 @@ export function NeuroVocabulary() {
                     )}
                   </div>
 
-                  {/* 4.3 Slider Difficulté (1-5) avec labels "facile → difficile" */}
+                  {/* 6. Maîtrise : 5 étoiles cliquables + pourcentage live */}
                   <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Difficulté
-                    </label>
-                    <div className="space-y-2">
-                      <input
-                        type="range"
-                        min="1"
-                        max="5"
-                        value={editingWord.difficulty}
-                        onChange={(e) => setEditingWord({ ...editingWord, difficulty: parseInt(e.target.value) as 1 | 2 | 3 | 4 | 5 })}
-                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                      />
-                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                        <span>Facile</span>
-                        <span>Difficile</span>
-                      </div>
-                      <div className="text-center text-sm font-medium text-blue-600 dark:text-blue-400">
-                        {editingWord.difficulty}/5
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 4.3 5 étoiles cliquables pour maîtrise (0-100%) */}
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <label 
+                      className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                      htmlFor="edit-mastery-stars"
+                    >
                       Maîtrise
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div 
+                      id="edit-mastery-stars"
+                      className="flex items-center gap-2"
+                      role="group"
+                      aria-label="Niveau de maîtrise"
+                    >
                       {[1, 2, 3, 4, 5].map((star) => {
                         const starValue = star * 20; // 20, 40, 60, 80, 100
                         const isFilled = editingWord.mastery >= starValue;
@@ -1829,13 +1876,14 @@ export function NeuroVocabulary() {
                             type="button"
                             onClick={() => setEditingWord({ ...editingWord, mastery: starValue })}
                             className={`
-                              transition-colors
+                              w-11 h-11 flex items-center justify-center rounded-lg transition-all
                               ${isFilled
                                 ? 'text-yellow-400'
                                 : darkMode ? 'text-gray-600' : 'text-gray-300'
                               }
-                              hover:scale-110
+                              hover:scale-110 hover:bg-gray-100 dark:hover:bg-gray-700
                             `}
+                            aria-label={`Maîtrise ${starValue}%`}
                           >
                             <Star 
                               className="w-6 h-6" 
@@ -1854,30 +1902,41 @@ export function NeuroVocabulary() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 mt-6">
-                  <div className="flex gap-3">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setEditingWord(null)}
-                      className={`px-6 py-3 rounded-lg ${
-                        darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      Annuler
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={handleSaveEdit}
-                      disabled={vocabularyLoading}
-                      className={`px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-teal-500 text-white font-medium ${
-                        vocabularyLoading ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-teal-600'
-                      }`}
-                    >
-                      {vocabularyLoading ? 'Enregistrement...' : 'Enregistrer'}
-                    </motion.button>
-                  </div>
+                {/* 7. Actions */}
+                <div className="flex flex-col sm:flex-row justify-between gap-3 mt-6">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setEditingWord(null)}
+                    className={`
+                      w-full sm:w-auto px-6 h-11 rounded-lg font-medium transition-colors
+                      ${darkMode 
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }
+                    `}
+                    aria-label="Annuler la modification"
+                  >
+                    Annuler
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSaveEdit}
+                    disabled={vocabularyLoading}
+                    className={`
+                      w-full sm:w-auto sm:max-w-xs px-6 h-11 rounded-lg
+                      bg-gradient-to-r from-blue-500 to-teal-500 text-white font-medium
+                      ${vocabularyLoading 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : 'hover:from-blue-600 hover:to-teal-600'
+                      }
+                      transition-all
+                    `}
+                    aria-label="Enregistrer les modifications"
+                  >
+                    {vocabularyLoading ? 'Enregistrement...' : 'Enregistrer'}
+                  </motion.button>
                 </div>
               </motion.div>
             </motion.div>
