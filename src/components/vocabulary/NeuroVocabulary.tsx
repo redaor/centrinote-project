@@ -1660,7 +1660,7 @@ export function NeuroVocabulary() {
                               transition={{ duration: 0.2 }}
                               className="overflow-hidden"
                             >
-                              <div className="px-4 pb-4 pt-0 space-y-3 pe-12">
+                              <div className="px-4 pb-4 pt-0 space-y-3">
                                 {/* Définition complète */}
                                 <div>
                                   <p className={`
@@ -1686,9 +1686,9 @@ export function NeuroVocabulary() {
                                   </div>
                                 )}
 
-                                {/* Menu actions : Modifier / Marquer maîtrisé / Supprimer */}
+                                {/* Menu actions : Modifier / Marquer maîtrisé / Supprimer - Bien aligné dans l'accordion */}
                                 <div className={`
-                                  flex flex-wrap gap-2 pt-2 border-t
+                                  flex flex-wrap gap-2 pt-3 mt-3 border-t
                                   ${darkMode ? 'border-gray-700' : 'border-gray-200'}
                                 `}>
                                   <button
@@ -1698,7 +1698,8 @@ export function NeuroVocabulary() {
                                       handleEditWord(word);
                                     }}
                                     className={`
-                                      flex-1 min-w-[120px] sm:flex-initial px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                      flex-1 min-w-[100px] sm:flex-initial px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                                      flex items-center justify-center gap-1.5
                                       ${darkMode
                                         ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1706,8 +1707,8 @@ export function NeuroVocabulary() {
                                     `}
                                     aria-label="Modifier le mot"
                                   >
-                                    <Edit2 className="w-4 h-4 inline mr-2" />
-                                    Modifier
+                                    <Edit2 className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Modifier</span>
                                   </button>
                                   <button
                                     type="button"
@@ -1716,7 +1717,8 @@ export function NeuroVocabulary() {
                                       toggleMastery(word);
                                     }}
                                     className={`
-                                      flex-1 min-w-[120px] sm:flex-initial px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                      flex-1 min-w-[100px] sm:flex-initial px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                                      flex items-center justify-center gap-1.5
                                       ${darkMode
                                         ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1724,8 +1726,8 @@ export function NeuroVocabulary() {
                                     `}
                                     aria-label={word.mastery >= 80 ? 'Marquer à revoir' : 'Marquer maîtrisé'}
                                   >
-                                    <CheckCircle className="w-4 h-4 inline mr-2" />
-                                    {word.mastery >= 80 ? 'À revoir' : 'Maîtrisé'}
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span className="hidden sm:inline">{word.mastery >= 80 ? 'À revoir' : 'Maîtrisé'}</span>
                                   </button>
                                   <button
                                     type="button"
@@ -1734,7 +1736,8 @@ export function NeuroVocabulary() {
                                       handleDeleteWord(word);
                                     }}
                                     className={`
-                                      flex-1 min-w-[120px] sm:flex-initial px-4 py-2 rounded-lg text-sm font-medium transition-colors text-red-600 dark:text-red-400
+                                      flex-1 min-w-[100px] sm:flex-initial px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                                      flex items-center justify-center gap-1.5 text-red-600 dark:text-red-400
                                       ${darkMode
                                         ? 'bg-gray-700 hover:bg-gray-600'
                                         : 'bg-gray-100 hover:bg-gray-200'
@@ -1742,8 +1745,8 @@ export function NeuroVocabulary() {
                                     `}
                                     aria-label="Supprimer le mot"
                                   >
-                                    <Trash2 className="w-4 h-4 inline mr-2" />
-                                    Supprimer
+                                    <Trash2 className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Supprimer</span>
                                   </button>
                                 </div>
                               </div>
@@ -1887,8 +1890,8 @@ export function NeuroVocabulary() {
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
                 className={`
-                  max-w-2xl w-full mx-auto rounded-lg shadow-md
-                  p-4 sm:p-6
+                  max-w-xl w-full mx-auto rounded-lg shadow-xl
+                  p-4 sm:p-6 max-h-[90vh] overflow-y-auto
                   ${darkMode ? 'bg-gray-800' : 'bg-white'}
                 `}
               >
