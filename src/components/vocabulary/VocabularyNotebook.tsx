@@ -880,169 +880,188 @@ export function VocabularyNotebook() {
       )}
 
       {/* Modal Ajout/Édition */}
-      {(showAddModal || showEditModal) && (
-        <>
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => {
-            setShowAddModal(false);
-            setShowEditModal(false);
-            resetForm();
-          }} />
-          <div className={`
-            fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50
-            ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl p-6 w-96 max-h-[90vh] overflow-y-auto
-          `}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {showEditModal ? 'Éditer le mot' : 'Ajouter un nouveau mot'}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setShowEditModal(false);
-                  resetForm();
-                }}
-                className={`p-1 rounded hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : ''}`}
+      <Modal
+        isOpen={showAddModal || showEditModal}
+        onClose={() => {
+          setShowAddModal(false);
+          setShowEditModal(false);
+          resetForm();
+        }}
+        title={showEditModal ? 'Éditer le mot' : 'Ajouter un nouveau mot'}
+        size="sm"
+      >
+        <div className="p-6">
+          <div className="space-y-4">
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Mot *
+              </label>
+              <input
+                type="text"
+                value={formData.word}
+                onChange={(e) => setFormData({...formData, word: e.target.value})}
+                className={`
+                  w-full px-3 py-2 rounded-lg border transition-colors
+                  ${darkMode
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                  }
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/20
+                `}
+                placeholder="Entrez le mot"
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Définition *
+              </label>
+              <textarea
+                value={formData.definition}
+                onChange={(e) => setFormData({...formData, definition: e.target.value})}
+                rows={3}
+                className={`
+                  w-full px-3 py-2 rounded-lg border transition-colors resize-none
+                  ${darkMode
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                  }
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/20
+                `}
+                placeholder="Entrez la définition"
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Catégorie
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({...formData, category: e.target.value})}
+                className={`
+                  w-full px-3 py-2 rounded-lg border transition-colors
+                  ${darkMode
+                    ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                  }
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/20
+                `}
               >
-                <X className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Mot *
-                </label>
-                <input
-                  type="text"
-                  value={formData.word}
-                  onChange={(e) => setFormData({...formData, word: e.target.value})}
-                  className={`
-                    w-full px-3 py-2 rounded-lg border transition-colors
-                    ${darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500' 
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                    }
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/20
-                  `}
-                  placeholder="Entrez le mot"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Définition *
-                </label>
-                <textarea
-                  value={formData.definition}
-                  onChange={(e) => setFormData({...formData, definition: e.target.value})}
-                  rows={3}
-                  className={`
-                    w-full px-3 py-2 rounded-lg border transition-colors resize-none
-                    ${darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500' 
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                    }
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/20
-                  `}
-                  placeholder="Entrez la définition"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Catégorie
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  className={`
-                    w-full px-3 py-2 rounded-lg border transition-colors
-                    ${darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' 
-                      : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                    }
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/20
-                  `}
-                >
-                  <option value="General">Général</option>
-                  <option value="Computer Science">Informatique</option>
-                  <option value="AI/ML">IA/ML</option>
-                  <option value="Business">Business</option>
-                  <option value="Science">Science</option>
-                  {categories.map(cat => (
-                    !['General', 'Computer Science', 'AI/ML', 'Business', 'Science'].includes(cat) && (
-                      <option key={cat} value={cat}>{cat}</option>
-                    )
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Exemple
-                </label>
-                <input
-                  type="text"
-                  value={formData.example}
-                  onChange={(e) => setFormData({...formData, example: e.target.value})}
-                  className={`
-                    w-full px-3 py-2 rounded-lg border transition-colors
-                    ${darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500' 
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                    }
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/20
-                  `}
-                  placeholder="Exemple d'utilisation (optionnel)"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Niveau de maîtrise: {formData.mastery}%
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={formData.mastery}
-                  onChange={(e) => setFormData({...formData, mastery: parseInt(e.target.value)})}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Difficulté
-                </label>
-                <div className="flex items-center space-x-2">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => setFormData({...formData, difficulty: level as 1 | 2 | 3 | 4 | 5})}
-                      className={`p-1 rounded transition-colors ${
-                        formData.difficulty >= level 
-                          ? 'text-yellow-400' 
-                          : darkMode ? 'text-gray-600 hover:text-gray-400' : 'text-gray-300 hover:text-gray-500'
-                      }`}
-                    >
-                      <Star className="w-5 h-5 fill-current" />
-                    </button>
-                  ))}
-                </div>
-              </div>
+                <option value="General">Général</option>
+                <option value="Computer Science">Informatique</option>
+                <option value="AI/ML">IA/ML</option>
+                <option value="Business">Business</option>
+                <option value="Science">Science</option>
+                {categories.map(cat => (
+                  !['General', 'Computer Science', 'AI/ML', 'Business', 'Science'].includes(cat) && (
+                    <option key={cat} value={cat}>{cat}</option>
+                  )
+                ))}
+              </select>
             </div>
 
-            <div className="flex justify-end space-x-2 mt-6">
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Exemple
+              </label>
+              <input
+                type="text"
+                value={formData.example}
+                onChange={(e) => setFormData({...formData, example: e.target.value})}
+                className={`
+                  w-full px-3 py-2 rounded-lg border transition-colors
+                  ${darkMode
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                  }
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/20
+                `}
+                placeholder="Exemple d'utilisation (optionnel)"
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Niveau de maîtrise: {formData.mastery}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={formData.mastery}
+                onChange={(e) => setFormData({...formData, mastery: parseInt(e.target.value)})}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Difficulté
+              </label>
+              <div className="flex items-center space-x-2">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setFormData({...formData, difficulty: level as 1 | 2 | 3 | 4 | 5})}
+                    className={`p-1 rounded transition-colors ${
+                      formData.difficulty >= level
+                        ? 'text-yellow-400'
+                        : darkMode ? 'text-gray-600 hover:text-gray-400' : 'text-gray-300 hover:text-gray-500'
+                    }`}
+                  >
+                    <Star className="w-5 h-5 fill-current" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2 mt-6">
+            <button
+              onClick={() => {
+                setShowAddModal(false);
+                setShowEditModal(false);
+                resetForm();
+              }}
+              className={`px-4 py-2 rounded-lg border transition-colors ${
+                darkMode
+                  ? 'border-gray-600 text-gray-400 hover:text-white hover:bg-gray-700'
+                  : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleSaveWord}
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:shadow-md transition-all duration-200"
+            >
+              <Save className="w-4 h-4" />
+              <span>{showEditModal ? 'Mettre à jour' : 'Ajouter'}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Suppression */}
+      <Modal
+        isOpen={showDeleteModal && !!selectedEntry}
+        onClose={() => setShowDeleteModal(false)}
+        title="Confirmer la suppression"
+        size="sm"
+      >
+        {selectedEntry && (
+          <div className="p-6">
+            <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Êtes-vous sûr de vouloir supprimer le mot "<span className="font-medium">{selectedEntry.word}</span>" ?
+              Cette action est irréversible.
+            </p>
+            <div className="flex justify-end space-x-2">
               <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setShowEditModal(false);
-                  resetForm();
-                }}
+                onClick={() => setShowDeleteModal(false)}
                 className={`px-4 py-2 rounded-lg border transition-colors ${
-                  darkMode 
+                  darkMode
                     ? 'border-gray-600 text-gray-400 hover:text-white hover:bg-gray-700'
                     : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
@@ -1050,63 +1069,15 @@ export function VocabularyNotebook() {
                 Annuler
               </button>
               <button
-                onClick={handleSaveWord}
-                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:shadow-md transition-all duration-200"
+                onClick={confirmDeleteWord}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
               >
-                <Save className="w-4 h-4" />
-                <span>{showEditModal ? 'Mettre à jour' : 'Ajouter'}</span>
+                Supprimer
               </button>
             </div>
           </div>
-        </>
-      )}
-
-      {/* Modal Suppression */}
-      {showDeleteModal && selectedEntry && (
-        <>
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setShowDeleteModal(false)} />
-          <div className={`
-            fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50
-            ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl p-6 w-96
-          `}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Confirmer la suppression
-              </h2>
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className={`p-1 rounded hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700' : ''}`}
-              >
-                <X className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <p className={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                Êtes-vous sûr de vouloir supprimer le mot "<span className="font-medium">{selectedEntry.word}</span>" ? 
-                Cette action est irréversible.
-              </p>
-              <div className="flex justify-end space-x-2">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className={`px-4 py-2 rounded-lg border transition-colors ${
-                    darkMode 
-                      ? 'border-gray-600 text-gray-400 hover:text-white hover:bg-gray-700'
-                      : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={confirmDeleteWord}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                >
-                  Supprimer
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+        )}
+      </Modal>
 
       {/* Modal Vue Détaillée Moderne */}
       <Modal
