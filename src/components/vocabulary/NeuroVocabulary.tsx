@@ -185,6 +185,21 @@ export function NeuroVocabulary() {
     }
   }, [editingWord, adjustTextareaHeight]);
 
+  // Bloquer le scroll du body quand le modal d'édition est ouvert
+  useEffect(() => {
+    if (editingWord) {
+      // Sauvegarder la valeur actuelle de overflow
+      const originalOverflow = document.body.style.overflow;
+      // Bloquer le scroll
+      document.body.style.overflow = 'hidden';
+      
+      return () => {
+        // Restaurer le scroll à la fermeture
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [editingWord]);
+
   // Safety: Réinitialiser isAddingWord si vocabularyLoading reste bloqué trop longtemps pendant un ajout
   // Ce useEffect ne doit réinitialiser que si on est en train d'ajouter ET que vocabularyLoading reste bloqué
   useEffect(() => {
@@ -1916,18 +1931,63 @@ export function NeuroVocabulary() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-              onClick={() => setEditingWord(null)}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setEditingWord(null);
+                }
+              }}
+              onWheel={(e) => {
+                // Empêcher le scroll de l'arrière-plan
+                e.stopPropagation();
+                e.preventDefault();
+              }}
+              onTouchMove={(e) => {
+                // Empêcher le scroll tactile sur l'arrière-plan
+                if (e.target === e.currentTarget) {
+                  e.preventDefault();
+                }
+              }}
+              onMouseDown={(e) => {
+                // Empêcher la sélection de texte sur l'arrière-plan
+                if (e.target === e.currentTarget) {
+                  e.preventDefault();
+                }
+              }}
+              style={{ 
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                MozUserSelect: 'none',
+                msUserSelect: 'none',
+                overscrollBehavior: 'contain'
+              }}
             >
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
+                onWheel={(e) => {
+                  // Permettre le scroll dans le modal, mais empêcher la propagation au backdrop
+                  e.stopPropagation();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchMove={(e) => {
+                  // Permettre le scroll tactile dans le modal
+                  e.stopPropagation();
+                }}
                 className={`
                   max-w-xl w-full mx-auto rounded-lg shadow-xl
                   p-4 sm:p-6 max-h-[90vh] overflow-y-auto
                   ${darkMode ? 'bg-gray-800' : 'bg-white'}
+                  relative z-10
                 `}
+                style={{ 
+                  userSelect: 'auto',
+                  WebkitUserSelect: 'auto',
+                  MozUserSelect: 'auto',
+                  msUserSelect: 'auto',
+                  overscrollBehavior: 'contain'
+                }}
               >
                 {/* 2. Titre avec Aide IA aligné à droite */}
                 <div className="flex items-center justify-between mb-6">
