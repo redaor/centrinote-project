@@ -22,7 +22,7 @@ export function Modal({
   showCloseButton = true,
   closeOnBackdropClick = true
 }: ModalProps) {
-  // Gestion fermeture avec ESC
+  // Gestion fermeture avec ESC et blocage du scroll
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -30,15 +30,49 @@ export function Modal({
       }
     };
 
+    // Bloquer le scroll sur la page en arrière-plan
+    const preventScroll = (e: WheelEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      const modalContent = document.querySelector('.modal-scrollable-content');
+
+      // Autoriser le scroll uniquement si l'événement vient du contenu du modal
+      if (modalContent && !modalContent.contains(target)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      // Empêcher scroll du body
+      // Sauvegarder la position de scroll actuelle
+      const scrollY = window.scrollY;
+
+      // Empêcher le scroll du body
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
       document.body.style.overflow = 'hidden';
+
+      // Ajouter les écouteurs d'événements pour bloquer le scroll
+      document.addEventListener('keydown', handleEscape);
+      document.addEventListener('wheel', preventScroll, { passive: false });
+      document.addEventListener('touchmove', preventScroll, { passive: false });
     }
 
     return () => {
+      // Restaurer le scroll
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      }
+
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
+      document.removeEventListener('wheel', preventScroll);
+      document.removeEventListener('touchmove', preventScroll);
     };
   }, [isOpen, onClose]);
 
@@ -109,7 +143,7 @@ export function Modal({
           )}
 
           {/* Content - Scrollable container avec meilleure gestion de la hauteur */}
-          <div className="overflow-y-auto flex-1 overscroll-contain">
+          <div className="modal-scrollable-content overflow-y-auto flex-1 overscroll-contain">
             {children}
           </div>
         </div>
