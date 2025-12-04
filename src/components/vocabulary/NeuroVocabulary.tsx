@@ -101,11 +101,27 @@ export function NeuroVocabulary() {
   const [contextSentence, setContextSentence] = useState<string>('');
   const [showAIVocabMenu, setShowAIVocabMenu] = useState(false);
 
+  // Refs pour les textareas avec hauteur dynamique
+  const definitionTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const examplesTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+
   // ✅ Mémoïser le vocabulaire pour le mode révision pour éviter les re-renders non désirés
   const [flashcardVocabulary, setFlashcardVocabulary] = useState<VocabularyEntry[]>([]);
 
   // 🔄 État pour accumuler les mises à jour de maîtrise en batch
   const [pendingMasteryUpdates, setPendingMasteryUpdates] = useState<Map<string, { word: VocabularyEntry, newMastery: number }>>(new Map());
+
+  // Fonction pour ajuster la hauteur d'un textarea dynamiquement
+  const adjustTextareaHeight = useCallback((textarea: HTMLTextAreaElement | null, minRows: number = 2, maxRows: number = 10) => {
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight) || 20;
+    const minHeight = lineHeight * minRows;
+    const maxHeight = lineHeight * maxRows;
+    const scrollHeight = textarea.scrollHeight;
+    const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
+    textarea.style.height = `${newHeight}px`;
+  }, []);
 
   const normalizeExamples = useCallback((entry: VocabularyEntry): VocabularyEntry => {
     const examples = Array.isArray(entry.examples)
@@ -151,6 +167,24 @@ export function NeuroVocabulary() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Seulement au montage - intentionnellement sans dépendances
   
+  // Ajuster la hauteur des textareas quand le modal d'édition s'ouvre
+  useEffect(() => {
+    if (editingWord) {
+      // Petit délai pour s'assurer que les refs sont attachés au DOM
+      setTimeout(() => {
+        adjustTextareaHeight(definitionTextareaRef.current, 3, 12);
+        const examplesValue = Array.isArray(editingWord.examples) 
+          ? editingWord.examples.join(', ') 
+          : '';
+        if (examplesValue.trim()) {
+          adjustTextareaHeight(examplesTextareaRef.current, 2, 8);
+        } else {
+          adjustTextareaHeight(examplesTextareaRef.current, 2, 2);
+        }
+      }, 100);
+    }
+  }, [editingWord, adjustTextareaHeight]);
+
   // Safety: Réinitialiser isAddingWord si vocabularyLoading reste bloqué trop longtemps pendant un ajout
   // Ce useEffect ne doit réinitialiser que si on est en train d'ajouter ET que vocabularyLoading reste bloqué
   useEffect(() => {
@@ -1982,54 +2016,31 @@ export function NeuroVocabulary() {
                       Définition *
                     </label>
                     <textarea
+                      ref={definitionTextareaRef}
                       id="edit-definition-textarea"
                       value={editingWord.definition}
-                      onChange={(e) => setEditingWord({ ...editingWord, definition: e.target.value })}
+                      onChange={(e) => {
+                        setEditingWord({ ...editingWord, definition: e.target.value });
+                        adjustTextareaHeight(definitionTextareaRef.current, 3, 12);
+                      }}
+                      onFocus={(e) => adjustTextareaHeight(e.currentTarget, 3, 12)}
                       rows={3}
                       placeholder="Définissez le mot en une phrase…"
                       className={`
-                        w-full px-4 py-2.5 rounded-lg border resize-none
+                        w-full px-4 py-3 rounded-lg border resize-none
                         ${darkMode
                           ? 'bg-gray-700 text-white border-gray-600'
                           : 'bg-gray-50 text-gray-900 border-gray-200'
                         }
                         focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                        transition-all duration-200
                       `}
                       aria-label="Définition"
                       aria-required="true"
                     />
-                  </div>
-
-                  {/* 5. Exemples */}
-                  <div>
-                    <label 
-                      className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
-                      htmlFor="edit-examples-textarea"
-                    >
-                      Exemples
-                    </label>
-                    <textarea
-                      id="edit-examples-textarea"
-                      value={Array.isArray(editingWord.examples) ? editingWord.examples.join(', ') : ''}
-                      onChange={(e) => setEditingWord({
-                        ...editingWord,
-                        examples: e.target.value.split(',').map(ex => ex.trim()).filter(Boolean)
-                      })}
-                      rows={4}
-                      placeholder="Ex. : Le client a changé le vocabulaire de la dernière minute."
-                      className={`
-                        w-full px-4 py-2.5 rounded-lg border resize-none
-                        ${darkMode
-                          ? 'bg-gray-700 text-white border-gray-600'
-                          : 'bg-gray-50 text-gray-900 border-gray-200'
-                        }
-                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                      `}
-                      aria-label="Exemples d'utilisation"
-                    />
-                    {/* Bouton "Voir en contexte" à droite sous le champ */}
-                    {editingWord.word && editingWord.examples && editingWord.examples.length > 0 && editingWord.examples[0] && (
-                      <div className="flex justify-end mt-2">
+                    {/* Bouton "Voir en contexte" juste après le champ Définition */}
+                    {editingWord.word && editingWord.definition && (
+                      <div className="flex items-center gap-2 mt-2">
                         <button
                           type="button"
                           onClick={async () => {
@@ -2040,7 +2051,7 @@ export function NeuroVocabulary() {
                                 body: JSON.stringify({
                                   action: 'enrichir',
                                   contentType: 'vocabulaire',
-                                  content: `Génère une phrase complète utilisant le mot "${editingWord.word}" et l'exemple "${editingWord.examples[0]}".`,
+                                  content: `Génère une phrase complète utilisant le mot "${editingWord.word}" avec la définition "${editingWord.definition}".`,
                                   title: editingWord.word,
                                 }),
                               });
@@ -2053,14 +2064,15 @@ export function NeuroVocabulary() {
                             }
                           }}
                           className={`
-                            px-4 py-2 text-sm rounded-lg transition-colors
+                            inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors
                             ${darkMode
-                              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 border border-gray-600'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
                             }
                           `}
                           aria-label="Voir en contexte"
                         >
+                          <Search className="w-4 h-4" />
                           Voir en contexte
                         </button>
                       </div>
@@ -2074,6 +2086,50 @@ export function NeuroVocabulary() {
                         {contextSentence}
                       </p>
                     )}
+                  </div>
+
+                  {/* 5. Exemples */}
+                  <div>
+                    <label 
+                      className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                      htmlFor="edit-examples-textarea"
+                    >
+                      Exemples
+                    </label>
+                    <textarea
+                      ref={examplesTextareaRef}
+                      id="edit-examples-textarea"
+                      value={Array.isArray(editingWord.examples) ? editingWord.examples.join(', ') : ''}
+                      onChange={(e) => {
+                        setEditingWord({
+                          ...editingWord,
+                          examples: e.target.value.split(',').map(ex => ex.trim()).filter(Boolean)
+                        });
+                        // Ajuster la hauteur uniquement si du contenu est présent
+                        if (e.target.value.trim()) {
+                          adjustTextareaHeight(examplesTextareaRef.current, 2, 8);
+                        } else {
+                          adjustTextareaHeight(examplesTextareaRef.current, 2, 2);
+                        }
+                      }}
+                      onFocus={(e) => {
+                        if (e.target.value.trim()) {
+                          adjustTextareaHeight(e.currentTarget, 2, 8);
+                        }
+                      }}
+                      rows={2}
+                      placeholder="Ex. : Le client a changé le vocabulaire de la dernière minute. (optionnel)"
+                      className={`
+                        w-full px-4 py-2.5 rounded-lg border resize-none
+                        ${darkMode
+                          ? 'bg-gray-700 text-white border-gray-600 placeholder-gray-500'
+                          : 'bg-gray-50 text-gray-900 border-gray-200 placeholder-gray-400'
+                        }
+                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                        transition-all duration-200
+                      `}
+                      aria-label="Exemples d'utilisation"
+                    />
                   </div>
 
                   {/* 6. Maîtrise : 5 étoiles cliquables + pourcentage live */}

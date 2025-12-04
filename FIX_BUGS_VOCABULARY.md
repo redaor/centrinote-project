@@ -83,3 +83,4 @@ Le modal d'édition était trop large (`max-w-2xl` = 672px) et pouvait dépasser
 
 Tous les bugs sont corrigés ! 🎉
 
+
