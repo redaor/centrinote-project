@@ -58,26 +58,33 @@ export function Modal({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 pointer-events-auto"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
 
       {/* Modal Container - Centré avec padding responsive */}
-      <div className="flex min-h-screen items-center justify-center p-4 sm:p-6 md:p-8">
-        <div className={`
-          relative w-full
-          bg-white dark:bg-gray-800
-          shadow-2xl transition-all duration-300
-          ${sizeClasses[size]}
-          rounded-2xl
-          max-h-[95vh]
-          flex flex-col
-          animate-in fade-in zoom-in-95 duration-300
-        `}>
+      <div
+        className="fixed inset-0 flex items-center justify-center p-4 sm:p-6 md:p-8 pointer-events-none"
+        onClick={handleBackdropClick}
+      >
+        <div
+          className={`
+            relative w-full
+            bg-white dark:bg-gray-800
+            shadow-2xl transition-all duration-300
+            ${sizeClasses[size]}
+            rounded-2xl
+            max-h-[90vh]
+            flex flex-col
+            animate-in fade-in zoom-in-95 duration-300
+            pointer-events-auto
+          `}
+          onClick={(e) => e.stopPropagation()}
+        >
 
           {/* Header */}
           {(title || showCloseButton) && (
@@ -102,7 +109,7 @@ export function Modal({
           )}
 
           {/* Content - Scrollable container avec meilleure gestion de la hauteur */}
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 overscroll-contain">
             {children}
           </div>
         </div>
