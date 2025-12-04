@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from './Button';
@@ -22,57 +22,65 @@ export function Modal({
   showCloseButton = true,
   closeOnBackdropClick = true
 }: ModalProps) {
-  // Gestion fermeture avec ESC et blocage du scroll
+  const modalContentRef = useRef<HTMLDivElement>(null);
+
+  // Gestion fermeture avec ESC et blocage COMPLET du scroll
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
 
-    // Bloquer le scroll sur la page en arrière-plan
-    const preventScroll = (e: WheelEvent | TouchEvent) => {
-      const target = e.target as HTMLElement;
-      const modalContent = document.querySelector('.modal-scrollable-content');
+    // Sauvegarder la position de scroll actuelle
+    const scrollY = window.scrollY;
 
-      // Autoriser le scroll uniquement si l'événement vient du contenu du modal
-      if (modalContent && !modalContent.contains(target)) {
-        e.preventDefault();
-        e.stopPropagation();
+    // 1. Bloquer le body avec position fixed
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+
+    // 2. Bloquer TOUS les événements de scroll globaux
+    const blockScroll = (e: Event) => {
+      const target = e.target as HTMLElement;
+
+      // Autoriser le scroll UNIQUEMENT si c'est à l'intérieur du contenu du modal
+      if (modalContentRef.current && modalContentRef.current.contains(target)) {
+        return; // Laisser passer le scroll dans le modal
       }
+
+      // Bloquer tout le reste
+      e.preventDefault();
+      e.stopPropagation();
     };
 
-    if (isOpen) {
-      // Sauvegarder la position de scroll actuelle
-      const scrollY = window.scrollY;
-
-      // Empêcher le scroll du body
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflow = 'hidden';
-
-      // Ajouter les écouteurs d'événements pour bloquer le scroll
-      document.addEventListener('keydown', handleEscape);
-      document.addEventListener('wheel', preventScroll, { passive: false });
-      document.addEventListener('touchmove', preventScroll, { passive: false });
-    }
+    // Bloquer tous les types d'événements de scroll
+    window.addEventListener('scroll', blockScroll, { capture: true });
+    window.addEventListener('wheel', blockScroll, { passive: false, capture: true });
+    window.addEventListener('touchmove', blockScroll, { passive: false, capture: true });
+    document.addEventListener('keydown', handleEscape);
 
     return () => {
-      // Restaurer le scroll
-      const scrollY = document.body.style.top;
+      // Restaurer le scroll et les styles
+      const currentTop = document.body.style.top;
       document.body.style.position = '';
       document.body.style.top = '';
       document.body.style.width = '';
       document.body.style.overflow = '';
 
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      // Restaurer la position de scroll exacte
+      if (currentTop) {
+        window.scrollTo(0, parseInt(currentTop || '0') * -1);
       }
 
+      // Nettoyer les écouteurs
+      window.removeEventListener('scroll', blockScroll, { capture: true });
+      window.removeEventListener('wheel', blockScroll);
+      window.removeEventListener('touchmove', blockScroll);
       document.removeEventListener('keydown', handleEscape);
-      document.removeEventListener('wheel', preventScroll);
-      document.removeEventListener('touchmove', preventScroll);
     };
   }, [isOpen, onClose]);
 
@@ -143,7 +151,10 @@ export function Modal({
           )}
 
           {/* Content - Scrollable container avec meilleure gestion de la hauteur */}
-          <div className="modal-scrollable-content overflow-y-auto flex-1 overscroll-contain">
+          <div
+            ref={modalContentRef}
+            className="modal-scrollable-content overflow-y-auto flex-1 overscroll-contain"
+          >
             {children}
           </div>
         </div>
