@@ -234,13 +234,82 @@ export function NeuroVocabulary() {
     const forgotten = vocabulary.filter(v => v.difficulty >= 4 && v.mastery < 40).length;
     const learning = vocabulary.length - mastered - forgotten;
     
+    // Calculer le streak (jours consécutifs de révision)
+    const calculateStreak = (): number => {
+      if (vocabulary.length === 0) return 0;
+      
+      // Récupérer toutes les dates de révision uniques (par jour, format YYYY-MM-DD)
+      const reviewDates = new Set<string>();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+      
+      vocabulary.forEach(word => {
+        if (word.lastReviewed) {
+          const reviewDate = new Date(word.lastReviewed);
+          reviewDate.setHours(0, 0, 0, 0);
+          const dateStr = reviewDate.toISOString().split('T')[0];
+          // Ne compter que les révisions des 30 derniers jours pour optimiser
+          const daysDiff = Math.floor((today.getTime() - reviewDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysDiff >= 0 && daysDiff <= 30) {
+            reviewDates.add(dateStr);
+          }
+        }
+      });
+      
+      if (reviewDates.size === 0) return 0;
+      
+      // Calculer le streak en remontant depuis aujourd'hui
+      let streak = 0;
+      let checkDate = new Date(today);
+      
+      // Vérifier si aujourd'hui a une révision
+      if (reviewDates.has(todayStr)) {
+        streak = 1;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        // Si pas de révision aujourd'hui, commencer depuis hier
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+      
+      // Continuer à remonter tant qu'on trouve des jours consécutifs
+      while (streak < 30) { // Limite à 30 jours pour éviter les boucles infinies
+        const dateStr = checkDate.toISOString().split('T')[0];
+        
+        if (reviewDates.has(dateStr)) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          // Jour manquant, le streak s'arrête
+          break;
+        }
+      }
+      
+      return streak;
+    };
+    
+    // Calculer le nombre de mots révisés aujourd'hui
+    const calculateTodayReviewed = (): number => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+      
+      return vocabulary.filter(word => {
+        if (!word.lastReviewed) return false;
+        const reviewDate = new Date(word.lastReviewed);
+        reviewDate.setHours(0, 0, 0, 0);
+        const reviewDateStr = reviewDate.toISOString().split('T')[0];
+        return reviewDateStr === todayStr;
+      }).length;
+    };
+    
     return {
       mastered,
       learning,
       forgotten,
       total: vocabulary.length,
-      streakDays: 7, // Placeholder - calculate from actual data
-      todayReviewed: 12 // Placeholder - calculate from actual data
+      streakDays: calculateStreak(),
+      todayReviewed: calculateTodayReviewed()
     };
   }, [vocabulary]);
 

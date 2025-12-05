@@ -30,6 +30,7 @@ import {
 import { useApp } from '../../contexts/AppContext';
 import { useNeuroFeedback } from '../../hooks/useNeuroFeedback';
 import { useAdaptiveView } from '../../hooks/useAdaptiveView';
+import { useTaskNotifications } from '../../hooks/useTaskNotifications';
 import { planningService, Task as DBTask, CreateTaskInput } from '../../services/planningService';
 import { TaskModal } from './TaskModal';
 
@@ -77,6 +78,7 @@ export function NeuroPlanning() {
   const { darkMode, user } = state;
   const { triggerReward, focusAttention, updateCognitiveLoad } = useNeuroFeedback();
   const { userBehavior, calculatePriority, trackInteraction } = useAdaptiveView(user?.id);
+  const { requestNotificationPermission } = useTaskNotifications(); // Activer le système de notifications
   
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'timeline'>('timeline');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -222,12 +224,57 @@ export function NeuroPlanning() {
       // Ajouter localement
       setTasks(prev => [...prev, task]);
       setIsAddingTask(false);
+      setSelectedTask(null);
       triggerReward('Nouvelle tâche ajoutée! 📌', { type: 'success', sound: true });
       focusAttention(`task-${task.id}`);
       updateCognitiveLoad(tasks.filter(t => !t.completed).length + 1);
+
+      // Demander la permission pour les notifications si la tâche a un rappel
+      if (task.reminder) {
+        await requestNotificationPermission();
+      }
     } catch (error) {
       console.error('Error creating task:', error);
       alert('Erreur lors de la création de la tâche');
+    }
+  };
+
+  // Update existing task
+  const updateTask = async (taskId: string, updates: Partial<CreateTaskInput>) => {
+    if (!user?.id) return;
+
+    try {
+      // Mettre à jour dans la BDD
+      const updatedTask = await planningService.updateTask(taskId, updates);
+
+      // Convertir au format du composant
+      const task: Task = {
+        id: updatedTask.id,
+        title: updatedTask.title,
+        description: updatedTask.description,
+        startTime: new Date(updatedTask.start_time),
+        endTime: new Date(updatedTask.end_time),
+        category: updatedTask.category,
+        priority: updatedTask.priority,
+        completed: updatedTask.completed,
+        reminder: updatedTask.reminder,
+        recurring: updatedTask.recurring || undefined,
+        color: updatedTask.color
+      };
+
+      // Mettre à jour localement
+      setTasks(prev => prev.map(t => t.id === taskId ? task : t));
+      setIsAddingTask(false);
+      setSelectedTask(null);
+      triggerReward('Tâche modifiée! ✏️', { type: 'success', sound: true });
+
+      // Demander la permission pour les notifications si la tâche a un rappel
+      if (task.reminder) {
+        await requestNotificationPermission();
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      alert('Erreur lors de la modification de la tâche');
     }
   };
 
@@ -481,12 +528,26 @@ export function NeuroPlanning() {
                                   toggleTaskCompletion(task.id);
                                 }}
                                 className="p-1"
+                                title={task.completed ? 'Marquer non complétée' : 'Marquer complétée'}
                               >
                                 {task.completed ? (
                                   <CheckCircle className="w-5 h-5" />
                                 ) : (
                                   <div className="w-5 h-5 border-2 border-white rounded-full" />
                                 )}
+                              </motion.button>
+                              <motion.button
+                                whileHover={{ scale: 1.2 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTask(task);
+                                  setIsAddingTask(true);
+                                }}
+                                className="p-1 opacity-70 hover:opacity-100"
+                                title="Modifier"
+                              >
+                                <Edit2 className="w-4 h-4" />
                               </motion.button>
                               <motion.button
                                 whileHover={{ scale: 1.2 }}
@@ -603,10 +664,29 @@ export function NeuroPlanning() {
         {/* Task Modal */}
         <TaskModal
           isOpen={isAddingTask}
-          onClose={() => setIsAddingTask(false)}
-          onSave={addTask}
+          onClose={() => {
+            setIsAddingTask(false);
+            setSelectedTask(null);
+          }}
+          onSave={selectedTask ? (taskData) => updateTask(selectedTask.id, taskData) : addTask}
           initialDate={selectedDate}
           darkMode={darkMode}
+          editingTask={selectedTask ? {
+            id: selectedTask.id,
+            user_id: user?.id || '',
+            title: selectedTask.title,
+            description: selectedTask.description,
+            start_time: selectedTask.startTime.toISOString(),
+            end_time: selectedTask.endTime.toISOString(),
+            category: selectedTask.category,
+            priority: selectedTask.priority,
+            completed: selectedTask.completed,
+            reminder: selectedTask.reminder,
+            recurring: selectedTask.recurring || null,
+            color: selectedTask.color,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          } : null}
         />
       </div>
     </div>

@@ -84,6 +84,37 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
     }
   }, [isOpen, initialDate, editingTask]);
 
+  // Bloquer le scroll du body quand le modal est ouvert
+  useEffect(() => {
+    if (isOpen) {
+      // Sauvegarder les valeurs actuelles
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const originalTop = document.body.style.top;
+      const originalWidth = document.body.style.width;
+      
+      // Calculer la position de scroll actuelle
+      const scrollY = window.scrollY;
+      
+      // Bloquer le scroll
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      
+      return () => {
+        // Restaurer les valeurs
+        document.body.style.overflow = originalOverflow;
+        document.body.style.position = originalPosition;
+        document.body.style.top = originalTop;
+        document.body.style.width = originalWidth;
+        
+        // Restaurer la position de scroll
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen]);
+
   // Fonction de validation
   const validateForm = (): boolean => {
     let isValid = true;
@@ -224,8 +255,41 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={handleClose}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleClose();
+              }
+            }}
+            onWheel={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onTouchMove={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onScroll={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onMouseDown={(e) => {
+              // Empêcher le scroll de la page en arrière-plan
+              if (e.target === e.currentTarget) {
+                e.preventDefault();
+              }
+            }}
+            style={{
+              overflow: 'hidden',
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              touchAction: 'none',
+              pointerEvents: 'auto',
+              isolation: 'isolate'
+            }}
+            className="bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           >
             {/* Modal */}
             <motion.div
@@ -233,9 +297,15 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className={`w-full max-w-2xl max-h-[90vh] rounded-2xl ${
+              style={{
+                overscrollBehavior: 'contain',
+                pointerEvents: 'auto',
+                userSelect: 'auto',
+                maxHeight: '90vh'
+              }}
+              className={`w-full max-w-2xl rounded-2xl ${
                 darkMode ? 'bg-gray-800' : 'bg-white'
-              } shadow-2xl overflow-hidden flex flex-col`}
+              } shadow-2xl overflow-hidden flex flex-col relative z-10`}
             >
               {/* Header - Fixed */}
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
@@ -253,8 +323,26 @@ export function TaskModal({ isOpen, onClose, onSave, initialDate, darkMode = fal
               </div>
 
               {/* Form - Scrollable */}
-              <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-                <div className="p-6 space-y-5 overflow-y-auto flex-1">
+              <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div 
+                  className="p-6 space-y-5 overflow-y-auto flex-1"
+                  style={{
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehavior: 'contain'
+                  }}
+                  onWheel={(e) => {
+                    // Empêcher la propagation vers le backdrop
+                    e.stopPropagation();
+                  }}
+                  onTouchStart={(e) => {
+                    // Empêcher la propagation vers le backdrop
+                    e.stopPropagation();
+                  }}
+                  onTouchMove={(e) => {
+                    // Empêcher la propagation vers le backdrop
+                    e.stopPropagation();
+                  }}
+                >
                 {/* Titre */}
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${
