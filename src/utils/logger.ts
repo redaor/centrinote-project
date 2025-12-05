@@ -159,6 +159,11 @@ class SecureLogger {
     message: string,
     options: LogOptions = {}
   ): Promise<void> {
+    // ✅ DÉSACTIVER COMPLÈTEMENT EN DÉVELOPPEMENT LOCAL pour éviter les erreurs CORS
+    if (this.isDev && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      return; // Ne rien faire en localhost
+    }
+
     const {
       level = 'info',
       meta = {},

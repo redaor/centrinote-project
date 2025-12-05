@@ -13,6 +13,9 @@ interface ModalProps {
   closeOnBackdropClick?: boolean;
 }
 
+// 3. Compteur d'instances de modales ouvertes (pour empilement)
+let openModalCount = 0;
+
 export function Modal({
   isOpen,
   onClose,
@@ -28,58 +31,56 @@ export function Modal({
   useEffect(() => {
     if (!isOpen) return;
 
+    // 3. Incrémenter le compteur de modales ouvertes
+    openModalCount++;
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
     };
 
-    // Sauvegarder la position de scroll actuelle
-    const scrollY = window.scrollY;
+    // 2. Remplacer position:fixed par classe toggle sur <html>
+    // Ajouter la classe .modal-open sur <html>
+    document.documentElement.classList.add('modal-open');
 
-    // 1. Bloquer le body avec position fixed
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = '100%';
-    document.body.style.overflow = 'hidden';
+    // Ajouter le style global si pas déjà présent
+    if (!document.getElementById('modal-open-styles')) {
+      const style = document.createElement('style');
+      style.id = 'modal-open-styles';
+      style.textContent = `
+        .modal-open body {
+          max-height: 100vh;
+          overflow: hidden;
+          user-select: none;
+          -webkit-user-select: none;
+          -moz-user-select: none;
+          -ms-user-select: none;
+          pointer-events: none;
+        }
+        .modal-open .modal-inner {
+          pointer-events: auto;
+          user-select: auto;
+          -webkit-user-select: auto;
+          -moz-user-select: auto;
+          -ms-user-select: auto;
+        }
+      `;
+      document.head.appendChild(style);
+    }
 
-    // 2. Bloquer TOUS les événements de scroll globaux
-    const blockScroll = (e: Event) => {
-      const target = e.target as HTMLElement;
-
-      // Autoriser le scroll UNIQUEMENT si c'est à l'intérieur du contenu du modal
-      if (modalContentRef.current && modalContentRef.current.contains(target)) {
-        return; // Laisser passer le scroll dans le modal
-      }
-
-      // Bloquer tout le reste
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    // Bloquer tous les types d'événements de scroll
-    window.addEventListener('scroll', blockScroll, { capture: true });
-    window.addEventListener('wheel', blockScroll, { passive: false, capture: true });
-    window.addEventListener('touchmove', blockScroll, { passive: false, capture: true });
+    // Écouter ESC
     document.addEventListener('keydown', handleEscape);
 
     return () => {
-      // Restaurer le scroll et les styles
-      const currentTop = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflow = '';
+      // 3. Décrémenter le compteur
+      openModalCount--;
 
-      // Restaurer la position de scroll exacte
-      if (currentTop) {
-        window.scrollTo(0, parseInt(currentTop || '0') * -1);
+      // 2. Ne retirer la classe que si aucune modale n'est ouverte
+      if (openModalCount === 0) {
+        document.documentElement.classList.remove('modal-open');
       }
 
-      // Nettoyer les écouteurs
-      window.removeEventListener('scroll', blockScroll, { capture: true });
-      window.removeEventListener('wheel', blockScroll);
-      window.removeEventListener('touchmove', blockScroll);
       document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen, onClose]);
@@ -100,10 +101,14 @@ export function Modal({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div className="fixed inset-0 z-[9999] overflow-hidden">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+        style={{
+          pointerEvents: 'auto',
+          isolation: 'isolate'
+        }}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
@@ -150,10 +155,15 @@ export function Modal({
             </div>
           )}
 
-          {/* Content - Scrollable container avec meilleure gestion de la hauteur */}
+          {/* Content - 1. Scrollable container avec overscroll-behavior: contain */}
           <div
             ref={modalContentRef}
-            className="modal-scrollable-content overflow-y-auto flex-1 overscroll-contain"
+            className="modal-inner overflow-y-auto flex-1"
+            style={{
+              overscrollBehavior: 'contain',
+              pointerEvents: 'auto',
+              userSelect: 'auto'
+            }}
           >
             {children}
           </div>

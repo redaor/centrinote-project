@@ -37,7 +37,10 @@
       "Bash(docker:*)",
       "Bash(/dev/null)",
       "Bash(git revert:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(lsof:*)",
+      "Bash(pgrep:*)",
+      "Bash(xargs kill:*)"
     ],
     "deny": [],
     "ask": []

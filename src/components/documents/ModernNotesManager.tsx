@@ -45,8 +45,6 @@ import {
   Bold,
   Italic,
   Code,
-  List,
-  Star,
   type LucideIcon
 } from 'lucide-react';
 import { useNotes } from '../../hooks/useNotes';

@@ -36,7 +36,8 @@ import {
   ArrowDown,
   ArrowUpToLine,
   ArrowDownAZ,
-  ArrowUpZA
+  ArrowUpZA,
+  Loader2
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useNeuroFeedback } from '../../hooks/useNeuroFeedback';
@@ -91,14 +92,16 @@ export function NeuroVocabulary() {
 
   // États pour l'édition et la suppression
   const [editingWord, setEditingWord] = useState<VocabularyEntry | null>(null);
+  const [originalWord, setOriginalWord] = useState<VocabularyEntry | null>(null); // Pour détecter les modifications
   const [wordToDelete, setWordToDelete] = useState<VocabularyEntry | null>(null);
-  
+
   // États pour l'accordion et le menu (3.1, 3.3)
   const [expandedWords, setExpandedWords] = useState<Set<string>>(new Set());
   const [showWordMenu, setShowWordMenu] = useState<string | null>(null);
-  
+
   // États pour le mode édition (4.2, 4.4)
   const [contextSentence, setContextSentence] = useState<string>('');
+  const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [showAIVocabMenu, setShowAIVocabMenu] = useState(false);
 
   // Refs pour les textareas avec hauteur dynamique
@@ -377,6 +380,96 @@ export function NeuroVocabulary() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [searchId]);
 
+  // Vérifier s'il y a des modifications non sauvegardées
+  const hasUnsavedChanges = useCallback((): boolean => {
+    if (!editingWord || !originalWord) return false;
+
+    return (
+      editingWord.word !== originalWord.word ||
+      editingWord.definition !== originalWord.definition ||
+      editingWord.difficulty !== originalWord.difficulty ||
+      editingWord.mastery !== originalWord.mastery ||
+      JSON.stringify(editingWord.examples) !== JSON.stringify(originalWord.examples)
+    );
+  }, [editingWord, originalWord]);
+
+  // Fermer la modal avec confirmation si nécessaire
+  const handleCloseEdit = useCallback(() => {
+    if (hasUnsavedChanges()) {
+      const confirmClose = window.confirm(
+        'Vous avez des modifications non sauvegardées. Voulez-vous vraiment fermer sans sauvegarder ?'
+      );
+      if (!confirmClose) return;
+    }
+
+    setEditingWord(null);
+    setOriginalWord(null);
+    setContextSentence('');
+  }, [hasUnsavedChanges]);
+
+  // 🔄 Réinitialiser contextSentence et isLoadingContext quand on ouvre/ferme la modal
+  useEffect(() => {
+    if (!editingWord) {
+      setContextSentence(''); // Reset quand la modal se ferme
+      setIsLoadingContext(false); // Reset l'état de chargement
+    }
+  }, [editingWord]);
+
+  // 🔒 BLOCAGE COMPLET DU BACKGROUND quand modal d'édition ouverte
+  useEffect(() => {
+    if (!editingWord) return;
+
+    // Ajouter la classe modal-open sur <html>
+    document.documentElement.classList.add('modal-open');
+
+    // Ajouter le style global si pas déjà présent
+    if (!document.getElementById('modal-open-styles')) {
+      const style = document.createElement('style');
+      style.id = 'modal-open-styles';
+      style.textContent = `
+        .modal-open body {
+          max-height: 100vh;
+          overflow: hidden;
+          user-select: none;
+          -webkit-user-select: none;
+          -moz-user-select: none;
+          -ms-user-select: none;
+          pointer-events: none;
+        }
+        .modal-open .modal-content-wrapper {
+          pointer-events: auto;
+          user-select: auto;
+          -webkit-user-select: auto;
+          -moz-user-select: auto;
+          -ms-user-select: auto;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    return () => {
+      // Retirer la classe quand la modal se ferme
+      document.documentElement.classList.remove('modal-open');
+    };
+  }, [editingWord]);
+
+  // ⌨️ GESTION DE LA TOUCHE ÉCHAP pour fermer la modal
+  useEffect(() => {
+    if (!editingWord) return;
+
+    const handleEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCloseEdit();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [editingWord, handleCloseEdit]);
+
   // 🚀 PERFORMANCE: Mémoïser les handlers pour éviter les re-renders inutiles
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -538,6 +631,7 @@ export function NeuroVocabulary() {
   // Ouvrir le modal d'édition
   const handleEditWord = useCallback((word: VocabularyEntry) => {
     setEditingWord(word);
+    setOriginalWord(JSON.parse(JSON.stringify(word))); // Deep copy pour comparaison
     // Fermer le formulaire d'ajout si ouvert
     setIsAddingWord(false);
   }, []);
@@ -546,11 +640,27 @@ export function NeuroVocabulary() {
   const handleSaveEdit = useCallback(async () => {
     if (!editingWord) return;
 
+    // ✅ VALIDATION DES CHAMPS OBLIGATOIRES
+    const trimmedWord = editingWord.word?.trim() || '';
+    const trimmedDefinition = editingWord.definition?.trim() || '';
+
+    if (!trimmedWord) {
+      triggerReward('Le mot est obligatoire ⚠️', { type: 'error' });
+      return;
+    }
+
+    if (!trimmedDefinition) {
+      triggerReward('La définition est obligatoire ⚠️', { type: 'error' });
+      return;
+    }
+
     try {
       const success = await updateVocabularyEntry(editingWord);
       if (success) {
         setEditingWord(null);
+        setOriginalWord(null); // Réinitialiser aussi l'original
         setSelectedWord(null);
+        setContextSentence(''); // Réinitialiser le contexte
         triggerReward('Mot modifié avec succès! ✨', { type: 'success', sound: true });
       } else {
         triggerReward('Erreur lors de la modification ❌', { type: 'error' });
@@ -1930,35 +2040,15 @@ export function NeuroVocabulary() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+              style={{
+                pointerEvents: 'auto',
+                isolation: 'isolate'
+              }}
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
-                  setEditingWord(null);
+                  handleCloseEdit();
                 }
-              }}
-              onWheel={(e) => {
-                // Empêcher le scroll de l'arrière-plan
-                e.stopPropagation();
-                e.preventDefault();
-              }}
-              onTouchMove={(e) => {
-                // Empêcher le scroll tactile sur l'arrière-plan
-                if (e.target === e.currentTarget) {
-                  e.preventDefault();
-                }
-              }}
-              onMouseDown={(e) => {
-                // Empêcher la sélection de texte sur l'arrière-plan
-                if (e.target === e.currentTarget) {
-                  e.preventDefault();
-                }
-              }}
-              style={{ 
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-                MozUserSelect: 'none',
-                msUserSelect: 'none',
-                overscrollBehavior: 'contain'
               }}
             >
               <motion.div
@@ -1966,27 +2056,17 @@ export function NeuroVocabulary() {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                onWheel={(e) => {
-                  // Permettre le scroll dans le modal, mais empêcher la propagation au backdrop
-                  e.stopPropagation();
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchMove={(e) => {
-                  // Permettre le scroll tactile dans le modal
-                  e.stopPropagation();
-                }}
                 className={`
+                  modal-content-wrapper
                   max-w-xl w-full mx-auto rounded-lg shadow-xl
                   p-4 sm:p-6 max-h-[90vh] overflow-y-auto
                   ${darkMode ? 'bg-gray-800' : 'bg-white'}
                   relative z-10
                 `}
-                style={{ 
-                  userSelect: 'auto',
-                  WebkitUserSelect: 'auto',
-                  MozUserSelect: 'auto',
-                  msUserSelect: 'auto',
-                  overscrollBehavior: 'contain'
+                style={{
+                  overscrollBehavior: 'contain',
+                  pointerEvents: 'auto',
+                  userSelect: 'auto'
                 }}
               >
                 {/* 2. Titre avec Aide IA aligné à droite */}
@@ -2103,7 +2183,9 @@ export function NeuroVocabulary() {
                       <div className="flex items-center gap-2 mt-2">
                         <button
                           type="button"
+                          disabled={isLoadingContext}
                           onClick={async () => {
+                            setIsLoadingContext(true);
                             try {
                               const response = await fetch('/.netlify/functions/improve-content', {
                                 method: 'POST',
@@ -2115,16 +2197,30 @@ export function NeuroVocabulary() {
                                   title: editingWord.word,
                                 }),
                               });
+
+                              if (!response.ok) {
+                                // Fonction Netlify non disponible (404 en dev local)
+                                setContextSentence(`Exemple : "${editingWord.word}" est utilisé dans le contexte de ${editingWord.definition}.`);
+                                return;
+                              }
+
                               const data = await response.json();
                               if (data.success && data.improved) {
                                 setContextSentence(data.improved);
+                              } else {
+                                setContextSentence(`Exemple : "${editingWord.word}" est utilisé dans le contexte de ${editingWord.definition}.`);
                               }
                             } catch (error) {
                               console.error('Erreur génération contexte:', error);
+                              // Fallback en cas d'erreur
+                              setContextSentence(`Exemple : "${editingWord.word}" est utilisé dans le contexte de ${editingWord.definition}.`);
+                            } finally {
+                              setIsLoadingContext(false);
                             }
                           }}
                           className={`
                             inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors
+                            ${isLoadingContext ? 'opacity-50 cursor-not-allowed' : ''}
                             ${darkMode
                               ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 border border-gray-600'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
@@ -2132,8 +2228,12 @@ export function NeuroVocabulary() {
                           `}
                           aria-label="Voir en contexte"
                         >
-                          <Search className="w-4 h-4" />
-                          Voir en contexte
+                          {isLoadingContext ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Search className="w-4 h-4" />
+                          )}
+                          {isLoadingContext ? 'Chargement...' : 'Voir en contexte'}
                         </button>
                       </div>
                     )}
@@ -2246,11 +2346,11 @@ export function NeuroVocabulary() {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setEditingWord(null)}
+                    onClick={handleCloseEdit}
                     className={`
                       w-full sm:w-auto px-6 h-11 rounded-lg font-medium transition-colors
-                      ${darkMode 
-                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                      ${darkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }
                     `}

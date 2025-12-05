@@ -46,7 +46,7 @@ export const VocabEditModal: FC<Props> = ({ isOpen, onClose, title, children, da
         </div>
 
         {/* Contenu scrollable */}
-        <div className="p-6">{children}</div>
+        <div className="p-6 modal-scrollable">{children}</div>
       </div>
     </div>,
     document.body
