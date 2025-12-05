@@ -26,6 +26,7 @@ import { VocabularyEntry } from '../../types';
 import { useVocabulary } from '../../hooks/useVocabulary';
 import { DatabaseErrorMessage } from '../common/DatabaseErrorMessage';
 import { Modal } from '../ui/Modal';
+import { VocabEditModal } from './VocabEditModal';
 import { Button } from '../ui/Button';
 import { ProgressBar } from '../ui/LoadingStates';
 
@@ -880,7 +881,7 @@ export function VocabularyNotebook() {
       )}
 
       {/* Modal Ajout/Édition */}
-      <Modal
+      <VocabEditModal
         isOpen={showAddModal || showEditModal}
         onClose={() => {
           setShowAddModal(false);
@@ -888,9 +889,8 @@ export function VocabularyNotebook() {
           resetForm();
         }}
         title={showEditModal ? 'Éditer le mot' : 'Ajouter un nouveau mot'}
-        size="sm"
+        darkMode={darkMode}
       >
-        <div className="p-6">
           <div className="space-y-4">
             <div>
               <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1041,8 +1041,7 @@ export function VocabularyNotebook() {
               <span>{showEditModal ? 'Mettre à jour' : 'Ajouter'}</span>
             </button>
           </div>
-        </div>
-      </Modal>
+      </VocabEditModal>
 
       {/* Modal Suppression */}
       <Modal
