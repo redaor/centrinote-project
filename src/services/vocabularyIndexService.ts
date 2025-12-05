@@ -9,80 +9,75 @@ import { logger } from '../utils/logger';
 
 /**
  * Indexe une entrée de vocabulaire via l'Edge Function index-vocabulary
- * @param vocabularyId ID de l'entrée de vocabulaire
+ * @param vocabularyId ID de l'entrée de vocabulaire (string ou number)
  * @param userId ID de l'utilisateur
  */
-export async function indexVocabulary(vocabularyId: string, userId: string): Promise<void> {
+export async function indexVocabulary(vocabularyId: string | number, userId: string): Promise<void> {
   try {
-    console.log('🚀 [vocabularyIndexService] ===== DÉBUT INDEXATION VOCABULAIRE =====');
-    console.log('🚀 [vocabularyIndexService] Paramètres reçus:', {
-      vocabularyId,
-      userId,
-      vocabularyIdLength: vocabularyId?.length,
-      userIdLength: userId?.length
-    });
+    // Convertir vocabularyId en string si c'est un nombre
+    const vocabularyIdStr = String(vocabularyId);
     
-    if (!vocabularyId || !userId) {
-      console.error('❌ [vocabularyIndexService] Paramètres manquants:', {
-        hasVocabularyId: !!vocabularyId,
-        hasUserId: !!userId
-      });
+    // Logs réduits pour améliorer les performances
+    if (import.meta.env.DEV) {
+      console.log('🚀 [vocabularyIndexService] Indexation vocabulaire:', vocabularyIdStr);
+    }
+    
+    if (!vocabularyIdStr || !userId) {
+      console.error('❌ [vocabularyIndexService] Paramètres manquants');
       throw new Error('vocabularyId et userId sont requis');
     }
     
     logger.debug('Indexation du vocabulaire', {
-      vocabularyId: vocabularyId.substring(0, 8) + "...",
+      vocabularyId: vocabularyIdStr.substring(0, 8) + "...",
       userId: userId.substring(0, 8) + "..."
     });
-
-    console.log('📞 [vocabularyIndexService] Appel Edge Function index-vocabulary...');
-    console.log('📞 [vocabularyIndexService] URL Supabase:', import.meta.env.VITE_SUPABASE_URL);
     
     const { data, error } = await supabase.functions.invoke('index-vocabulary', {
       body: {
-        vocabulary_id: vocabularyId,
+        vocabulary_id: vocabularyIdStr,
         user_id: userId
       }
     });
 
-    console.log('📥 [vocabularyIndexService] Réponse Edge Function reçue:', { 
-      hasData: !!data, 
-      hasError: !!error,
-      dataSuccess: data?.success,
-      errorMessage: error?.message
-    });
-
     if (error) {
-      console.error('❌ [vocabularyIndexService] Erreur Edge Function:', error);
+      if (import.meta.env.DEV) {
+        console.error('❌ [vocabularyIndexService] Erreur Edge Function:', error);
+      }
       logger.error('Erreur indexation vocabulaire', new Error(error.message), {
-        vocabularyId: vocabularyId.substring(0, 8) + "...",
+        vocabularyId: vocabularyIdStr.substring(0, 8) + "...",
         errorDetails: error
       });
       throw error;
     }
 
     if (data && !data.success) {
-      console.warn('⚠️ [vocabularyIndexService] Indexation échouée:', data.error);
+      if (import.meta.env.DEV) {
+        console.warn('⚠️ [vocabularyIndexService] Indexation échouée:', data.error);
+      }
       logger.warn('Indexation vocabulaire échouée', {
-        vocabularyId: vocabularyId.substring(0, 8) + "...",
+        vocabularyId: vocabularyIdStr.substring(0, 8) + "...",
         error: data.error
       });
       throw new Error(data.error || 'Indexation échouée');
     }
 
-    console.log('✅ [vocabularyIndexService] Vocabulaire indexé avec succès', {
-      vocabularyId,
-      chunkCount: data?.chunk_count || 0
-    });
+    // Log seulement en développement
+    if (import.meta.env.DEV) {
+      console.log('✅ [vocabularyIndexService] Vocabulaire indexé:', vocabularyIdStr);
+    }
     
     logger.info('Vocabulaire indexé avec succès', {
-      vocabularyId: vocabularyId.substring(0, 8) + "...",
+      vocabularyId: vocabularyIdStr.substring(0, 8) + "...",
       chunkCount: data?.chunk_count || 0
     });
   } catch (err) {
-    console.error('❌ [vocabularyIndexService] Exception indexation vocabulaire:', err);
+    const vocabularyIdStr = String(vocabularyId);
+    // Log seulement en développement pour éviter le spam
+    if (import.meta.env.DEV) {
+      console.error('❌ [vocabularyIndexService] Exception indexation vocabulaire:', err);
+    }
     logger.error('Exception indexation vocabulaire', err instanceof Error ? err : new Error(String(err)), {
-      vocabularyId: vocabularyId.substring(0, 8) + "..."
+      vocabularyId: vocabularyIdStr.substring(0, 8) + "..."
     });
     // Ne pas bloquer l'opération principale si l'indexation échoue
     // L'indexation peut être réessayée plus tard

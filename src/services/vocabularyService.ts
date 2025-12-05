@@ -487,15 +487,15 @@ class VocabularyService {
         // Utiliser setTimeout comme pour les notes pour éviter de bloquer
         setTimeout(async () => {
           try {
-            console.log('🔄 [VocabularyService] Appel indexVocabulary pour mise à jour:', {
-              vocabularyId: entry.id,
-              userId: entry.userId
-            });
+            // Indexation en arrière-plan (non bloquant)
             const { indexVocabulary } = await import('./vocabularyIndexService');
             await indexVocabulary(entry.id, entry.userId);
-            console.log('✅ [VocabularyService] Indexation vocabulaire réussie');
+            // Log seulement en cas d'erreur pour éviter le spam
           } catch (err) {
-            console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
+            // Log seulement les erreurs importantes
+            if (import.meta.env.DEV) {
+              console.error('❌ [VocabularyService] Indexation vocabulaire échouée:', err);
+            }
             logger.warn('⚠️ Erreur réindexation vocabulaire (non bloquant):', err);
           }
         }, 0);
