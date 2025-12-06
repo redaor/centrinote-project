@@ -489,8 +489,10 @@ Propose-lui une astuce ou suggestion d'utilisation intéressante et pertinente l
 
     // Si besoin d'escalation ET que l'utilisateur a confirmé que le problème n'est pas résolu
     if (needsEscalation && exchangeCount >= 1 && userConfirmedProblemNotResolved) {
-      console.log('[chatbot-handler] User confirmed problem not resolved, creating support ticket');
-      const ticketId = await createSupportTicket(request, supabase, false);
+      console.log('[chatbot-handler] User confirmed problem not resolved, creating support message');
+      // Créer le message dans support_messages avec escalated=true
+      const ticketId = await createSupportTicket(request, supabase, true);
+      console.log('[chatbot-handler] Support message created with ID:', ticketId);
       const emailDraft = generateEmailDraft(request, aiMessage);
 
       const response: ChatbotResponse = {
@@ -609,39 +611,12 @@ async function handleEscalation(
   try {
     console.log('[chatbot-handler] Handling escalation request');
     
-    // Si un ticket existe déjà, le mettre à jour
-    let ticketId = request.ticketId;
+    // Créer un nouveau message via notify-support (qui envoie aussi l'email)
+    // On crée toujours un nouveau message pour l'escalation
+    const ticketId = await createSupportTicket(request, supabase, true);
     
-    if (ticketId && !ticketId.startsWith('temp-')) {
-      // Mettre à jour le message existant dans support_messages
-      const { error: updateError } = await supabase
-        .from('support_messages')
-        .update({ 
-          status: 'nouveau',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', ticketId);
-      
-      if (updateError) {
-        console.error('[chatbot-handler] Error updating support message:', updateError);
-        // Créer un nouveau message si la mise à jour échoue
-        ticketId = await createSupportTicket(request, supabase, true);
-      }
-    } else {
-      // Créer un nouveau message
-      ticketId = await createSupportTicket(request, supabase, true);
-    }
-    
-    console.log(`[chatbot-handler] Support message ID: ${ticketId}`);
-    
-    // Envoyer l'email à l'équipe admin
-    try {
-      await sendEmailToAdmin(request, ticketId, supabase);
-      console.log('[chatbot-handler] Email sent to admin');
-    } catch (emailError) {
-      console.error('[chatbot-handler] Error sending email:', emailError);
-      // Ne pas faire échouer la requête si l'email échoue
-    }
+    console.log(`[chatbot-handler] Support message created via notify-support, ID: ${ticketId}`);
+    // Note: notify-support envoie déjà l'email automatiquement, pas besoin d'appeler sendEmailToAdmin
 
     const response: EscalationResponse = {
       ticketId,
@@ -819,38 +794,59 @@ async function createSupportTicket(
   escalated: boolean
 ): Promise<string> {
   try {
-    console.log('[chatbot-handler] Creating support ticket, escalated:', escalated);
+    console.log('[chatbot-handler] Creating support ticket via notify-support, escalated:', escalated);
     
-    // Utiliser support_messages (table existante qui fonctionne)
+    // Utiliser la même Edge Function que le formulaire de contact (notify-support)
     const conversationText = formatConversationHistory(request.conversationHistory || []);
     const subject = escalated 
       ? `[Chatbot] Demande de support - ${request.userName}`
       : `[Chatbot] Question - ${request.userName}`;
     
-    const { data, error } = await supabase
-      .from('support_messages')
-      .insert({
+    // Appeler notify-support comme le fait le formulaire de contact
+    const notifyResponse = await fetch(`${SUPABASE_URL}/functions/v1/notify-support`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+      },
+      body: JSON.stringify({
         name: request.userName,
         email: request.userEmail,
         subject: subject,
-        message: conversationText,
-        status: 'nouveau',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        message: conversationText
       })
-      .select()
-      .single();
+    });
 
-    if (error) {
-      console.error('[chatbot-handler] Error creating support message:', error);
-      // Générer un ID temporaire si la création échoue
+    if (!notifyResponse.ok) {
+      const errorText = await notifyResponse.text();
+      console.error('[chatbot-handler] Error calling notify-support:', notifyResponse.status, errorText);
+      // Générer un ID temporaire si l'appel échoue
       const tempId = `temp-${Date.now()}`;
       console.log(`[chatbot-handler] Generated temporary ticket ID: ${tempId}`);
       return tempId;
     }
 
-    console.log(`[chatbot-handler] Support message created successfully: ${data.id}`);
-    return data.id;
+    const notifyData = await notifyResponse.json();
+    
+    if (!notifyData.success || !notifyData.id) {
+      console.error('[chatbot-handler] notify-support returned error:', notifyData);
+      const tempId = `temp-${Date.now()}`;
+      console.log(`[chatbot-handler] Generated temporary ticket ID: ${tempId}`);
+      return tempId;
+    }
+
+    console.log(`[chatbot-handler] Support message created successfully via notify-support:`, {
+      id: notifyData.id,
+      subject: subject,
+      email: request.userEmail,
+      fullResponse: notifyData
+    });
+
+    // LOG DÉTAILLÉ : Vérifier que le message a bien été créé
+    console.log(`[chatbot-handler] ✅ Message ID returned from notify-support: ${notifyData.id}`);
+    console.log(`[chatbot-handler] 📧 Full notify-support response:`, JSON.stringify(notifyData));
+
+    return notifyData.id;
   } catch (error) {
     console.error('[chatbot-handler] Exception creating support message:', error);
     // Générer un ID temporaire en cas d'exception

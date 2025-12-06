@@ -39,6 +39,8 @@ serve(async (req) => {
     );
 
     // 1. Sauvegarder le message dans la base de données
+    console.log(`[notify-support] Attempting to insert message: name=${name}, email=${email}, subject=${subject}`);
+
     const { data, error: dbError } = await supabase
       .from("support_messages")
       .insert([
@@ -54,7 +56,8 @@ serve(async (req) => {
       .single();
 
     if (dbError) {
-      console.error("Erreur DB:", dbError);
+      console.error("[notify-support] ❌ Erreur DB:", dbError);
+      console.error("[notify-support] DB Error details:", JSON.stringify(dbError, null, 2));
       return new Response(
         JSON.stringify({ error: "Erreur lors de l'enregistrement du message" }),
         {
@@ -63,6 +66,9 @@ serve(async (req) => {
         }
       );
     }
+
+    console.log(`[notify-support] ✅ Message inserted successfully with ID: ${data.id}`);
+    console.log(`[notify-support] Inserted data:`, JSON.stringify(data, null, 2));
 
     // 2. Envoyer un email de notification aux admins
     try {

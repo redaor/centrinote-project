@@ -74,12 +74,8 @@ export function SupportMessagesPage() {
         logger.error('Erreur lors du chargement des messages', messagesError);
       }
 
-      // Essayer aussi de charger depuis support_tickets si la table existe (pour compatibilité)
-      const { data: tickets, error: ticketsError } = await supabase
-        .from('support_tickets')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(0);
+      // Ne plus essayer de charger support_tickets (causait des erreurs 403)
+      // On utilise uniquement support_messages qui fonctionne
 
       if (messagesError && messagesError.code !== 'PGRST116') {
         // PGRST116 = table n'existe pas, on ignore
@@ -92,6 +88,15 @@ export function SupportMessagesPage() {
       // Ajouter les messages de support_messages (table principale)
       if (messages && !messagesError) {
         console.log('[SupportMessagesPage] Processing', messages.length, 'messages');
+        if (messages.length > 0) {
+          console.log('[SupportMessagesPage] Sample message:', {
+            id: messages[0].id,
+            subject: messages[0].subject,
+            email: messages[0].email,
+            status: messages[0].status,
+            created_at: messages[0].created_at
+          });
+        }
         messages.forEach(msg => {
           allMessages.push({
             id: msg.id,
@@ -104,31 +109,16 @@ export function SupportMessagesPage() {
             updated_at: msg.updated_at || msg.created_at
           });
         });
-      }
-
-      // Ajouter aussi les tickets de support_tickets si disponibles (pour compatibilité)
-      if (tickets && !ticketsError) {
-        console.log('[SupportMessagesPage] Processing', tickets.length, 'tickets');
-        tickets.forEach(ticket => {
-          allMessages.push({
-            id: ticket.id,
-            name: ticket.user_name || 'Utilisateur anonyme',
-            email: ticket.user_email,
-            subject: ticket.subject,
-            message: ticket.content,
-            status: ticket.status === 'open' ? 'nouveau' : 
-                   ticket.status === 'in_progress' ? 'en_cours' : 
-                   ticket.status === 'resolved' || ticket.status === 'closed' ? 'resolu' : 'nouveau',
-            created_at: ticket.created_at,
-            updated_at: ticket.updated_at,
-            user_id: ticket.user_id,
-            user_name: ticket.user_name,
-            user_email: ticket.user_email,
-            source: ticket.source,
-            escalated: ticket.escalated,
-            priority: ticket.priority
-          });
+      } else if (messagesError) {
+        console.error('[SupportMessagesPage] Error details:', {
+          code: messagesError.code,
+          message: messagesError.message,
+          details: messagesError.details,
+          hint: messagesError.hint
         });
+        setError(`Erreur lors du chargement: ${messagesError.message || 'Erreur inconnue'}`);
+      } else if (!messages || messages.length === 0) {
+        console.log('[SupportMessagesPage] No messages found. User:', user?.email, 'Is admin:', isAdmin);
       }
 
       // Trier par date de création (plus récent en premier)

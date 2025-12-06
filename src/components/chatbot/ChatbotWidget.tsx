@@ -321,6 +321,7 @@ export function ChatbotWidget({
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showEscalation, setShowEscalation] = useState(false);
+  const [failureCount, setFailureCount] = useState(0); // Compteur de clics "Non, toujours bloqué"
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -396,6 +397,9 @@ export function ChatbotWidget({
   };
 
   const handleProblemResolved = async () => {
+    // Réinitialiser le compteur d'échecs car le problème est résolu
+    setFailureCount(0);
+
     // Envoyer "oui" au chatbot pour obtenir une astuce
     const userMessage = 'oui, c\'est réglé';
     setInputValue('');
@@ -416,9 +420,9 @@ export function ChatbotWidget({
       });
 
       addMessage('bot', response.message);
-      
+
       // Retirer les boutons de confirmation du message précédent
-      setMessages(prev => prev.map(msg => 
+      setMessages(prev => prev.map(msg =>
         msg.showConfirmationButtons ? { ...msg, showConfirmationButtons: false } : msg
       ));
     } catch (error) {
@@ -430,6 +434,10 @@ export function ChatbotWidget({
   };
 
   const handleProblemNotResolved = async () => {
+    // Incrémenter le compteur d'échecs
+    const newFailureCount = failureCount + 1;
+    setFailureCount(newFailureCount);
+
     // Envoyer "non" au chatbot pour déclencher l'escalation
     const userMessage = 'non, toujours bloqué';
     setInputValue('');
@@ -437,32 +445,107 @@ export function ChatbotWidget({
 
     addMessage('user', '❌ Non, toujours bloqué');
 
-    try {
-      const response = await chatbotService.sendMessage({
-        message: userMessage,
-        userId: user?.id || 'anonymous',
-        userEmail: user?.email || '',
-        userName: user?.full_name || user?.email || 'Utilisateur',
-        conversationHistory: messages.slice(-5).map(m => ({
-          role: m.type === 'user' ? 'user' : 'assistant',
-          content: m.content
-        }))
-      });
+    // Retirer les boutons de confirmation du message précédent immédiatement
+    setMessages(prev => prev.map(msg =>
+      msg.showConfirmationButtons ? { ...msg, showConfirmationButtons: false } : msg
+    ));
 
-      if (response.requiresEscalation) {
-        addMessage('bot', response.message, {
-          ticketId: response.ticketId,
-          emailDraft: response.emailDraft
+    try {
+      // Si c'est le 2ème échec, déclencher l'escalation automatiquement
+      if (newFailureCount >= 2) {
+        console.log('[ChatbotWidget] 2 échecs détectés, escalation automatique');
+
+        // Récupérer les informations de contexte (navigateur, appareil, etc.)
+        const userAgent = navigator.userAgent;
+        const browserInfo = {
+          navigateur: /Firefox/.test(userAgent) ? 'Firefox' :
+                     /Chrome/.test(userAgent) ? 'Chrome' :
+                     /Safari/.test(userAgent) ? 'Safari' :
+                     /Edge/.test(userAgent) ? 'Edge' : 'Autre',
+          appareil: /Mobile|Android|iPhone|iPad/.test(userAgent) ? 'Mobile' : 'Ordinateur',
+          systeme: /Windows/.test(userAgent) ? 'Windows' :
+                   /Mac/.test(userAgent) ? 'MacOS' :
+                   /Linux/.test(userAgent) ? 'Linux' :
+                   /Android/.test(userAgent) ? 'Android' :
+                   /iOS|iPhone|iPad/.test(userAgent) ? 'iOS' : 'Autre',
+          langue: navigator.language || 'fr-FR',
+          heureLocale: new Date().toLocaleString('fr-FR')
+        };
+
+        // Générer un email pré-rempli avec le résumé complet
+        const conversationSummary = messages
+          .slice(-10) // Prendre les 10 derniers messages
+          .map(m => `${m.type === 'user' ? 'Moi' : 'Assistant'}: ${m.content}`)
+          .join('\n\n');
+
+        const emailDraft = `=== DEMANDE DE SUPPORT CENTRINOTE ===
+
+📋 RÉSUMÉ DU PROBLÈME :
+${conversationSummary}
+
+---
+
+✅ ÉTAPES DÉJÀ TESTÉES :
+${messages
+  .filter(m => m.type === 'bot' && (m.content.includes('✅') || m.content.includes('vérifier') || m.content.includes('essayer')))
+  .map((m, i) => `${i + 1}. ${m.content.split('\n')[0]}`)
+  .join('\n')}
+
+---
+
+💻 INFORMATIONS TECHNIQUES :
+• Navigateur : ${browserInfo.navigateur}
+• Appareil : ${browserInfo.appareil}
+• Système d'exploitation : ${browserInfo.systeme}
+• Langue : ${browserInfo.langue}
+• Heure locale : ${browserInfo.heureLocale}
+• Utilisateur : ${user?.full_name || user?.email || 'Anonyme'}
+• Email : ${user?.email || 'Non renseigné'}
+
+---
+
+Note : Cette demande a été générée automatiquement après 2 tentatives infructueuses de résolution via le chatbot.
+`;
+
+        // Créer le message d'escalation avec l'icône 📧
+        const escalationMessage = `Je comprends que le problème persiste malgré nos tentatives. 😔\n\n📧 **Notre équipe va examiner votre cas en détail.**\n\nJ'ai généré un email automatique avec :\n• Le résumé de votre problème\n• Les étapes que nous avons déjà testées\n• Vos informations techniques (${browserInfo.navigateur}, ${browserInfo.systeme})`;
+
+        addMessage('bot', escalationMessage, {
+          ticketId: `temp-${Date.now()}`,
+          emailDraft: emailDraft
         });
         setShowEscalation(true);
       } else {
-        addMessage('bot', response.message);
-      }
+        // Premier échec : continuer normalement
+        const response = await chatbotService.sendMessage({
+          message: userMessage,
+          userId: user?.id || 'anonymous',
+          userEmail: user?.email || '',
+          userName: user?.full_name || user?.email || 'Utilisateur',
+          conversationHistory: messages.slice(-5).map(m => ({
+            role: m.type === 'user' ? 'user' : 'assistant',
+            content: m.content
+          }))
+        });
 
-      // Retirer les boutons de confirmation du message précédent
-      setMessages(prev => prev.map(msg => 
-        msg.showConfirmationButtons ? { ...msg, showConfirmationButtons: false } : msg
-      ));
+        if (response.requiresEscalation) {
+          addMessage('bot', response.message, {
+            ticketId: response.ticketId,
+            emailDraft: response.emailDraft
+          });
+          setShowEscalation(true);
+        } else {
+          const newMessage = addMessage('bot', response.message);
+          // Ajouter les boutons de confirmation si nécessaire
+          if (response.showConfirmationButtons) {
+            setMessages(prev => prev.map(msg =>
+              msg.id === newMessage.id
+                ? { ...msg, showConfirmationButtons: true }
+                : msg
+            ));
+          }
+        }
+      }
     } catch (error) {
       console.error('Erreur chatbot:', error);
       addMessage('bot', 'Je comprends. Je vais t\'aider à contacter notre équipe de support.');
