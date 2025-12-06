@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Shield, LogOut, HelpCircle, Trash2 } from 'lucide-react';
 import { SettingsCard } from '../ui/SettingsCard';
 import { ConfirmModal } from '../modals/ConfirmModal';
@@ -21,6 +22,7 @@ export function SecuritySection({
   isLoading = false,
   isDark = false
 }: SecuritySectionProps) {
+  const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -46,8 +48,8 @@ export function SecuritySection({
   };
 
   const handleHelpClick = () => {
-    // Ouvrir la page d'aide ou un lien externe
-    window.open('https://docs.centrinote.com', '_blank');
+    // Naviguer vers la page d'aide interne
+    navigate('/help');
   };
 
   return (

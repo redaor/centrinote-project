@@ -5,7 +5,8 @@
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Send, Loader2, Brain, AlertCircle, CheckCircle, Sparkles, Paperclip, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Send, Loader2, Brain, AlertCircle, CheckCircle, Sparkles, Paperclip, X, MessageCircle, Search, Shield, Copy, RefreshCw, ThumbsUp, MoreVertical, Minimize2, Maximize2 } from 'lucide-react';
 import { useCentrinoteAI } from '../../hooks/useCentrinoteAI';
 import { useCentrinoteAI_Edge } from '../../hooks/useCentrinoteAI_Edge';
 import { useApp } from '../../contexts/AppContext';
@@ -732,295 +733,498 @@ export function AIChat() {
   }, [clearAllErrors, resetSession]);
 
   const contextStats = getContextStats();
+  const [isMinimized, setIsMinimized] = useState(false);
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-800 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur-lg opacity-20 animate-pulse" />
-              <div className="relative p-2 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full">
-                <Brain className="w-6 h-6 text-white" />
+    <motion.div 
+      className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-white to-blue-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800"
+      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Header Modernisé avec Contrôles de Fenêtre */}
+      <motion.div 
+        className="flex-shrink-0 border-b border-slate-200/80 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl shadow-sm"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        {/* Titre avec icône et Badge Sécurité */}
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          {/* Titre avec icône */}
+          <div className="flex items-center gap-2">
+            <motion.div
+              className="relative"
+              whileHover={{ scale: 1.1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-full blur-md opacity-30 animate-pulse" />
+              <div className="relative p-1.5 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full">
+                <Brain className="w-4 h-4 text-white" />
               </div>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Assistant IA Centrinote
-              </h1>
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {isReady ? 'Prêt' : 'Initialisation...'} • {contextStats.totalEntries} éléments
-                </p>
-                {selectedFile && (
-                  <ContextBadge
-                    fileCount={1}
-                    totalSize={selectedFile.size}
-                  />
-                )}
-              </div>
-            </div>
+            </motion.div>
+            <h1 className="text-base font-bold text-slate-900 dark:text-white">
+              Assistant Centrinote
+            </h1>
           </div>
 
-          {/* Mode selector */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMode('chat')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                mode === 'chat'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 inline mr-1" />
-              Chat
-            </button>
-            <button
-              onClick={() => setMode('analyze')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                mode === 'analyze'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              Analyser
-            </button>
+          {/* Badge Sécurité */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+              <Shield className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">100%</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Messages */}
-      <div 
-        className="flex-1 overflow-y-auto p-4 space-y-4"
-        style={{ minHeight: '200px' }} // Force une hauteur minimale pour l'affichage
-      >
-        {import.meta.env.DEV && (
-          <div className="mb-2 p-2 bg-yellow-100 dark:bg-yellow-900/20 text-xs text-yellow-800 dark:text-yellow-200 rounded">
-            🔍 Debug: {messages.length} message(s) dans le state | Messages avec contenu: {messages.filter(m => m.content?.trim().length > 0).length}
-          </div>
-        )}
-        {isLoadingMessages && (
-          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin" />
-              <p>Chargement de vos conversations...</p>
-            </div>
-          </div>
-        )}
-        {!isLoadingMessages && messages.length === 0 && (
-          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-            <p>Aucun message pour le moment. Posez votre question ci-dessous !</p>
-          </div>
-        )}
-        {messages.length > 0 && messages.filter(m => m.content?.trim().length > 0).length === 0 && (
-          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-            <p>⚠️ Messages dans le state mais aucun contenu valide</p>
-          </div>
-        )}
-        {messages.map((message, index) => {
-          // Validation du contenu pour déboguer
-          if (!message.content || message.content.trim().length === 0) {
-            console.warn('⚠️ [AIChat] Message vide détecté lors du render:', {
-              id: message.id,
-              index,
-              type: message.type,
-            });
-            return null; // Ne pas rendre les messages vides
-          }
-          
-          const willRender = !!message.content && message.content.trim().length > 0;
-          
-          if (import.meta.env.DEV) {
-            console.log(`🎨 [AIChat] Rendu message #${index + 1}/${messages.length}:`, {
-              id: message.id,
-              type: message.type,
-              contentLength: message.content?.length || 0,
-              willRender,
-              contentPreview: message.content?.substring(0, 50),
-            });
-          }
-          
-          if (!willRender) {
-            return null;
-          }
-          
-          // Utiliser AIResponseCard pour les messages IA
-          if (message.type === 'ai') {
-            return (
-              <AIResponseCard
-                key={message.id}
-                content={message.content}
-                timestamp={message.timestamp}
-                hasFileContext={message.metadata?.hasFileContext}
-                metadata={message.metadata}
-              />
-            );
-          }
-
-          // Affichage par défaut pour les autres types (user, error, code)
-          return (
-            <div
-              key={message.id}
-              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-              style={{ minHeight: 'auto' }}
+        {/* Onglets et Indicateur de Statut */}
+        <div className="flex items-center justify-between px-4 pb-3">
+          <div className="flex items-center gap-2">
+            <motion.button
+              onClick={() => setMode('chat')}
+              className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                mode === 'chat'
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'
+              }`}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              <div
-                className={`max-w-3xl rounded-lg p-4 ${
-                  message.type === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : message.type === 'error'
-                    ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-300 dark:border-red-800'
-                    : message.type === 'code'
-                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm border border-gray-300 dark:border-gray-700'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                }`}
-                style={{
-                  display: 'block',
-                  opacity: 1,
-                  visibility: 'visible'
-                }}
-              >
-                {message.type === 'code' ? (
-                  <pre className="whitespace-pre-wrap overflow-x-auto" style={{ margin: 0 }}>
-                    <code style={{ display: 'block' }}>{message.content || '(contenu vide)'}</code>
-                  </pre>
-                ) : (
-                  <p
-                    className="whitespace-pre-wrap"
-                    style={{ margin: 0, display: 'block', minHeight: '1em' }}
-                  >
-                    {message.content || '(contenu vide)'}
-                  </p>
-                )}
+              <MessageCircle className={`w-4 h-4 ${mode === 'chat' ? 'text-white' : ''}`} />
+              <span>Conversation</span>
+              {mode === 'chat' && (
+                <motion.div
+                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-md"
+                  animate={{ opacity: [0.2, 0.4, 0.2] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              )}
+            </motion.button>
 
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {message.timestamp.toLocaleTimeString()}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-              <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-            </div>
+            <motion.button
+              onClick={() => setMode('analyze')}
+              className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                mode === 'analyze'
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'
+              }`}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Search className={`w-4 h-4 ${mode === 'analyze' ? 'text-white' : ''}`} />
+              <span>Analyseur</span>
+              {mode === 'analyze' && (
+                <motion.div
+                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-md"
+                  animate={{ opacity: [0.2, 0.4, 0.2] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              )}
+            </motion.button>
           </div>
-        )}
 
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
-        {aiError && (
-          <div className="mb-2 p-2 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-200">
-            <AlertCircle className="w-4 h-4 inline mr-1" />
-            {aiError}
-          </div>
-        )}
-
-        {/* Affichage du fichier sélectionné avec FileContextCard */}
-        {selectedFile && (
-          <div className="mb-3">
-            <FileContextCard
-              fileName={selectedFile.name}
-              fileSize={selectedFile.size}
-              onRemove={() => {
-                setSelectedFile(null);
-                if (fileInputRef.current) {
-                  fileInputRef.current.value = '';
-                }
+          {/* Indicateur de Statut */}
+          <div className="flex items-center gap-2">
+            <motion.div
+              className={`w-2 h-2 rounded-full ${
+                isReady ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+              animate={{ 
+                scale: isReady ? [1, 1.2, 1] : [1, 1.3, 1],
+                opacity: isReady ? [1, 0.8, 1] : [1, 0.6, 1]
               }}
-              onQuickAction={(action) => {
-                if (action === 'summary') {
-                  setInputValue('Résume ce document en quelques points clés');
-                } else if (action === 'extract') {
-                  setInputValue('Extrais les informations principales de ce document');
-                } else if (action === 'ask') {
-                  setInputValue('');
-                  // Focus sur l'input
-                  const inputElement = document.querySelector('input[type="text"]') as HTMLInputElement;
-                  if (inputElement) {
-                    inputElement.focus();
-                  }
-                }
-              }}
-              isProcessing={isLoading}
-              isActive={true}
+              transition={{ duration: 2, repeat: Infinity }}
             />
-          </div>
-        )}
-
-        <form onSubmit={handleSend} className="flex gap-2">
-          {/* Input file caché */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".txt,.md,.markdown,.pdf,.docx,.doc"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                // Validation de la taille (5 Mo max)
-                if (file.size > 5 * 1024 * 1024) {
-                  alert('Le fichier est trop volumineux (max 5 Mo)');
-                  return;
-                }
-                // 📎 Log n°1 – fichier reçu (côté frontend)
-                console.log("📎 Fichier reçu :", file.name, file.type, file.size);
-                setSelectedFile(file);
-                console.log('📎 [AIChat] Fichier sélectionné:', file.name);
-              }
-            }}
-          />
-
-          {/* Bouton d'ajout de fichier */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || !isReady}
-            className="px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Joindre un fichier"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-
-          <div className="flex-1 flex items-center gap-2">
-            <input
-              id="rechercheIA"
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder={selectedFile ? "Posez une question sur ce document..." : "Posez votre question..."}
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading || !isReady}
-            />
-            {/* 🎤 Bouton de reconnaissance vocale */}
-            <VoiceRecognition inputId="rechercheIA" submitButtonId="notes" />
-          </div>
-          <button
-            id="notes"
-            type="submit"
-            disabled={isLoading || !isReady || !inputValue.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Envoi...
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                Envoyer
-              </>
+            <span className="text-xs font-medium text-slate-600 dark:text-gray-400">
+              {isReady ? 'Prêt' : 'Initialisation...'}
+            </span>
+            {contextStats.totalEntries > 0 && (
+              <span className="text-xs text-slate-500 dark:text-gray-500">
+                • {contextStats.totalEntries} éléments
+              </span>
             )}
-          </button>
-        </form>
-      </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Zone de Messages Modernisée */}
+      <AnimatePresence>
+        {!isMinimized && (
+          <motion.div
+            className="flex-1 overflow-y-auto px-4 py-6 space-y-4 bg-gradient-to-b from-transparent to-slate-50/50 dark:to-gray-900/50"
+            style={{ minHeight: '200px' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {isLoadingMessages && (
+              <motion.div
+                className="flex items-center justify-center h-full"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+                  <p className="text-sm text-slate-600 dark:text-gray-400">Chargement de vos conversations...</p>
+                </div>
+              </motion.div>
+            )}
+
+            {!isLoadingMessages && messages.length === 0 && (
+              <motion.div
+                className="flex items-center justify-center h-full"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <div className="text-center">
+                  <motion.div
+                    className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                  >
+                    <Brain className="w-8 h-8 text-white" />
+                  </motion.div>
+                  <p className="text-slate-600 dark:text-gray-400">Aucun message pour le moment. Posez votre question ci-dessous !</p>
+                </div>
+              </motion.div>
+            )}
+
+            <AnimatePresence>
+              {messages.map((message, index) => {
+                if (!message.content || message.content.trim().length === 0) {
+                  return null;
+                }
+
+                // Message AI
+                if (message.type === 'ai') {
+                  return (
+                    <motion.div
+                      key={message.id}
+                      className="flex justify-start gap-3"
+                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                    >
+                      <motion.div
+                        className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg"
+                        whileHover={{ scale: 1.1, rotate: 5 }}
+                      >
+                        <Brain className="w-4 h-4 text-white" />
+                      </motion.div>
+                      <div className="flex-1 max-w-[70%] md:max-w-[75%]">
+                        <motion.div
+                          className="bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm p-4 shadow-md border border-slate-200 dark:border-gray-700"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-slate-500 dark:text-gray-400">
+                              {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <motion.button
+                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                title="Copier"
+                                onClick={() => navigator.clipboard.writeText(message.content)}
+                              >
+                                <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-gray-400" />
+                              </motion.button>
+                              <motion.button
+                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                title="Régénérer"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5 text-slate-500 dark:text-gray-400" />
+                              </motion.button>
+                              <motion.button
+                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                title="J'aime"
+                              >
+                                <ThumbsUp className="w-3.5 h-3.5 text-slate-500 dark:text-gray-400" />
+                              </motion.button>
+                            </div>
+                          </div>
+                          <div className="text-slate-900 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                            {message.content}
+                          </div>
+                        </motion.div>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                // Message User
+                if (message.type === 'user') {
+                  // Composant interne pour gérer l'état de l'avatar
+                  const UserAvatar = () => {
+                    const [imgError, setImgError] = useState(false);
+                    
+                    return (
+                      <motion.div
+                        className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center shadow-lg overflow-hidden"
+                        whileHover={{ scale: 1.1 }}
+                      >
+                        {user?.avatar && !imgError ? (
+                          <img
+                            src={user.avatar}
+                            alt={user.name || 'Utilisateur'}
+                            className="w-full h-full object-cover"
+                            onError={() => setImgError(true)}
+                          />
+                        ) : (
+                          <span className="text-white text-sm">👤</span>
+                        )}
+                      </motion.div>
+                    );
+                  };
+
+                  return (
+                    <motion.div
+                      key={message.id}
+                      className="flex justify-end gap-3"
+                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                    >
+                      <div className="flex-1 max-w-[70%] md:max-w-[75%] flex justify-end">
+                        <motion.div
+                          className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl rounded-tr-sm p-4 shadow-lg"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          <div className="flex items-center justify-end mb-2">
+                            <span className="text-xs font-medium text-white/80">
+                              {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="whitespace-pre-wrap leading-relaxed">
+                            {message.content}
+                          </div>
+                        </motion.div>
+                      </div>
+                      <UserAvatar />
+                    </motion.div>
+                  );
+                }
+
+                // Message Error
+                if (message.type === 'error') {
+                  return (
+                    <motion.div
+                      key={message.id}
+                      className="flex justify-start"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                    >
+                      <div className="max-w-[70%] md:max-w-[75%] bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          <span className="text-sm font-medium text-red-800 dark:text-red-200">Erreur</span>
+                        </div>
+                        <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">
+                          {message.content}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                // Message Code
+                if (message.type === 'code') {
+                  return (
+                    <motion.div
+                      key={message.id}
+                      className="flex justify-start"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <div className="max-w-[85%] bg-slate-900 dark:bg-gray-950 border border-slate-700 dark:border-gray-800 rounded-xl p-4 overflow-x-auto">
+                        <pre className="text-sm text-slate-100 font-mono whitespace-pre-wrap">
+                          <code>{message.content}</code>
+                        </pre>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                return null;
+              })}
+            </AnimatePresence>
+
+            {isLoading && (
+              <motion.div
+                className="flex justify-start gap-3"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                  <Brain className="w-4 h-4 text-white" />
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm p-4 shadow-md border border-slate-200 dark:border-gray-700">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm text-slate-600 dark:text-gray-400">L'IA réfléchit...</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Zone Input Modernisée */}
+      <AnimatePresence>
+        {!isMinimized && (
+          <motion.div
+            className="flex-shrink-0 border-t border-slate-200/80 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-4"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 20, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {aiError && (
+              <motion.div
+                className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-2"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                <span className="text-sm text-red-800 dark:text-red-200">{aiError}</span>
+              </motion.div>
+            )}
+
+            {/* Affichage du fichier sélectionné */}
+            {selectedFile && (
+              <motion.div
+                className="mb-3"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+              >
+                <FileContextCard
+                  fileName={selectedFile.name}
+                  fileSize={selectedFile.size}
+                  onRemove={() => {
+                    setSelectedFile(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                  }}
+                  onQuickAction={(action) => {
+                    if (action === 'summary') {
+                      setInputValue('Résume ce document en quelques points clés');
+                    } else if (action === 'extract') {
+                      setInputValue('Extrais les informations principales de ce document');
+                    } else if (action === 'ask') {
+                      setInputValue('');
+                      const inputElement = document.querySelector('input[type="text"]') as HTMLInputElement;
+                      if (inputElement) {
+                        inputElement.focus();
+                      }
+                    }
+                  }}
+                  isProcessing={isLoading}
+                  isActive={true}
+                />
+              </motion.div>
+            )}
+
+            <form onSubmit={handleSend} className="relative">
+              {/* Input file caché */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.markdown,.pdf,.docx,.doc"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                      alert('Le fichier est trop volumineux (max 5 Mo)');
+                      return;
+                    }
+                    console.log("📎 Fichier reçu :", file.name, file.type, file.size);
+                    setSelectedFile(file);
+                    console.log('📎 [AIChat] Fichier sélectionné:', file.name);
+                  }
+                }}
+              />
+
+              <motion.div
+                className="flex items-end gap-2 p-2 bg-slate-50 dark:bg-gray-800/50 rounded-2xl border border-slate-200 dark:border-gray-700 focus-within:border-blue-500 dark:focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-200"
+                whileFocus={{ scale: 1.01 }}
+              >
+                {/* Bouton Pièce jointe */}
+                <motion.button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading || !isReady}
+                  className="p-2.5 rounded-xl bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Joindre un fichier"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  aria-label="Joindre un fichier"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </motion.button>
+
+                {/* Zone de saisie */}
+                <div className="flex-1 flex items-center gap-2">
+                  <textarea
+                    id="rechercheIA"
+                    value={inputValue}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                    }}
+                    placeholder={selectedFile ? "Posez une question sur ce document..." : "Tapez votre message..."}
+                    className="flex-1 px-4 py-3 bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500 resize-none focus:outline-none text-sm leading-relaxed max-h-[120px]"
+                    disabled={isLoading || !isReady}
+                    rows={1}
+                    style={{ minHeight: '44px' }}
+                    aria-label="Zone de saisie de message"
+                  />
+                  {/* Bouton de reconnaissance vocale */}
+                  <VoiceRecognition inputId="rechercheIA" submitButtonId="notes" />
+                </div>
+
+                {/* Bouton Envoyer */}
+                <motion.button
+                  id="notes"
+                  type="submit"
+                  disabled={isLoading || !isReady || !inputValue.trim()}
+                  className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center ${
+                    isLoading || !isReady || !inputValue.trim()
+                      ? 'bg-slate-200 dark:bg-gray-700 text-slate-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40'
+                  }`}
+                  whileHover={!isLoading && isReady && inputValue.trim() ? { scale: 1.05 } : {}}
+                  whileTap={!isLoading && isReady && inputValue.trim() ? { scale: 0.95 } : {}}
+                  aria-label="Envoyer le message"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
+                </motion.button>
+              </motion.div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Modal de confirmation pour les actions IA */}
       <AIActionConfirmModal
@@ -1261,7 +1465,7 @@ export function AIChat() {
         isLoading={isApplyingAction}
         darkMode={darkMode}
       />
-    </div>
+    </motion.div>
   );
 }
 
