@@ -515,25 +515,40 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
           emailDraft: emailDraft
         });
 
-        // **ENVOYER L'EMAIL AUTOMATIQUEMENT** sans attendre que l'utilisateur clique
-        console.log('[ChatbotWidget] Envoi automatique de l\'email de support...');
+        // **ENVOYER L'EMAIL AUTOMATIQUEMENT** - Appel DIRECT à notify-support (comme le formulaire)
+        console.log('[ChatbotWidget] 📧 Envoi automatique vers notify-support...');
 
         try {
-          const result = await chatbotService.escalateToEmail({
-            userId: user?.id || 'anonymous',
-            userEmail: user?.email || '',
-            userName: user?.full_name || user?.email || 'Utilisateur',
-            conversationHistory: messages.concat([
-              { id: Date.now().toString(), type: 'user', content: '❌ Non, toujours bloqué', timestamp: new Date() },
-              botMessage
-            ]),
-            ticketId: botMessage.escalationData?.ticketId
-          });
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-support`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              },
+              body: JSON.stringify({
+                name: user?.full_name || user?.email?.split('@')[0] || 'Utilisateur Chatbot',
+                email: user?.email || 'noreply@centrinote.fr',
+                subject: `[Chatbot] Support automatique - ${user?.full_name || 'Utilisateur'}`,
+                message: emailDraft,
+              }),
+            }
+          );
 
-          console.log('[ChatbotWidget] ✅ Email envoyé avec succès, ticketId:', result.ticketId);
+          const data = await response.json();
+          console.log('[ChatbotWidget] 📥 Réponse de notify-support:', data);
 
-          // Ajouter un message de confirmation
-          addMessage('system', `✅ Email envoyé avec succès ! Ticket #${result.ticketId} créé. Notre équipe vous répondra sous 24h.`);
+          if (!response.ok) {
+            throw new Error(data.error || 'Erreur lors de l\'envoi du message');
+          }
+
+          if (data.success && data.id) {
+            console.log('[ChatbotWidget] ✅ Email envoyé avec succès, ID:', data.id);
+            addMessage('system', `✅ Email envoyé avec succès ! Votre demande a été enregistrée (ID: ${data.id}). Notre équipe vous répondra sous 24h.`);
+          } else {
+            throw new Error('Réponse invalide de notify-support');
+          }
         } catch (emailError) {
           console.error('[ChatbotWidget] ❌ Erreur lors de l\'envoi de l\'email:', emailError);
           addMessage('system', '⚠️ Une erreur est survenue lors de l\'envoi de l\'email. Veuillez réessayer en cliquant sur le bouton ci-dessous.');
@@ -585,19 +600,43 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
 
     try {
       setIsLoading(true);
-      const result = await chatbotService.escalateToEmail({
-        userId: user?.id || 'anonymous',
-        userEmail: user?.email || '',
-        userName: user?.full_name || user?.email || 'Utilisateur',
-        conversationHistory: messages,
-        ticketId: lastMessage.escalationData.ticketId
-      });
 
-      const emailSentMessage = (t('chatbot_email_sent') || 'Email envoyé avec succès ! Ticket {ticketId} créé. Notre équipe vous répondra sous 24h.').replace('{ticketId}', result.ticketId);
-      addMessage('system', emailSentMessage);
-      setShowEscalation(false);
+      // Appel DIRECT à notify-support (comme le formulaire de contact)
+      console.log('[ChatbotWidget] 📧 Envoi manuel vers notify-support...');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-support`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            name: user?.full_name || user?.email?.split('@')[0] || 'Utilisateur Chatbot',
+            email: user?.email || 'noreply@centrinote.fr',
+            subject: `[Chatbot] Support manuel - ${user?.full_name || 'Utilisateur'}`,
+            message: lastMessage.escalationData.emailDraft || messages.map(m => `${m.type}: ${m.content}`).join('\n\n'),
+          }),
+        }
+      );
+
+      const data = await response.json();
+      console.log('[ChatbotWidget] 📥 Réponse de notify-support:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de l\'envoi du message');
+      }
+
+      if (data.success && data.id) {
+        console.log('[ChatbotWidget] ✅ Email envoyé avec succès, ID:', data.id);
+        addMessage('system', `✅ Email envoyé avec succès ! Votre demande a été enregistrée (ID: ${data.id}). Notre équipe vous répondra sous 24h.`);
+        setShowEscalation(false);
+      } else {
+        throw new Error('Réponse invalide de notify-support');
+      }
     } catch (error) {
-      console.error('Erreur escalation:', error);
+      console.error('[ChatbotWidget] ❌ Erreur escalation:', error);
       addMessage('system', t('chatbot_email_error') || 'Erreur lors de l\'envoi de l\'email. Veuillez réessayer.');
     } finally {
       setIsLoading(false);

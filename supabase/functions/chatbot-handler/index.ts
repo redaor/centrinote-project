@@ -795,13 +795,28 @@ async function createSupportTicket(
 ): Promise<string> {
   try {
     console.log('[chatbot-handler] Creating support ticket via notify-support, escalated:', escalated);
-    
+
     // Utiliser la même Edge Function que le formulaire de contact (notify-support)
     const conversationText = formatConversationHistory(request.conversationHistory || []);
-    const subject = escalated 
+    const subject = escalated
       ? `[Chatbot] Demande de support - ${request.userName}`
       : `[Chatbot] Question - ${request.userName}`;
-    
+
+    // LOG DES DONNÉES AVANT L'APPEL
+    const requestData = {
+      name: request.userName,
+      email: request.userEmail,
+      subject: subject,
+      message: conversationText
+    };
+    console.log('[chatbot-handler] 📤 Sending to notify-support:', JSON.stringify(requestData));
+    console.log('[chatbot-handler] 📤 Request details:', {
+      name: request.userName || 'UNDEFINED',
+      email: request.userEmail || 'UNDEFINED',
+      subject: subject || 'UNDEFINED',
+      messageLength: conversationText?.length || 0
+    });
+
     // Appeler notify-support comme le fait le formulaire de contact
     const notifyResponse = await fetch(`${SUPABASE_URL}/functions/v1/notify-support`, {
       method: 'POST',
@@ -809,27 +824,43 @@ async function createSupportTicket(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
       },
-      body: JSON.stringify({
-        name: request.userName,
-        email: request.userEmail,
-        subject: subject,
-        message: conversationText
-      })
+      body: JSON.stringify(requestData)
     });
+
+    console.log('[chatbot-handler] 📥 notify-support HTTP status:', notifyResponse.status);
 
     if (!notifyResponse.ok) {
       const errorText = await notifyResponse.text();
-      console.error('[chatbot-handler] Error calling notify-support:', notifyResponse.status, errorText);
+      console.error('[chatbot-handler] ❌ Error calling notify-support:', notifyResponse.status, errorText);
       // Générer un ID temporaire si l'appel échoue
       const tempId = `temp-${Date.now()}`;
       console.log(`[chatbot-handler] Generated temporary ticket ID: ${tempId}`);
       return tempId;
     }
 
-    const notifyData = await notifyResponse.json();
-    
+    // Lire la réponse JSON avec gestion d'erreur
+    let notifyData: any;
+    try {
+      const responseText = await notifyResponse.text();
+      console.log('[chatbot-handler] 📥 Raw response from notify-support:', responseText);
+      notifyData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[chatbot-handler] ❌ Failed to parse JSON from notify-support:', parseError);
+      const tempId = `temp-${Date.now()}`;
+      console.log(`[chatbot-handler] Generated temporary ticket ID after JSON parse error: ${tempId}`);
+      return tempId;
+    }
+
+    console.log('[chatbot-handler] 📥 Parsed notify-support response:', {
+      has_success: 'success' in notifyData,
+      success_value: notifyData.success,
+      has_id: 'id' in notifyData,
+      id_value: notifyData.id,
+      full_response: JSON.stringify(notifyData)
+    });
+
     if (!notifyData.success || !notifyData.id) {
-      console.error('[chatbot-handler] notify-support returned error:', notifyData);
+      console.error('[chatbot-handler] ❌ notify-support returned error or missing ID:', notifyData);
       const tempId = `temp-${Date.now()}`;
       console.log(`[chatbot-handler] Generated temporary ticket ID: ${tempId}`);
       return tempId;
