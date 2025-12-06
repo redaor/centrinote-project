@@ -125,9 +125,10 @@ serve(async (req) => {
 
     // Fetch all active automations
     // Pour les automations avec user_local_time, on vérifie toutes les heures
+    // ✅ IMPORTANT : Récupérer aussi last_executed_at pour la vérification de dédoublonnage
     const { data: automations, error: fetchError } = await supabase
       .from('automations')
-      .select('*')
+      .select('*, last_executed_at, next_execution_at')
       .eq('is_active', true)
       .order('priority', { ascending: false });
     
@@ -175,8 +176,27 @@ serve(async (req) => {
       console.log(`   - user_local_time: ${automation.user_local_time || 'N/A'}`);
       console.log(`   - user_timezone: ${automation.user_timezone || 'N/A'}`);
       console.log(`   - next_execution_at: ${automation.next_execution_at || 'N/A'}`);
+      console.log(`   - last_executed_at: ${automation.last_executed_at || 'N/A'}`);
 
       try {
+        // ✅ PROTECTION CRITIQUE : Vérifier last_executed_at AVANT checkExecutionTime
+        // Si déjà exécuté dans les 5 dernières minutes, skip immédiatement
+        if (automation.last_executed_at) {
+          const lastExec = new Date(automation.last_executed_at);
+          const minutesSinceLastExec = (now.getTime() - lastExec.getTime()) / (1000 * 60);
+          
+          if (minutesSinceLastExec < 5) {
+            console.log(`⏭️ [SCHEDULER] Automation ${automation.name} was executed ${minutesSinceLastExec.toFixed(1)} minutes ago, skipping (too recent)`);
+            results.push({
+              automation_id: automation.id,
+              automation_name: automation.name,
+              status: 'skipped',
+              reason: `Executed ${minutesSinceLastExec.toFixed(1)} minutes ago (too recent)`
+            });
+            continue;
+          }
+        }
+
         // Check if it's time to execute based on schedule config or local time
         const shouldExecute = await checkExecutionTime(automation, now);
         console.log(`   - shouldExecute: ${shouldExecute}`);
@@ -204,6 +224,49 @@ serve(async (req) => {
           // Si la table n'existe pas encore, on continue quand même
           console.warn(`⚠️ Could not log automation entry:`, logError);
         }
+
+        // ✅ CRITIQUE : Mettre à jour next_execution_at IMMÉDIATEMENT pour éviter les déclenchements multiples
+        // Calculer la prochaine exécution AVANT d'appeler automation-micro-runner
+        let nextExecution: string | null;
+        if (automation.user_local_time) {
+          const timezone = automation.user_timezone || 'Europe/Paris';
+          nextExecution = calculateNextExecutionFromLocalTime(automation.user_local_time, timezone, now);
+        } else {
+          nextExecution = calculateNextExecution(automation, now);
+        }
+
+        // Mettre à jour next_execution_at IMMÉDIATEMENT (verrou pour empêcher les autres instances)
+        // Utiliser une condition optimiste : mettre à jour seulement si next_execution_at n'a pas changé
+        let updateNextExecQuery = supabase
+          .from('automations')
+          .update({
+            next_execution_at: nextExecution,
+            updated_at: now.toISOString()
+          })
+          .eq('id', automation.id);
+        
+        // Condition optimiste : seulement si next_execution_at n'a pas changé
+        if (automation.next_execution_at) {
+          updateNextExecQuery = updateNextExecQuery.eq('next_execution_at', automation.next_execution_at);
+        } else {
+          updateNextExecQuery = updateNextExecQuery.is('next_execution_at', null);
+        }
+        
+        const { data: updateNextExecData, error: nextExecError } = await updateNextExecQuery.select('id').limit(1);
+
+        // Si la mise à jour n'a affecté aucune ligne (quelqu'un d'autre a déjà mis à jour), skip
+        if (nextExecError || !updateNextExecData || updateNextExecData.length === 0) {
+          console.log(`⚠️ [SCHEDULER] Failed to update next_execution_at for ${automation.name} (already updated by another instance), skipping`);
+          results.push({
+            automation_id: automation.id,
+            automation_name: automation.name,
+            status: 'skipped',
+            reason: 'next_execution_at already updated by another instance'
+          });
+          continue;
+        }
+
+        console.log(`🔒 [SCHEDULER] next_execution_at updated for ${automation.name}, proceeding with execution`);
 
         // ✅ PROTECTION ATOMIQUE : Verrou + mise à jour last_executed_at dans la même transaction
         let lockAcquired = false;
@@ -360,46 +423,17 @@ serve(async (req) => {
           console.log(`✅ Triggered automation: ${automation.name}`);
         }
 
-        // Calculate next execution time
-        // Pour les automations avec user_local_time, on recalcule pour demain à la même heure locale
-        let nextExecution: string | null;
-        if (automation.user_local_time) {
-          const timezone = automation.user_timezone || 'Europe/Paris';
-          nextExecution = calculateNextExecutionFromLocalTime(automation.user_local_time, timezone, now);
-        } else {
-          nextExecution = calculateNextExecution(automation, now);
-        }
-
-        // Update automation with next execution time and release lock
-        // Note: last_executed_at a déjà été mis à jour dans la fonction atomique try_lock_and_update_automation
+        // ✅ next_execution_at a déjà été mis à jour AVANT l'appel à automation-micro-runner
+        // Il ne reste plus qu'à libérer le verrou si nécessaire
         try {
-          // Utiliser la nouvelle fonction qui libère le verrou et programme la prochaine exécution
-          await supabase.rpc('release_automation_lock_and_schedule_next', {
-            p_automation_id: automation.id,
-            p_next_execution_at: nextExecution
+          // Libérer le verrou si la fonction existe
+          await supabase.rpc('release_automation_lock', {
+            p_automation_id: automation.id
           });
-          console.log(`✅ Lock released and next execution scheduled for ${automation.name}`);
-        } catch (err) {
-          // Fallback : Mise à jour manuelle si la fonction n'existe pas
-          console.warn(`⚠️ Atomic release function not available, using fallback:`, err);
-          await supabase
-            .from('automations')
-            .update({
-              next_execution_at: nextExecution,
-              updated_at: now.toISOString(),
-              execution_lock: null, // Libérer le verrou après exécution réussie
-            })
-            .eq('id', automation.id);
-          
-          // Libérer le verrou explicitement (au cas où)
-          try {
-            await supabase.rpc('release_automation_lock', {
-              p_automation_id: automation.id
-            });
-          } catch (releaseErr) {
-            // Si la fonction n'existe pas, ce n'est pas grave
-            console.warn(`⚠️ Could not release lock (function may not exist yet):`, releaseErr);
-          }
+          console.log(`✅ Lock released for ${automation.name}`);
+        } catch (releaseErr) {
+          // Si la fonction n'existe pas, ce n'est pas grave
+          console.warn(`⚠️ Could not release lock (function may not exist yet):`, releaseErr);
         }
 
         results.push({
@@ -490,19 +524,61 @@ async function checkExecutionTime(automation: ScheduledAutomation, now: Date): P
     const diffMs = now.getTime() - nextExec.getTime();
     const diffMinutes = diffMs / (1000 * 60);
     
-    // Exécuter si next_execution_at est passé (avec une marge de 2 minutes pour le cron)
-    if (diffMinutes >= -2 && diffMinutes <= 5) {
+    // ✅ CORRECTION : Exécuter SEULEMENT si next_execution_at est passé (>= 0) et dans les 2 minutes suivantes
+    // Cela évite les déclenchements avant l'heure (09h58, 09h59) et limite à une fenêtre de 2 minutes après
+    if (diffMinutes >= 0 && diffMinutes <= 2) {
       console.log(`✅ next_execution_at atteint pour ${automation.name}: ${next_execution_at} (diff: ${diffMinutes.toFixed(1)} min)`);
       return true;
     } else {
-      console.log(`⏰ next_execution_at pour ${automation.name}: ${next_execution_at} (diff: ${diffMinutes.toFixed(1)} min, pas encore l'heure)`);
+      if (diffMinutes < 0) {
+        console.log(`⏰ next_execution_at pour ${automation.name}: ${next_execution_at} (diff: ${diffMinutes.toFixed(1)} min, pas encore l'heure - trop tôt)`);
+      } else {
+        console.log(`⏰ next_execution_at pour ${automation.name}: ${next_execution_at} (diff: ${diffMinutes.toFixed(1)} min, trop tard - fenêtre dépassée)`);
+      }
       return false;
     }
   }
 
   // ✅ PRIORITÉ 2 : Si user_local_time est défini, vérifier l'heure locale
-  if (user_local_time) {
+  // ⚠️ ATTENTION : Si next_execution_at n'est pas défini, on utilise user_local_time
+  // Mais on doit aussi vérifier last_executed_at pour éviter les doublons
+  if (user_local_time && !next_execution_at) {
     const timezone = user_timezone || 'Europe/Paris';
+    
+    // ✅ PROTECTION : Vérifier si déjà exécuté aujourd'hui (pour daily) ou cette semaine (pour weekly)
+    if (last_executed_at) {
+      const lastExec = new Date(last_executed_at);
+      const today = new Date(now);
+      today.setHours(0, 0, 0, 0);
+      const lastExecDate = new Date(lastExec);
+      lastExecDate.setHours(0, 0, 0, 0);
+      
+      // Pour daily_quote : vérifier si déjà exécuté aujourd'hui
+      if (automation.name === 'daily_quote' && lastExecDate.getTime() === today.getTime()) {
+        console.log(`⏭️ [SCHEDULER] ${automation.name} already executed today (${last_executed_at}), skipping`);
+        return false;
+      }
+      
+      // Pour weekly-summary : vérifier si déjà exécuté cette semaine
+      if (automation.name === 'weekly-summary') {
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        if (lastExec.getTime() > weekAgo.getTime()) {
+          console.log(`⏭️ [SCHEDULER] ${automation.name} already executed this week (${last_executed_at}), skipping`);
+          return false;
+        }
+      }
+      
+      // Pour monthly-report : vérifier si déjà exécuté ce mois
+      if (automation.name === 'monthly-report') {
+        const monthAgo = new Date(now);
+        monthAgo.setDate(monthAgo.getDate() - 30);
+        if (lastExec.getTime() > monthAgo.getTime()) {
+          console.log(`⏭️ [SCHEDULER] ${automation.name} already executed this month (${last_executed_at}), skipping`);
+          return false;
+        }
+      }
+    }
     
     // Obtenir l'heure locale actuelle dans le fuseau horaire de l'utilisateur
     const localTimeFormatter = new Intl.DateTimeFormat('en-US', {
@@ -521,7 +597,7 @@ async function checkExecutionTime(automation: ScheduledAutomation, now: Date): P
     const normalizedTarget = user_local_time.padStart(5, '0');
     
     // 🔍 DEBUG : Log détaillé pour daily_quote et study-reminder
-    if (automation.name === 'daily_quote' || automation.name === 'study-reminder') {
+    if (automation.name === 'daily_quote' || automation.name === 'study-reminder' || automation.name === 'weekly-summary' || automation.name === 'monthly-report') {
       console.log(`🔍 DEBUG ${automation.name}:`);
       console.log(`   - user_local_time (raw): ${user_local_time}`);
       console.log(`   - user_timezone (raw): ${user_timezone}`);
@@ -530,6 +606,7 @@ async function checkExecutionTime(automation: ScheduledAutomation, now: Date): P
       console.log(`   - normalizedCurrent: ${normalizedCurrent}`);
       console.log(`   - normalizedTarget: ${normalizedTarget}`);
       console.log(`   - Comparaison: "${normalizedCurrent}" === "${normalizedTarget}" ?`);
+      console.log(`   - last_executed_at: ${last_executed_at || 'NULL'}`);
     }
     
     const isTime = normalizedCurrent === normalizedTarget;
@@ -543,8 +620,8 @@ async function checkExecutionTime(automation: ScheduledAutomation, now: Date): P
       const [currentHour, currentMinute] = normalizedCurrent.split(':').map(Number);
       const diffMinutes = (currentHour * 60 + currentMinute) - (targetHour * 60 + targetMinute);
       
-      // Log toujours pour daily_quote/study-reminder, ou si proche de l'heure cible
-      if (automation.name === 'daily_quote' || automation.name === 'study-reminder' || Math.abs(diffMinutes) <= 5) {
+      // Log toujours pour daily_quote/study-reminder/weekly-summary/monthly-report, ou si proche de l'heure cible
+      if (automation.name === 'daily_quote' || automation.name === 'study-reminder' || automation.name === 'weekly-summary' || automation.name === 'monthly-report' || Math.abs(diffMinutes) <= 5) {
         console.log(`⏰ Heure locale pour ${automation.name}: ${normalizedCurrent} (cible: ${normalizedTarget}, diff: ${diffMinutes} min, timezone: ${timezone})`);
       }
     }

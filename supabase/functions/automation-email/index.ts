@@ -1,5 +1,6 @@
 // supabase/functions/automation-email/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +19,45 @@ serve(async (req) => {
 
     if (!to || !subject || (!textBody && !htmlBody))
       throw new Error('Missing to/subject + text/html');
+
+    console.log(`📨 [EMAIL] Request received: to=${to}, subject=${subject}`);
+
+    // ✅ PROTECTION CONTRE LES DOUBLONS : Utiliser la fonction RPC atomique avec verrou
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseServiceKey) {
+      console.error('❌ [EMAIL] SUPABASE_SERVICE_ROLE_KEY not found, skipping deduplication check');
+    } else {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // ✅ Utiliser la fonction RPC atomique avec verrou FOR UPDATE
+      const { data: canSend, error: dedupeError } = await supabase.rpc('check_and_log_email_send', {
+        p_email_to: to,
+        p_email_subject: subject,
+        p_dedupe_window_minutes: 5
+      });
+      
+      if (dedupeError) {
+        console.error(`❌ [EMAIL] Error checking for duplicates:`, dedupeError);
+        // ⚠️ Si la fonction n'existe pas, on continue quand même (fallback)
+        // Mais on log l'erreur pour que vous sachiez qu'il faut appliquer la migration
+        console.warn(`⚠️ [EMAIL] Migration may not be applied. Please run: supabase/migrations/20251202_email_deduplication.sql`);
+      } else if (canSend === false) {
+        console.log(`🚫 [EMAIL] DUPLICATE BLOCKED: subject="${subject}" to="${to}" was sent recently, skipping`);
+        return new Response(
+          JSON.stringify({ 
+            ok: true, 
+            skipped: true, 
+            reason: 'Duplicate email (sent recently)',
+            timestamp: new Date().toISOString()
+          }), 
+          { status: 200, headers: corsHeaders }
+        );
+      } else {
+        console.log(`✅ [EMAIL] Email approved for sending (no duplicate found in last 5 minutes)`);
+      }
+    }
 
     console.log(`📨 to:${to} | html:${!!htmlBody} | text:${textBody.length}`);
 

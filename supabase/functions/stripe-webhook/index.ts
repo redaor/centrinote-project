@@ -2,19 +2,36 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import Stripe from 'npm:stripe@17.7.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.49.1';
 
-const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY')!;
-const stripeWebhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')!;
-const stripe = new Stripe(stripeSecret, {
-  appInfo: {
-    name: 'Bolt Integration',
-    version: '1.0.0',
-  },
-});
-
-const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-
 Deno.serve(async (req) => {
   try {
+    // ✅ Vérifier les variables d'environnement AVANT de créer les clients
+    const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
+    const stripeWebhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!stripeSecret || !stripeWebhookSecret || !supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Missing required environment variables:', {
+        hasStripeSecret: !!stripeSecret,
+        hasWebhookSecret: !!stripeWebhookSecret,
+        hasSupabaseUrl: !!supabaseUrl,
+        hasServiceKey: !!supabaseServiceKey,
+      });
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error: missing environment variables' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const stripe = new Stripe(stripeSecret, {
+      appInfo: {
+        name: 'Bolt Integration',
+        version: '1.0.0',
+      },
+    });
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     // Handle OPTIONS request for CORS preflight
     if (req.method === 'OPTIONS') {
       return new Response(null, { status: 204 });
@@ -28,28 +45,55 @@ Deno.serve(async (req) => {
     const signature = req.headers.get('stripe-signature');
 
     if (!signature) {
+      console.error('❌ No stripe-signature header found');
       return new Response('No signature found', { status: 400 });
     }
 
     // get the raw body
     const body = await req.text();
 
+    if (!body) {
+      console.error('❌ Empty request body');
+      return new Response('Empty request body', { status: 400 });
+    }
+
     // verify the webhook signature
     let event: Stripe.Event;
 
     try {
       event = await stripe.webhooks.constructEventAsync(body, signature, stripeWebhookSecret);
+      console.log(`✅ Webhook signature verified: ${event.type} (id: ${event.id})`);
     } catch (error: any) {
-      console.error(`Webhook signature verification failed: ${error.message}`);
-      return new Response(`Webhook signature verification failed: ${error.message}`, { status: 400 });
+      console.error(`❌ Webhook signature verification failed: ${error.message}`);
+      return new Response(
+        JSON.stringify({ error: `Webhook signature verification failed: ${error.message}` }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    EdgeRuntime.waitUntil(handleEvent(event));
-
-    return Response.json({ received: true });
+    // ✅ Traiter l'événement de manière synchrone pour garantir une réponse à Stripe
+    // Si on utilise waitUntil, Stripe reçoit la réponse avant que le traitement soit terminé
+    // et si le traitement échoue, Stripe ne le saura pas
+    try {
+      await handleEvent(event);
+      console.log(`✅ Webhook event processed successfully: ${event.type}`);
+      return Response.json({ received: true }, { status: 200 });
+    } catch (eventError: any) {
+      console.error(`❌ Error processing webhook event ${event.type}:`, eventError);
+      // ✅ IMPORTANT: Retourner 200 même en cas d'erreur pour éviter que Stripe réessaie indéfiniment
+      // On log l'erreur mais on indique à Stripe que l'événement a été reçu
+      return Response.json({ 
+        received: true, 
+        error: 'Event processing failed but acknowledged',
+        event_type: event.type 
+      }, { status: 200 });
+    }
   } catch (error: any) {
-    console.error('Error processing webhook:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('❌ Error processing webhook:', error);
+    return Response.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 });
 
@@ -155,7 +199,17 @@ async function syncCustomerFromStripe(customerId: string) {
     }
 
     // assumes that a customer can only have a single subscription
+    if (!subscriptions.data || subscriptions.data.length === 0) {
+      console.warn(`⚠️ No subscription data found for customer: ${customerId}`);
+      return; // Déjà géré plus haut, mais sécurité supplémentaire
+    }
+
     const subscription = subscriptions.data[0];
+
+    if (!subscription || !subscription.items || !subscription.items.data || subscription.items.data.length === 0) {
+      console.error(`❌ Invalid subscription data for customer ${customerId}: missing items`);
+      throw new Error('Invalid subscription data: missing items');
+    }
 
     // store subscription state
     const { error: subError } = await supabase.from('stripe_subscriptions').upsert(

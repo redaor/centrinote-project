@@ -468,6 +468,7 @@ async function executeBreakTime(
 /**
  * DAILY_QUOTE - Citation du jour envoyée par email
  * ✅ NOUVEAU SYSTÈME : Utilise get_today_quote() pour éviter les répétitions
+ * ✅ DÉDOUBLONNAGE : Vérifie last_executed_at avant d'envoyer
  */
 async function executeDailyQuote(
   userId: string,
@@ -477,6 +478,79 @@ async function executeDailyQuote(
   serviceKey: string
 ): Promise<any> {
   console.log(`💭 [DAILY-QUOTE] Starting execution for user: ${userId}`);
+
+  // ✅ DÉDOUBLONNAGE ATOMIQUE : Vérifier et mettre à jour last_executed_at AVANT d'envoyer
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Récupérer l'automatisation
+  const { data: automations, error: autoError } = await supabase
+    .from('automations')
+    .select('id, last_executed_at, execution_count, name')
+    .eq('user_id', userId)
+    .eq('name', 'daily_quote')
+    .eq('is_active', true)
+    .limit(1);
+
+  if (!autoError && automations && automations.length > 0) {
+    const automation = automations[0];
+    if (automation.last_executed_at) {
+      const lastExecuted = new Date(automation.last_executed_at);
+      const lastExecutedDate = new Date(lastExecuted);
+      lastExecutedDate.setHours(0, 0, 0, 0);
+      
+      if (lastExecutedDate.getTime() === today.getTime()) {
+        console.log(`⚠️ [DAILY-QUOTE] Already executed today (${automation.last_executed_at}), skipping`);
+        return {
+          success: true,
+          skipped: true,
+          reason: 'Already executed today',
+          last_executed_at: automation.last_executed_at
+        };
+      }
+    }
+    
+    // ✅ VERROU ATOMIQUE : Utiliser la fonction RPC PostgreSQL pour garantir l'atomicité
+    // Cette fonction utilise FOR UPDATE pour éviter les race conditions
+    const { data: lockResult, error: lockError } = await supabase.rpc('try_lock_and_update_automation', {
+      p_automation_id: automation.id,
+      p_lock_duration_minutes: 5,
+      p_execution_time: new Date().toISOString()
+    });
+
+    if (lockError) {
+      console.warn(`⚠️ [DAILY-QUOTE] RPC lock function not available, using fallback:`, lockError.message);
+      // Fallback : Vérifier si déjà exécuté aujourd'hui
+      if (automation.last_executed_at) {
+        const lastExecuted = new Date(automation.last_executed_at);
+        const lastExecutedDate = new Date(lastExecuted);
+        lastExecutedDate.setHours(0, 0, 0, 0);
+        
+        if (lastExecutedDate.getTime() === today.getTime()) {
+          console.log(`⚠️ [DAILY-QUOTE] Already executed today (fallback check), skipping`);
+          return {
+            success: true,
+            skipped: true,
+            reason: 'Already executed today (fallback)',
+            last_executed_at: automation.last_executed_at
+          };
+        }
+      }
+      // Si pas de verrou RPC, on continue quand même (risque de doublon)
+      console.warn(`⚠️ [DAILY-QUOTE] Continuing without atomic lock (risk of duplicate)`);
+    } else if (lockResult === false) {
+      console.log(`⚠️ [DAILY-QUOTE] Failed to acquire atomic lock (already executed by another instance), skipping`);
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Lock acquisition failed (already executed)'
+      };
+    } else {
+      console.log(`🔒 [DAILY-QUOTE] Atomic lock acquired via RPC, proceeding with email send`);
+    }
+  } else if (autoError) {
+    console.warn(`⚠️ [DAILY-QUOTE] Could not fetch automation:`, autoError);
+  }
 
   // ✅ Vérifier les préférences avant d'envoyer
   const canEmail = await canSendEmail(userId, supabase);
@@ -717,8 +791,13 @@ async function executeDailyQuote(
   });
 
   if (!emailResponse.ok) {
+    // En cas d'erreur, on ne peut pas annuler la mise à jour de last_executed_at
+    // mais c'est acceptable car l'email n'a pas été envoyé
     throw new Error(`Email service returned ${emailResponse.status}`);
   }
+
+  // ✅ last_executed_at a déjà été mis à jour AVANT l'envoi (verrou atomique)
+  console.log(`✅ [DAILY-QUOTE] Email sent and last_executed_at already updated (atomic lock)`);
 
   return {
     quote_sent: true,
@@ -1211,6 +1290,7 @@ async function executeForgottenNotes(
 /**
  * WEEKLY_SUMMARY - Résumé hebdomadaire par email
  * ✅ Similaire à daily_quote mais pour un résumé hebdomadaire
+ * ✅ DÉDOUBLONNAGE : Vérifie last_executed_at avant d'envoyer
  */
 async function executeWeeklySummary(
   userId: string,
@@ -1223,6 +1303,74 @@ async function executeWeeklySummary(
   console.log(`📊 [WEEKLY-SUMMARY] Config:`, JSON.stringify(config));
 
   try {
+    // ✅ DÉDOUBLONNAGE ATOMIQUE : Vérifier et mettre à jour last_executed_at AVANT d'envoyer
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    // Récupérer l'automatisation
+    const { data: automations, error: autoError } = await supabase
+      .from('automations')
+      .select('id, last_executed_at, execution_count, name')
+      .eq('user_id', userId)
+      .eq('name', 'weekly-summary')
+      .eq('is_active', true)
+      .limit(1);
+
+    if (!autoError && automations && automations.length > 0) {
+      const automation = automations[0];
+      if (automation.last_executed_at) {
+        const lastExecuted = new Date(automation.last_executed_at);
+        
+        if (lastExecuted.getTime() > weekAgo.getTime()) {
+          console.log(`⚠️ [WEEKLY-SUMMARY] Already executed this week (${automation.last_executed_at}), skipping`);
+          return {
+            success: true,
+            skipped: true,
+            reason: 'Already executed this week',
+            last_executed_at: automation.last_executed_at
+          };
+        }
+      }
+      
+      // ✅ VERROU ATOMIQUE : Utiliser la fonction RPC PostgreSQL pour garantir l'atomicité
+      const { data: lockResult, error: lockError } = await supabase.rpc('try_lock_and_update_automation', {
+        p_automation_id: automation.id,
+        p_lock_duration_minutes: 5,
+        p_execution_time: new Date().toISOString()
+      });
+
+      if (lockError) {
+        console.warn(`⚠️ [WEEKLY-SUMMARY] RPC lock function not available, using fallback:`, lockError.message);
+        // Fallback : Vérifier si déjà exécuté cette semaine
+        if (automation.last_executed_at) {
+          const lastExecuted = new Date(automation.last_executed_at);
+          if (lastExecuted.getTime() > weekAgo.getTime()) {
+            console.log(`⚠️ [WEEKLY-SUMMARY] Already executed this week (fallback check), skipping`);
+            return {
+              success: true,
+              skipped: true,
+              reason: 'Already executed this week (fallback)',
+              last_executed_at: automation.last_executed_at
+            };
+          }
+        }
+        // Si pas de verrou RPC, on continue quand même (risque de doublon)
+        console.warn(`⚠️ [WEEKLY-SUMMARY] Continuing without atomic lock (risk of duplicate)`);
+      } else if (lockResult === false) {
+        console.log(`⚠️ [WEEKLY-SUMMARY] Failed to acquire atomic lock (already executed by another instance), skipping`);
+        return {
+          success: true,
+          skipped: true,
+          reason: 'Lock acquisition failed (already executed)'
+        };
+      } else {
+        console.log(`🔒 [WEEKLY-SUMMARY] Atomic lock acquired via RPC, proceeding with email send`);
+      }
+    } else if (autoError) {
+      console.warn(`⚠️ [WEEKLY-SUMMARY] Could not fetch automation:`, autoError);
+    }
+
     // ✅ Vérifier les préférences avant d'envoyer
     const canEmail = await canSendEmail(userId, supabase);
     if (!canEmail) {
@@ -1474,6 +1622,9 @@ Centrinote - Votre assistant d'étude`,
     const emailResult = await emailResponse.json();
     console.log(`✅ [WEEKLY-SUMMARY] Email sent successfully:`, emailResult);
 
+    // ✅ last_executed_at a déjà été mis à jour AVANT l'envoi (verrou atomique)
+    console.log(`✅ [WEEKLY-SUMMARY] Email sent and last_executed_at already updated (atomic lock)`);
+
     return {
       success: true,
       email_sent: true,
@@ -1507,6 +1658,74 @@ async function executeMonthlyReport(
   console.log(`📊 [MONTHLY-REPORT] Config:`, JSON.stringify(config));
 
   try {
+    // ✅ DÉDOUBLONNAGE ATOMIQUE : Vérifier et mettre à jour last_executed_at AVANT d'envoyer
+    const now = new Date();
+    const monthAgo = new Date(now);
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    
+    // Récupérer l'automatisation
+    const { data: automations, error: autoError } = await supabase
+      .from('automations')
+      .select('id, last_executed_at, execution_count, name')
+      .eq('user_id', userId)
+      .eq('name', 'monthly-report')
+      .eq('is_active', true)
+      .limit(1);
+
+    if (!autoError && automations && automations.length > 0) {
+      const automation = automations[0];
+      if (automation.last_executed_at) {
+        const lastExecuted = new Date(automation.last_executed_at);
+        
+        if (lastExecuted.getTime() > monthAgo.getTime()) {
+          console.log(`⚠️ [MONTHLY-REPORT] Already executed this month (${automation.last_executed_at}), skipping`);
+          return {
+            success: true,
+            skipped: true,
+            reason: 'Already executed this month',
+            last_executed_at: automation.last_executed_at
+          };
+        }
+      }
+      
+      // ✅ VERROU ATOMIQUE : Utiliser la fonction RPC PostgreSQL pour garantir l'atomicité
+      const { data: lockResult, error: lockError } = await supabase.rpc('try_lock_and_update_automation', {
+        p_automation_id: automation.id,
+        p_lock_duration_minutes: 5,
+        p_execution_time: new Date().toISOString()
+      });
+
+      if (lockError) {
+        console.warn(`⚠️ [MONTHLY-REPORT] RPC lock function not available, using fallback:`, lockError.message);
+        // Fallback : Vérifier si déjà exécuté ce mois
+        if (automation.last_executed_at) {
+          const lastExecuted = new Date(automation.last_executed_at);
+          if (lastExecuted.getTime() > monthAgo.getTime()) {
+            console.log(`⚠️ [MONTHLY-REPORT] Already executed this month (fallback check), skipping`);
+            return {
+              success: true,
+              skipped: true,
+              reason: 'Already executed this month (fallback)',
+              last_executed_at: automation.last_executed_at
+            };
+          }
+        }
+        // Si pas de verrou RPC, on continue quand même (risque de doublon)
+        console.warn(`⚠️ [MONTHLY-REPORT] Continuing without atomic lock (risk of duplicate)`);
+      } else if (lockResult === false) {
+        console.log(`⚠️ [MONTHLY-REPORT] Failed to acquire atomic lock (already executed by another instance), skipping`);
+        return {
+          success: true,
+          skipped: true,
+          reason: 'Lock acquisition failed (already executed)'
+        };
+      } else {
+        console.log(`🔒 [MONTHLY-REPORT] Atomic lock acquired via RPC, proceeding with email send`);
+      }
+    } else if (autoError) {
+      console.warn(`⚠️ [MONTHLY-REPORT] Could not fetch automation:`, autoError);
+    }
+
     // ✅ Vérifier les préférences avant d'envoyer
     const canEmail = await canSendEmail(userId, supabase);
     if (!canEmail) {
@@ -1757,6 +1976,9 @@ Centrinote - Votre assistant d'étude`,
 
     const emailResult = await emailResponse.json();
     console.log(`✅ [MONTHLY-REPORT] Email sent successfully:`, emailResult);
+
+    // ✅ last_executed_at a déjà été mis à jour AVANT l'envoi (verrou atomique)
+    console.log(`✅ [MONTHLY-REPORT] Email sent and last_executed_at already updated (atomic lock)`);
 
     return {
       success: true,

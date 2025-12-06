@@ -816,6 +816,8 @@ class AutomationService {
    * Execute micro template
    * Micro-moteur pour templates simples sans passer par n8n
    * Templates supportés: focus_mode, break_time, daily_quote
+   * 
+   * Inclut un système de dédoublonnage pour éviter les exécutions multiples
    */
   async executeMicroTemplate(
     templateId: string,
@@ -832,6 +834,95 @@ class AutomationService {
         throw new Error(`Invalid micro template: ${templateId}. Valid templates: ${validTemplates.join(', ')}`);
       }
 
+      // Pour les templates basés sur le temps (daily_quote, weekly-summary), vérifier last_executed_at
+      const timeBasedTemplates = ['daily_quote', 'weekly-summary'];
+      if (timeBasedTemplates.includes(templateId)) {
+        // Récupérer l'automatisation pour vérifier last_executed_at
+        const { data: automations, error: autoError } = await supabase
+          .from('automations')
+          .select('id, last_executed_at, next_execution_at, name')
+          .eq('user_id', userId)
+          .eq('name', templateId)
+          .eq('is_active', true)
+          .limit(1);
+
+        if (!autoError && automations && automations.length > 0) {
+          const automation = automations[0];
+          const now = new Date();
+          
+          // Si last_executed_at existe et est récent (moins de 1 heure), ignorer l'exécution
+          if (automation.last_executed_at) {
+            const lastExecuted = new Date(automation.last_executed_at);
+            const timeSinceLastExecution = now.getTime() - lastExecuted.getTime();
+            const oneHour = 60 * 60 * 1000; // 1 heure en millisecondes
+            
+            // Pour daily_quote, vérifier si déjà exécuté aujourd'hui
+            if (templateId === 'daily_quote') {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const lastExecutedDate = new Date(lastExecuted);
+              lastExecutedDate.setHours(0, 0, 0, 0);
+              
+              if (lastExecutedDate.getTime() === today.getTime()) {
+                console.log('⚠️ Daily quote already sent today, skipping');
+                return {
+                  success: false,
+                  skipped: true,
+                  reason: 'Already executed today',
+                  last_executed_at: automation.last_executed_at
+                };
+              }
+            }
+            
+            // Pour weekly-summary, vérifier si déjà exécuté cette semaine
+            if (templateId === 'weekly-summary') {
+              const lastExecutedDate = new Date(lastExecuted);
+              const weekAgo = new Date(now);
+              weekAgo.setDate(weekAgo.getDate() - 7);
+              
+              if (lastExecutedDate.getTime() > weekAgo.getTime()) {
+                console.log('⚠️ Weekly summary already sent this week, skipping');
+                return {
+                  success: false,
+                  skipped: true,
+                  reason: 'Already executed this week',
+                  last_executed_at: automation.last_executed_at
+                };
+              }
+            }
+            
+            // Pour les autres templates basés sur le temps, vérifier si exécuté récemment (moins de 1 heure)
+            if (timeSinceLastExecution < oneHour) {
+              console.log('⚠️ Template already executed recently, skipping');
+              return {
+                success: false,
+                skipped: true,
+                reason: 'Already executed recently',
+                last_executed_at: automation.last_executed_at
+              };
+            }
+          }
+          
+          // Vérifier aussi next_execution_at pour s'assurer qu'on est dans la bonne fenêtre de temps
+          if (automation.next_execution_at) {
+            const nextExecution = new Date(automation.next_execution_at);
+            const timeUntilExecution = nextExecution.getTime() - now.getTime();
+            const fiveMinutes = 5 * 60 * 1000; // 5 minutes en millisecondes
+            
+            // Si next_execution_at est dans plus de 5 minutes, ne pas exécuter
+            if (timeUntilExecution > fiveMinutes) {
+              console.log('⚠️ Next execution is too far in the future, skipping');
+              return {
+                success: false,
+                skipped: true,
+                reason: 'Next execution is too far in the future',
+                next_execution_at: automation.next_execution_at
+              };
+            }
+          }
+        }
+      }
+
       // Call automation-micro-runner Edge Function
       const { data, error } = await supabase.functions.invoke('automation-micro-runner', {
         body: {
@@ -844,6 +935,13 @@ class AutomationService {
       if (error) {
         console.error('❌ Micro runner invocation error:', error);
         throw error;
+      }
+
+      // ✅ SUPPRIMÉ : Ne plus mettre à jour last_executed_at depuis le client
+      // Le verrou atomique RPC dans automation-micro-runner le fait déjà
+      // Cela évite les conditions de course entre le client et le scheduler
+      if (data && data.success !== false && timeBasedTemplates.includes(templateId)) {
+        console.log('✅ Micro template executed successfully. last_executed_at already updated by automation-micro-runner via atomic RPC lock.');
       }
 
       console.log('✅ Micro template executed:', data);

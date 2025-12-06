@@ -135,6 +135,7 @@ BEGIN
   SET 
     execution_lock = v_new_lock,
     last_executed_at = p_execution_time, -- ✅ Mise à jour atomique dans la même transaction
+    execution_count = COALESCE(execution_count, 0) + 1, -- ✅ Incrémenter execution_count
     updated_at = p_execution_time
   WHERE id = p_automation_id
     AND (execution_lock IS NULL OR execution_lock <= NOW());
