@@ -205,3 +205,132 @@ async function serve(req: Request) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 }
+
+/**
+ * Calculate next execution time from local time
+ * @param localTime - Format "HH:mm" (ex: "20:00")
+ * @param timezone - IANA timezone (ex: "Europe/Paris")
+ * @param now - Current date/time
+ * @returns Date object of next execution time in UTC
+ */
+function calculateNextExecutionFromLocalTime(localTime: string, timezone: string, now: Date): Date {
+    const [targetHours, targetMinutes] = localTime.split(':').map(Number);
+    
+    // Obtenir l'heure locale actuelle dans le fuseau horaire de l'utilisateur
+    const localTimeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
+
+    const localParts = localTimeFormatter.formatToParts(now);
+    const localPartsObj: Record<string, string> = {};
+    localParts.forEach(part => {
+        if (part.type !== 'literal') {
+            localPartsObj[part.type] = part.value;
+        }
+    });
+
+    const currentLocalYear = parseInt(localPartsObj.year);
+    const currentLocalMonth = parseInt(localPartsObj.month) - 1; // Month is 0-indexed
+    const currentLocalDay = parseInt(localPartsObj.day);
+    const currentLocalHour = parseInt(localPartsObj.hour);
+    const currentLocalMinute = parseInt(localPartsObj.minute);
+
+    // Comparer l'heure actuelle avec l'heure cible
+    const currentLocalTime = currentLocalHour * 60 + currentLocalMinute;
+    const targetTime = targetHours * 60 + targetMinutes;
+
+    // Déterminer la date cible (aujourd'hui ou demain)
+    let targetYear = currentLocalYear;
+    let targetMonth = currentLocalMonth;
+    let targetDay = currentLocalDay;
+
+    // Si l'heure cible est déjà passée aujourd'hui → programmer pour demain
+    if (targetTime <= currentLocalTime) {
+        targetDay = currentLocalDay + 1;
+    }
+
+    // Créer une date string au format ISO pour la date/heure cible dans le fuseau horaire
+    const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}T${String(targetHours).padStart(2, '0')}:${String(targetMinutes).padStart(2, '0')}:00`;
+    
+    // Méthode plus fiable : utiliser Intl.DateTimeFormat pour convertir la date locale en UTC
+    // On crée une date "naive" (sans timezone) et on utilise toLocaleString pour obtenir l'offset
+    const naiveDate = new Date(`${dateStr}Z`); // Créer une date UTC de référence
+    
+    // Obtenir l'heure UTC correspondant à l'heure locale dans le fuseau horaire
+    // On utilise une approche : créer une date à minuit dans le fuseau horaire et calculer l'offset
+    const midnightLocal = new Date(`${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}T00:00:00`);
+    
+    // Obtenir l'offset en comparant minuit UTC avec minuit dans le fuseau horaire
+    const midnightUTC = new Date(`${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}T00:00:00Z`);
+    const midnightLocalStr = midnightUTC.toLocaleString('en-US', { timeZone: timezone });
+    const midnightLocalDate = new Date(midnightLocalStr);
+    const offsetMs = midnightUTC.getTime() - midnightLocalDate.getTime();
+    
+    // Créer la date UTC finale : date locale + offset
+    const targetLocalDate = new Date(`${dateStr}`);
+    const nextExecutionUTC = new Date(targetLocalDate.getTime() - offsetMs);
+    
+    return nextExecutionUTC;
+}
+
+/**
+ * Calculate next execution time based on schedule config
+ * @param automation - Automation object with schedule_config
+ * @param now - Current date/time
+ * @returns ISO string of next execution time or null
+ */
+function calculateNextExecution(automation: any, now: Date): Date | null {
+    const { schedule_config } = automation;
+
+    if (!schedule_config) return null;
+
+    // Interval-based scheduling
+    if (schedule_config.interval_minutes) {
+        const next = new Date(now.getTime() + schedule_config.interval_minutes * 60 * 1000);
+        return next;
+    }
+
+    // Cron expression (simplified - for complex cron, use a library)
+    if (schedule_config.cron_expression) {
+        const cron = schedule_config.cron_expression;
+
+        // Daily at specific time: "0 9 * * *" (9 AM daily)
+        if (cron.match(/^\d+ \d+ \* \* \*$/)) {
+            const [minute, hour] = cron.split(' ').map(Number);
+            const next = new Date(now);
+            next.setHours(hour, minute, 0, 0);
+
+            // If time has passed today, schedule for tomorrow
+            if (next <= now) {
+                next.setDate(next.getDate() + 1);
+            }
+            return next;
+        }
+
+        // Hourly: "0 * * * *"
+        if (cron === '0 * * * *') {
+            const next = new Date(now);
+            next.setMinutes(0, 0, 0);
+            next.setHours(next.getHours() + 1);
+            return next;
+        }
+
+        // Every N hours: "0 */N * * *"
+        const hourlyMatch = cron.match(/^0 \*\/(\d+) \* \* \*$/);
+        if (hourlyMatch) {
+            const hours = parseInt(hourlyMatch[1]);
+            const next = new Date(now);
+            next.setMinutes(0, 0, 0);
+            next.setHours(next.getHours() + hours);
+            return next;
+        }
+    }
+
+    return null;
+}
