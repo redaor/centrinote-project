@@ -36,7 +36,7 @@ RETURNS BOOLEAN AS $$
 DECLARE
   v_recent_count INTEGER;
   v_window_start TIMESTAMP WITH TIME ZONE;
-  v_inserted BOOLEAN := FALSE;
+  v_inserted_id UUID;
 BEGIN
   -- Calculer la fenêtre de dédoublonnage
   v_window_start := NOW() - (p_dedupe_window_minutes || ' minutes')::INTERVAL;
@@ -52,19 +52,35 @@ BEGIN
   
   -- Si un email a été envoyé récemment, retourner false (ne pas envoyer)
   IF v_recent_count > 0 THEN
+    RAISE NOTICE 'Duplicate email detected: % to % (sent within last % minutes)', p_email_subject, p_email_to, p_dedupe_window_minutes;
     RETURN FALSE;
   END IF;
   
-  -- ✅ INSERTION ATOMIQUE : Insérer avec ON CONFLICT pour éviter les doublons
+  -- ✅ INSERTION ATOMIQUE : Insérer avec gestion d'erreur explicite
   -- Le verrou FOR UPDATE garantit qu'on est le seul à insérer à ce moment
-  INSERT INTO email_sent_log (email_to, email_subject, sent_at)
-  VALUES (p_email_to, p_email_subject, NOW())
-  ON CONFLICT DO NOTHING
-  RETURNING TRUE INTO v_inserted;
-  
-  -- Si l'insertion a réussi, retourner true (envoyer l'email)
-  -- Si l'insertion a échoué (conflit), retourner false (ne pas envoyer)
-  RETURN COALESCE(v_inserted, FALSE);
+  BEGIN
+    INSERT INTO email_sent_log (email_to, email_subject, sent_at, metadata)
+    VALUES (p_email_to, p_email_subject, NOW(), jsonb_build_object('dedupe_window_minutes', p_dedupe_window_minutes))
+    RETURNING id INTO v_inserted_id;
+    
+    -- Si l'insertion a réussi, on a un ID
+    IF v_inserted_id IS NOT NULL THEN
+      RAISE NOTICE 'Email logged successfully: % to % (id: %)', p_email_subject, p_email_to, v_inserted_id;
+      RETURN TRUE;
+    ELSE
+      RAISE NOTICE 'Email insert returned NULL (should not happen)';
+      RETURN FALSE;
+    END IF;
+  EXCEPTION
+    WHEN unique_violation THEN
+      -- Si conflit (ne devrait pas arriver avec le verrou), considérer comme doublon
+      RAISE NOTICE 'Unique violation (concurrent insert detected): % to %', p_email_subject, p_email_to;
+      RETURN FALSE;
+    WHEN OTHERS THEN
+      -- Autre erreur, log et retourner false pour sécurité
+      RAISE WARNING 'Error inserting email log: %', SQLERRM;
+      RETURN FALSE;
+  END;
 END;
 $$ LANGUAGE plpgsql;
 

@@ -20,31 +20,49 @@ serve(async (req) => {
     if (!to || !subject || (!textBody && !htmlBody))
       throw new Error('Missing to/subject + text/html');
 
-    console.log(`📨 [EMAIL] Request received: to=${to}, subject=${subject}`);
+    // ✅ LOG VISIBLE : Toujours afficher la réception de la requête
+    console.error(`📨 [EMAIL] ===== REQUEST RECEIVED =====`);
+    console.error(`📨 [EMAIL] to: ${to}`);
+    console.error(`📨 [EMAIL] subject: ${subject}`);
+    console.error(`📨 [EMAIL] timestamp: ${new Date().toISOString()}`);
 
     // ✅ PROTECTION CONTRE LES DOUBLONS : Utiliser la fonction RPC atomique avec verrou
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://wjzlicokhxitmeoxkjzv.supabase.co';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
     if (!supabaseServiceKey) {
-      console.error('❌ [EMAIL] SUPABASE_SERVICE_ROLE_KEY not found, skipping deduplication check');
+      console.error('❌ [EMAIL] ===== ERROR: SUPABASE_SERVICE_ROLE_KEY NOT FOUND =====');
+      console.error('❌ [EMAIL] Skipping deduplication check - emails will be sent without protection!');
     } else {
+      console.error(`✅ [EMAIL] Service key found, checking for duplicates...`);
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
       
       // ✅ Utiliser la fonction RPC atomique avec verrou FOR UPDATE
+      console.error(`🔍 [EMAIL] Calling check_and_log_email_send RPC function...`);
       const { data: canSend, error: dedupeError } = await supabase.rpc('check_and_log_email_send', {
         p_email_to: to,
         p_email_subject: subject,
         p_dedupe_window_minutes: 5
       });
       
+      console.error(`🔍 [EMAIL] RPC Response:`, { canSend, error: dedupeError });
+      
       if (dedupeError) {
-        console.error(`❌ [EMAIL] Error checking for duplicates:`, dedupeError);
+        console.error(`❌ [EMAIL] ===== DEDUPLICATION ERROR =====`);
+        console.error(`❌ [EMAIL] Error code:`, dedupeError.code);
+        console.error(`❌ [EMAIL] Error message:`, dedupeError.message);
+        console.error(`❌ [EMAIL] Error details:`, JSON.stringify(dedupeError, null, 2));
+        console.error(`❌ [EMAIL] Function may not exist - Migration not applied!`);
+        console.error(`❌ [EMAIL] Please run: supabase/migrations/20251202_email_deduplication.sql`);
         // ⚠️ Si la fonction n'existe pas, on continue quand même (fallback)
         // Mais on log l'erreur pour que vous sachiez qu'il faut appliquer la migration
-        console.warn(`⚠️ [EMAIL] Migration may not be applied. Please run: supabase/migrations/20251202_email_deduplication.sql`);
-      } else if (canSend === false) {
-        console.log(`🚫 [EMAIL] DUPLICATE BLOCKED: subject="${subject}" to="${to}" was sent recently, skipping`);
+      } else if (canSend === false || canSend === null) {
+        console.error(`🚫 [EMAIL] ===== DUPLICATE BLOCKED =====`);
+        console.error(`🚫 [EMAIL] subject: "${subject}"`);
+        console.error(`🚫 [EMAIL] to: "${to}"`);
+        console.error(`🚫 [EMAIL] Reason: Email was sent recently (within 5 minutes)`);
+        console.error(`🚫 [EMAIL] RPC returned: ${canSend}`);
+        console.error(`🚫 [EMAIL] ===== EMAIL NOT SENT =====`);
         return new Response(
           JSON.stringify({ 
             ok: true, 
@@ -54,8 +72,14 @@ serve(async (req) => {
           }), 
           { status: 200, headers: corsHeaders }
         );
+      } else if (canSend === true) {
+        console.error(`✅ [EMAIL] ===== DUPLICATE CHECK PASSED =====`);
+        console.error(`✅ [EMAIL] No duplicate found in last 5 minutes`);
+        console.error(`✅ [EMAIL] Email logged in email_sent_log`);
+        console.error(`✅ [EMAIL] Email approved for sending`);
       } else {
-        console.log(`✅ [EMAIL] Email approved for sending (no duplicate found in last 5 minutes)`);
+        console.error(`⚠️ [EMAIL] Unexpected RPC response:`, canSend);
+        console.error(`⚠️ [EMAIL] Continuing anyway (fallback mode)`);
       }
     }
 
@@ -88,7 +112,7 @@ serve(async (req) => {
       throw new Error(`SMTP_PORT invalide: ${portStr}. Doit être un nombre positif.`);
     }
 
-    console.log(`✅ Configuration SMTP chargée: ${host}:${port} (user: ${user?.substring(0, 3)}...)`);
+    console.error(`✅ [EMAIL] SMTP config loaded: ${host}:${port}`);
 
     const conn = await Deno.connectTls({ hostname: host, port });
     const dec = new TextDecoder();
@@ -124,6 +148,11 @@ serve(async (req) => {
     await rsp(); // 250 OK
     await cmd('QUIT');
     conn.close();
+
+    console.error(`✅ [EMAIL] ===== EMAIL SENT SUCCESSFULLY =====`);
+    console.error(`✅ [EMAIL] to: ${to}`);
+    console.error(`✅ [EMAIL] subject: ${subject}`);
+    console.error(`✅ [EMAIL] timestamp: ${new Date().toISOString()}`);
 
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers: corsHeaders });
   } catch (e) {
