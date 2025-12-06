@@ -13,6 +13,7 @@ import { ParticipantsFormV2 } from './ParticipantsFormV2';
 import { CreateMeetingPayload, MeetingParticipant } from '../../types/meetings';
 import { PerformanceMonitor } from '../debug/PerformanceMonitor';
 import { useSummary } from '../../hooks/useSummary';
+import { MeetingProgress } from './MeetingProgress';
 
 export function MeetingList() {
   const { state } = useApp();
@@ -710,6 +711,39 @@ const MeetingCard = React.memo(({
     }
   );
 
+  // Calcul du pourcentage de progression pour la génération du résumé
+  const [progressPercentage, setProgressPercentage] = useState(0);
+  const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isOver && !summary) {
+      // Simuler une progression basée sur le temps écoulé depuis la fin de la réunion
+      const endTime = meeting.ended_at ? new Date(meeting.ended_at).getTime() : Date.now();
+      const now = Date.now();
+      const elapsed = (now - endTime) / 1000; // secondes
+      
+      // Estimation : génération prend environ 30-60 secondes
+      const estimatedDuration = 45; // secondes
+      const progress = Math.min((elapsed / estimatedDuration) * 100, 95); // Max 95% jusqu'à ce que le résumé soit réellement disponible
+      
+      setProgressPercentage(Math.round(progress));
+      setEstimatedTime(Math.max(0, Math.round(estimatedDuration - elapsed)));
+      
+      // Mettre à jour toutes les secondes
+      const interval = setInterval(() => {
+        const newElapsed = (Date.now() - endTime) / 1000;
+        const newProgress = Math.min((newElapsed / estimatedDuration) * 100, 95);
+        setProgressPercentage(Math.round(newProgress));
+        setEstimatedTime(Math.max(0, Math.round(estimatedDuration - newElapsed)));
+      }, 1000);
+
+      return () => clearInterval(interval);
+    } else if (summary) {
+      setProgressPercentage(100);
+      setEstimatedTime(null);
+    }
+  }, [isOver, summary, meeting.ended_at]);
+
   return (
     <div className={`
       ${darkMode 
@@ -722,49 +756,28 @@ const MeetingCard = React.memo(({
       hover:border-blue-300/40 dark:hover:border-blue-600/30
       hover:-translate-y-0.5
     `}>
-      {/* Bandeau "Réunion terminée" avec état génération */}
+      {/* Barre de progression dynamique pour la génération du résumé */}
       {isOver && !summary && (
-        <div className={`mb-4 p-3 rounded-xl border backdrop-blur-sm ${
-          darkMode 
-            ? 'bg-amber-500/10 border-amber-500/30' 
-            : 'bg-amber-50/80 border-amber-200/60'
-        }`}>
-          <div className="flex items-center space-x-2.5">
-            <Loader2 className={`w-3.5 h-3.5 animate-spin ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-            <span className={`text-sm font-medium ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>
-              Réunion terminée – génération du résumé en cours…
-            </span>
-          </div>
-        </div>
+        <MeetingProgress
+          status="generating"
+          percentage={progressPercentage}
+          eta={estimatedTime || undefined}
+          darkMode={darkMode}
+          meetingId={meeting.id}
+          steps={['Analyse audio', 'Transcription', 'Génération résumé']}
+          currentStep={progressPercentage < 33 ? 0 : progressPercentage < 66 ? 1 : 2}
+        />
       )}
       
-      {/* Bandeau "Réunion terminée" avec bouton résumé */}
+      {/* État terminé avec bouton résumé */}
       {isOver && summary && (
-        <div className={`mb-4 p-3.5 rounded-xl border backdrop-blur-sm ${
-          darkMode 
-            ? 'bg-emerald-500/10 border-emerald-500/30' 
-            : 'bg-emerald-50/80 border-emerald-200/60'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <CheckCircle className={`w-4 h-4 ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
-              <span className={`text-sm font-medium ${darkMode ? 'text-emerald-300' : 'text-emerald-800'}`}>
-                Réunion terminée
-              </span>
-            </div>
-            <Link
-              to={`/meetings/${meeting.id}/summary`}
-              className={`inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                darkMode
-                  ? 'bg-emerald-600/80 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                  : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
-              } hover:scale-105 active:scale-95`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Voir le résumé</span>
-            </Link>
-          </div>
-        </div>
+        <MeetingProgress
+          status="completed"
+          percentage={100}
+          darkMode={darkMode}
+          meetingId={meeting.id}
+          onComplete={() => navigate(`/meetings/${meeting.id}/summary`)}
+        />
       )}
       
       {/* Header */}
