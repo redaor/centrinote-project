@@ -91,6 +91,14 @@ class ChatbotService {
    */
   async escalateToEmail(request: EscalationRequest): Promise<EscalationResponse> {
     try {
+      console.log('[chatbotService] 📧 Début de l\'escalation vers email:', {
+        userId: request.userId,
+        userEmail: request.userEmail,
+        userName: request.userName,
+        ticketId: request.ticketId,
+        conversationLength: request.conversationHistory?.length || 0
+      });
+
       const response = await fetch(`${this.baseUrl}/functions/v1/chatbot-handler`, {
         method: 'POST',
         headers: {
@@ -103,14 +111,19 @@ class ChatbotService {
         })
       });
 
+      console.log('[chatbotService] Response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('[chatbotService] ❌ Erreur HTTP:', response.status, errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('[chatbotService] ✅ Escalation réussie:', data);
       return data;
     } catch (error) {
-      console.error('Erreur escalation service:', error);
+      console.error('[chatbotService] ❌ Erreur escalation service:', error);
       throw error;
     }
   }

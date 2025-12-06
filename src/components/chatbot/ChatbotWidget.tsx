@@ -510,11 +510,35 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
         // Créer le message d'escalation avec l'icône 📧
         const escalationMessage = `Je comprends que le problème persiste malgré nos tentatives. 😔\n\n📧 **Notre équipe va examiner votre cas en détail.**\n\nJ'ai généré un email automatique avec :\n• Le résumé de votre problème\n• Les étapes que nous avons déjà testées\n• Vos informations techniques (${browserInfo.navigateur}, ${browserInfo.systeme})`;
 
-        addMessage('bot', escalationMessage, {
+        const botMessage = addMessage('bot', escalationMessage, {
           ticketId: `temp-${Date.now()}`,
           emailDraft: emailDraft
         });
-        setShowEscalation(true);
+
+        // **ENVOYER L'EMAIL AUTOMATIQUEMENT** sans attendre que l'utilisateur clique
+        console.log('[ChatbotWidget] Envoi automatique de l\'email de support...');
+
+        try {
+          const result = await chatbotService.escalateToEmail({
+            userId: user?.id || 'anonymous',
+            userEmail: user?.email || '',
+            userName: user?.full_name || user?.email || 'Utilisateur',
+            conversationHistory: messages.concat([
+              { id: Date.now().toString(), type: 'user', content: '❌ Non, toujours bloqué', timestamp: new Date() },
+              botMessage
+            ]),
+            ticketId: botMessage.escalationData?.ticketId
+          });
+
+          console.log('[ChatbotWidget] ✅ Email envoyé avec succès, ticketId:', result.ticketId);
+
+          // Ajouter un message de confirmation
+          addMessage('system', `✅ Email envoyé avec succès ! Ticket #${result.ticketId} créé. Notre équipe vous répondra sous 24h.`);
+        } catch (emailError) {
+          console.error('[ChatbotWidget] ❌ Erreur lors de l\'envoi de l\'email:', emailError);
+          addMessage('system', '⚠️ Une erreur est survenue lors de l\'envoi de l\'email. Veuillez réessayer en cliquant sur le bouton ci-dessous.');
+          setShowEscalation(true);
+        }
       } else {
         // Premier échec : continuer normalement
         const response = await chatbotService.sendMessage({
