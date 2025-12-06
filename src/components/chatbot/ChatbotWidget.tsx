@@ -401,11 +401,16 @@ export function ChatbotWidget({
     setFailureCount(0);
 
     // Envoyer "oui" au chatbot pour obtenir une astuce
-    const userMessage = 'oui, c\'est réglé';
+    const userMessage = 'oui, c\'est réglé, merci pour ton aide';
     setInputValue('');
     setIsLoading(true);
 
     addMessage('user', '✅ Oui, c\'est réglé');
+
+    // Retirer les boutons de confirmation du message précédent immédiatement
+    setMessages(prev => prev.map(msg =>
+      msg.showConfirmationButtons ? { ...msg, showConfirmationButtons: false } : msg
+    ));
 
     try {
       const response = await chatbotService.sendMessage({
@@ -420,14 +425,9 @@ export function ChatbotWidget({
       });
 
       addMessage('bot', response.message);
-
-      // Retirer les boutons de confirmation du message précédent
-      setMessages(prev => prev.map(msg =>
-        msg.showConfirmationButtons ? { ...msg, showConfirmationButtons: false } : msg
-      ));
     } catch (error) {
       console.error('Erreur chatbot:', error);
-      addMessage('bot', 'Super ! Je suis content que ça fonctionne maintenant. 😊');
+      addMessage('bot', 'Super ! Je suis content que ça fonctionne maintenant. 😊\n\n💡 N\'hésite pas à explorer les autres fonctionnalités de Centrinote !');
     } finally {
       setIsLoading(false);
     }
