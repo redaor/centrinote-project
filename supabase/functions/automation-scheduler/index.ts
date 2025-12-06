@@ -128,38 +128,57 @@ async function serve(req: Request) {
                 automation.next_execution_at = nextExecution.toISOString();
             }
 
-            // 3. Vérifier si c'est l'heure d'exécuter
-            const shouldExecute = await checkExecutionTime(automation, now);
+            // 3. ✅ Vérification ULTRA-STRICTE du timing (fenêtre de 30 secondes)
+            const shouldExecute = await checkExecutionTimeStrict(automation, now);
             
             if (!shouldExecute) {
-                console.log(`⏰ [SCHEDULER] ${automation.name} is not ready for execution yet`);
+                console.log(`⏰ [SCHEDULER] ${automation.name} is not in execution window`);
                 await releaseLock(supabase, automation.id, automation.name);
                 continue;
             }
 
-            console.log(`✅ [SCHEDULER] ${automation.name} is ready for execution`);
+            console.log(`✅ [SCHEDULER] ${automation.name} is in execution window`);
 
-            // 4. Mise à jour optimiste de next_execution_at AVANT l'appel au micro-runner
-            const nextExecutionAfter = calculateNextExecution(automation, now);
+            // 4. ✅ Mise à jour IMMÉDIATE de next_execution_at POUR LA PROCHAINE FOIS
+            // Calculer la prochaine exécution (aujourd'hui si pas encore passée, sinon demain)
+            let nextExecutionAfter: Date | null = null;
             
-            const { data: updateNextExecData, error: nextExecError } = await supabase
+            if (automation.user_local_time) {
+                const timezone = automation.user_timezone || 'Europe/Paris';
+                nextExecutionAfter = calculateNextExecutionFromLocalTime(
+                    automation.user_local_time,
+                    timezone,
+                    now
+                );
+            } else {
+                nextExecutionAfter = calculateNextExecution(automation, now);
+            }
+
+            if (!nextExecutionAfter) {
+                console.error(`❌ [SCHEDULER] Could not calculate next execution for ${automation.name}`);
+                await releaseLock(supabase, automation.id, automation.name);
+                continue;
+            }
+
+            // ✅ Mise à jour avec condition optimiste (empêche les doublons)
+            const { data: updateData, error: updateError } = await supabase
                 .from('automations')
                 .update({ 
                     next_execution_at: nextExecutionAfter.toISOString(),
                     updated_at: now.toISOString()
                 })
                 .eq('id', automation.id)
-                .eq('next_execution_at', automation.next_execution_at) // Condition optimiste
+                .eq('next_execution_at', automation.next_execution_at) // ✅ Condition optimiste
                 .select('id')
-                .limit(1);
+                .single();
 
-            if (!updateNextExecData || updateNextExecData.length === 0) {
+            if (updateError || !updateData) {
                 console.log(`⏭️ [SCHEDULER] ${automation.name} next_execution_at was already updated by another instance`);
                 await releaseLock(supabase, automation.id, automation.name);
                 continue;
             }
 
-            console.log(`🔄 [SCHEDULER] Updated next_execution_at for ${automation.name} to ${nextExecutionAfter.toISOString()}`);
+            console.log(`🔄 [SCHEDULER] Set next execution for ${automation.name} to ${nextExecutionAfter.toISOString()}`);
 
             // 5. Appeler le micro-runner
             console.log(`🚀 [SCHEDULER] Calling automation-micro-runner for ${automation.name}`);
@@ -333,4 +352,48 @@ function calculateNextExecution(automation: any, now: Date): Date | null {
     }
 
     return null;
+}
+
+/**
+ * Vérification stricte du timing d'exécution
+ * Fenêtre de 30 secondes AVANT ou APRÈS l'heure prévue
+ */
+async function checkExecutionTimeStrict(automation: any, now: Date): Promise<boolean> {
+    const { next_execution_at, last_executed_at } = automation;
+    
+    if (!next_execution_at) {
+        console.log(`❌ [STRICT-CHECK] ${automation.name}: No next_execution_at`);
+        return false;
+    }
+    
+    // ✅ PROTECTION : Si déjà exécuté dans les 5 dernières minutes, skip
+    if (last_executed_at) {
+        const lastExec = new Date(last_executed_at);
+        const minutesSinceLastExec = (now.getTime() - lastExec.getTime()) / (1000 * 60);
+        if (minutesSinceLastExec < 5) {
+            console.log(`⏭️ [STRICT-CHECK] ${automation.name}: Executed ${minutesSinceLastExec.toFixed(1)} min ago, skipping`);
+            return false;
+        }
+    }
+    
+    const nextExec = new Date(next_execution_at);
+    const diffMs = nextExec.getTime() - now.getTime();
+    const diffSeconds = diffMs / 1000;
+    
+    console.log(`⏰ [STRICT-CHECK] ${automation.name}: next=${nextExec.toISOString()}, now=${now.toISOString()}, diff=${diffSeconds.toFixed(1)}s`);
+    
+    // ✅ RÈGLE ULTRA-STRICTE : 
+    // - On doit être dans les 30 secondes AVANT ou APRÈS l'heure prévue
+    // - Permet d'attraper l'exécution même si le scheduler est légèrement en avance/retard
+    if (diffSeconds >= -30 && diffSeconds <= 30) {
+        console.log(`✅ [STRICT-CHECK] ${automation.name}: In strict execution window (${diffSeconds.toFixed(1)}s)`);
+        return true;
+    } else {
+        if (diffSeconds < -30) {
+            console.log(`⏰ [STRICT-CHECK] ${automation.name}: Too early (${diffSeconds.toFixed(1)}s before target)`);
+        } else {
+            console.log(`⏰ [STRICT-CHECK] ${automation.name}: Too late (${diffSeconds.toFixed(1)}s after target)`);
+        }
+        return false;
+    }
 }
