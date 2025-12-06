@@ -12,9 +12,15 @@ interface SupportMessage {
   email: string;
   subject: string;
   message: string;
-  status: 'nouveau' | 'en_cours' | 'resolu';
+  status: 'nouveau' | 'en_cours' | 'resolu' | 'open' | 'in_progress' | 'resolved' | 'closed';
   created_at: string;
   updated_at: string;
+  user_id?: string;
+  user_name?: string;
+  user_email?: string;
+  source?: string;
+  escalated?: boolean;
+  priority?: string;
 }
 
 export function SupportMessagesPage() {
@@ -51,17 +57,89 @@ export function SupportMessagesPage() {
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
+      console.log('[SupportMessagesPage] Loading messages, user:', user?.email);
+      console.log('[SupportMessagesPage] Is admin:', isAdmin);
+
+      // Charger depuis support_messages (table principale qui fonctionne)
+      const { data: messages, error: messagesError } = await supabase
         .from('support_messages')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (fetchError) {
-        throw fetchError;
+      console.log('[SupportMessagesPage] Messages loaded:', messages?.length || 0);
+      console.log('[SupportMessagesPage] Messages error:', messagesError);
+
+      if (messagesError) {
+        console.error('[SupportMessagesPage] Error loading messages:', messagesError);
+        logger.error('Erreur lors du chargement des messages', messagesError);
       }
 
-      setMessages(data || []);
+      // Essayer aussi de charger depuis support_tickets si la table existe (pour compatibilité)
+      const { data: tickets, error: ticketsError } = await supabase
+        .from('support_tickets')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(0);
+
+      if (messagesError && messagesError.code !== 'PGRST116') {
+        // PGRST116 = table n'existe pas, on ignore
+        console.warn('[SupportMessagesPage] Error loading messages (table may not exist):', messagesError);
+      }
+
+      // Combiner et transformer les données
+      const allMessages: SupportMessage[] = [];
+
+      // Ajouter les messages de support_messages (table principale)
+      if (messages && !messagesError) {
+        console.log('[SupportMessagesPage] Processing', messages.length, 'messages');
+        messages.forEach(msg => {
+          allMessages.push({
+            id: msg.id,
+            name: msg.name || 'Utilisateur',
+            email: msg.email,
+            subject: msg.subject || 'Sans sujet',
+            message: msg.message,
+            status: msg.status,
+            created_at: msg.created_at,
+            updated_at: msg.updated_at || msg.created_at
+          });
+        });
+      }
+
+      // Ajouter aussi les tickets de support_tickets si disponibles (pour compatibilité)
+      if (tickets && !ticketsError) {
+        console.log('[SupportMessagesPage] Processing', tickets.length, 'tickets');
+        tickets.forEach(ticket => {
+          allMessages.push({
+            id: ticket.id,
+            name: ticket.user_name || 'Utilisateur anonyme',
+            email: ticket.user_email,
+            subject: ticket.subject,
+            message: ticket.content,
+            status: ticket.status === 'open' ? 'nouveau' : 
+                   ticket.status === 'in_progress' ? 'en_cours' : 
+                   ticket.status === 'resolved' || ticket.status === 'closed' ? 'resolu' : 'nouveau',
+            created_at: ticket.created_at,
+            updated_at: ticket.updated_at,
+            user_id: ticket.user_id,
+            user_name: ticket.user_name,
+            user_email: ticket.user_email,
+            source: ticket.source,
+            escalated: ticket.escalated,
+            priority: ticket.priority
+          });
+        });
+      }
+
+      // Trier par date de création (plus récent en premier)
+      allMessages.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      console.log('[SupportMessagesPage] Total messages:', allMessages.length);
+      setMessages(allMessages);
     } catch (err) {
+      console.error('[SupportMessagesPage] Exception:', err);
       logger.error('Erreur lors du chargement des messages', err instanceof Error ? err : new Error(String(err)));
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
     } finally {
@@ -71,13 +149,33 @@ export function SupportMessagesPage() {
 
   const updateStatus = async (id: string, newStatus: 'nouveau' | 'en_cours' | 'resolu') => {
     try {
-      const { error: updateError } = await supabase
+      // Mettre à jour dans support_messages (table principale)
+      const { error: messageError } = await supabase
         .from('support_messages')
-        .update({ status: newStatus })
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id);
 
-      if (updateError) {
-        throw updateError;
+      // Si ce n'est pas dans support_messages, essayer support_tickets
+      if (messageError) {
+        const ticketStatus = 
+          newStatus === 'nouveau' ? 'open' :
+          newStatus === 'en_cours' ? 'in_progress' :
+          'resolved';
+
+        const { error: ticketError } = await supabase
+          .from('support_tickets')
+          .update({ 
+            status: ticketStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id);
+
+        if (ticketError) {
+          throw ticketError;
+        }
       }
 
       // Mettre à jour localement
@@ -96,39 +194,30 @@ export function SupportMessagesPage() {
     }
 
     try {
-      // Vérifier que le message existe avant de le supprimer
-      const { data: existingMessage, error: checkError } = await supabase
-        .from('support_messages')
-        .select('id')
-        .eq('id', id)
-        .single();
-
-      if (checkError || !existingMessage) {
-        throw new Error('Message introuvable');
-      }
-
-      // Supprimer le message avec une clause WHERE (requis par PostgREST)
-      const { data, error: deleteError } = await supabase
+      // Supprimer dans support_messages (table principale)
+      const { data, error: messageDeleteError } = await supabase
         .from('support_messages')
         .delete()
         .eq('id', id)
-        .select(); // Retourner les données supprimées pour vérification
+        .select();
 
-      if (deleteError) {
-        logger.error('Erreur DELETE support_messages', new Error(deleteError.message), {
-          code: deleteError.code,
-          details: deleteError.details,
-          hint: deleteError.hint,
-          messageId: id,
-        });
-        throw new Error(deleteError.message || 'Erreur lors de la suppression');
-      }
+      // Si ce n'est pas dans support_messages, essayer support_tickets
+      if (messageDeleteError) {
+        const { error: ticketDeleteError } = await supabase
+          .from('support_tickets')
+          .delete()
+          .eq('id', id);
 
-      // Vérifier que la suppression a bien fonctionné
-      if (!data || data.length === 0) {
-        logger.warn('Aucun message supprimé', { messageId: id });
-        alert('Le message n\'a pas pu être supprimé. Vérifiez vos permissions.');
-        return;
+        if (ticketDeleteError) {
+          throw ticketDeleteError;
+        }
+      } else {
+        // Vérifier que la suppression a bien fonctionné
+        if (!data || data.length === 0) {
+          logger.warn('Aucun message supprimé', { messageId: id });
+          alert('Le message n\'a pas pu être supprimé. Vérifiez vos permissions.');
+          return;
+        }
       }
 
       // Mettre à jour localement
@@ -343,12 +432,27 @@ export function SupportMessagesPage() {
 
       {/* Messages */}
       {error && (
-        <div className="p-4 bg-red-100 border border-red-300 rounded-lg text-red-700">
-          Erreur : {error}
+        <div className={`p-4 rounded-lg border ${
+          darkMode 
+            ? 'bg-red-900/30 border-red-700 text-red-300' 
+            : 'bg-red-100 border-red-300 text-red-700'
+        }`}>
+          <p className="font-semibold mb-2">Erreur lors du chargement :</p>
+          <p className="mb-2">{error}</p>
+          <button
+            onClick={loadMessages}
+            className={`px-3 py-1 text-sm rounded transition-colors ${
+              darkMode
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
+          >
+            Réessayer
+          </button>
         </div>
       )}
 
-      {filteredMessages.length === 0 ? (
+      {filteredMessages.length === 0 && !error && !loading ? (
         <div className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
           Aucun message {selectedStatus !== 'all' ? `avec le statut "${selectedStatus}"` : ''}
         </div>
@@ -372,7 +476,7 @@ export function SupportMessagesPage() {
                     {getStatusBadge(msg.status)}
                   </div>
 
-                  <div className="flex items-center space-x-4 text-sm">
+                  <div className="flex items-center space-x-4 text-sm flex-wrap gap-2">
                     <div className="flex items-center space-x-1">
                       <Mail className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                       <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
@@ -385,6 +489,22 @@ export function SupportMessagesPage() {
                         {formatDate(msg.created_at)}
                       </span>
                     </div>
+                    {msg.source && (
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        msg.source === 'chatbot' 
+                          ? darkMode ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-800'
+                          : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {msg.source === 'chatbot' ? '🤖 Chatbot' : msg.source}
+                      </span>
+                    )}
+                    {msg.escalated && (
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        darkMode ? 'bg-orange-900/30 text-orange-400' : 'bg-orange-100 text-orange-800'
+                      }`}>
+                        ⚡ Escaladé
+                      </span>
+                    )}
                   </div>
                 </div>
 

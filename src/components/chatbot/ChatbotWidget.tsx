@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Minimize2, Maximize2, Mail, MessageCircle } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, Mail, MessageCircle, CheckCircle, AlertCircle, Lightbulb, Search } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { chatbotService } from '../../services/chatbotService';
@@ -19,11 +19,287 @@ interface Message {
     ticketId?: string;
     emailDraft?: string;
   };
+  showConfirmationButtons?: boolean;
 }
 
 interface ChatbotWidgetProps {
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   initialMinimized?: boolean;
+}
+
+/**
+ * Composant pour afficher les messages structurés avec icônes et encadrés
+ */
+function StructuredMessage({ 
+  content, 
+  darkMode 
+}: { 
+  content: string; 
+  darkMode: boolean;
+}) {
+  // Détecter les marqueurs visuels et structurer le message
+  const lines = content.split('\n');
+  const parts: JSX.Element[] = [];
+  let currentSection: string[] = [];
+  let currentType: 'question' | 'solution' | 'warning' | 'tip' | 'normal' = 'normal';
+  let partIndex = 0;
+
+  const renderSection = (section: string[], type: string, index: number): JSX.Element | null => {
+    if (section.length === 0) return null;
+
+    const sectionContent = section.join('\n').trim();
+    if (!sectionContent) return null;
+
+    if (type === 'normal') {
+      return (
+        <p
+          key={`normal-${index}`}
+          className={`
+            text-sm whitespace-pre-wrap
+            ${darkMode ? 'text-gray-100' : 'text-gray-900'}
+          `}
+        >
+          {sectionContent}
+        </p>
+      );
+    }
+
+    const getIcon = () => {
+      switch (type) {
+        case 'question': return <Search className="w-4 h-4" />;
+        case 'solution': return <CheckCircle className="w-4 h-4" />;
+        case 'warning': return <AlertCircle className="w-4 h-4" />;
+        case 'tip': return <Lightbulb className="w-4 h-4" />;
+        default: return null;
+      }
+    };
+
+    const getStyles = () => {
+      switch (type) {
+        case 'question':
+          return {
+            bg: darkMode ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200',
+            icon: 'text-blue-500',
+            text: darkMode ? 'text-gray-200' : 'text-gray-800'
+          };
+        case 'solution':
+          return {
+            bg: darkMode ? 'bg-green-900/20 border-green-700' : 'bg-green-50 border-green-200',
+            icon: 'text-green-500',
+            text: darkMode ? 'text-gray-200' : 'text-gray-800'
+          };
+        case 'warning':
+          return {
+            bg: darkMode ? 'bg-yellow-900/20 border-yellow-700' : 'bg-yellow-50 border-yellow-200',
+            icon: 'text-yellow-500',
+            text: darkMode ? 'text-gray-200' : 'text-gray-800'
+          };
+        case 'tip':
+          return {
+            bg: darkMode ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50 border-purple-200',
+            icon: 'text-purple-500',
+            text: darkMode ? 'text-gray-200' : 'text-gray-800'
+          };
+        default:
+          return {
+            bg: '',
+            icon: '',
+            text: darkMode ? 'text-gray-100' : 'text-gray-900'
+          };
+      }
+    };
+
+    const styles = getStyles();
+
+    return (
+      <div
+        key={`section-${index}`}
+        className={`mt-2 p-3 rounded-lg border ${styles.bg}`}
+      >
+        <div className="flex items-start gap-2">
+          <div className={`mt-0.5 ${styles.icon}`}>
+            {getIcon()}
+          </div>
+          <div className="flex-1">
+            <p className={`text-sm whitespace-pre-wrap ${styles.text}`}>
+              {sectionContent.replace(/^[🔍✅⚠️💡]\s*/, '')}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  lines.forEach((line) => {
+    const trimmedLine = line.trim();
+    
+    // Détecter les types de sections
+    if (trimmedLine.startsWith('🔍') || (trimmedLine.toLowerCase().includes('quelle étape') && !trimmedLine.toLowerCase().includes('réponse'))) {
+      if (currentSection.length > 0) {
+        const rendered = renderSection(currentSection, currentType, partIndex++);
+        if (rendered) parts.push(rendered);
+      }
+      currentSection = [trimmedLine];
+      currentType = 'question';
+    } else if (trimmedLine.startsWith('✅') || trimmedLine.match(/^\d+\./)) {
+      if (currentSection.length > 0 && currentType !== 'solution') {
+        const rendered = renderSection(currentSection, currentType, partIndex++);
+        if (rendered) parts.push(rendered);
+        currentSection = [];
+      }
+      currentSection.push(trimmedLine);
+      currentType = 'solution';
+    } else if (trimmedLine.startsWith('⚠️')) {
+      if (currentSection.length > 0) {
+        const rendered = renderSection(currentSection, currentType, partIndex++);
+        if (rendered) parts.push(rendered);
+      }
+      currentSection = [trimmedLine];
+      currentType = 'warning';
+    } else if (trimmedLine.startsWith('💡')) {
+      if (currentSection.length > 0) {
+        const rendered = renderSection(currentSection, currentType, partIndex++);
+        if (rendered) parts.push(rendered);
+      }
+      currentSection = [trimmedLine];
+      currentType = 'tip';
+    } else if (trimmedLine === '' || trimmedLine === '---') {
+      if (currentSection.length > 0) {
+        const rendered = renderSection(currentSection, currentType, partIndex++);
+        if (rendered) parts.push(rendered);
+        currentSection = [];
+        currentType = 'normal';
+      }
+    } else {
+      if (currentType === 'normal' && currentSection.length === 0) {
+        currentType = 'normal';
+      }
+      currentSection.push(line);
+    }
+  });
+
+  // Ajouter la dernière section
+  if (currentSection.length > 0) {
+    const rendered = renderSection(currentSection, currentType, partIndex++);
+    if (rendered) parts.push(rendered);
+  }
+
+  // Si aucune structure détectée, afficher le message normal
+  if (parts.length === 0) {
+    return <p className={`text-sm whitespace-pre-wrap ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>{content}</p>;
+  }
+
+  return <div>{parts}</div>;
+}
+
+/**
+ * Composant de boutons de confirmation
+ */
+function ConfirmationButtons({
+  onResolved,
+  onNotResolved,
+  darkMode
+}: {
+  onResolved: () => void;
+  onNotResolved: () => void;
+  darkMode: boolean;
+}) {
+  return (
+    <div className={`
+      mt-3 pt-3 border-t
+      ${darkMode ? 'border-gray-600' : 'border-gray-300'}
+    `}>
+      <p className={`
+        text-xs font-medium mb-3
+        ${darkMode ? 'text-gray-300' : 'text-gray-700'}
+      `}>
+        Est-ce que votre problème est résolu ?
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={onResolved}
+          className={`
+            flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg
+            text-sm font-medium transition-all duration-200
+            ${darkMode
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-green-500 hover:bg-green-600 text-white'
+            }
+            hover:scale-[1.02] hover:shadow-md
+          `}
+        >
+          <span>✅</span>
+          <span>Oui, c'est réglé</span>
+        </button>
+        <button
+          onClick={onNotResolved}
+          className={`
+            flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg
+            text-sm font-medium transition-all duration-200
+            ${darkMode
+              ? 'bg-red-600 hover:bg-red-700 text-white'
+              : 'bg-red-500 hover:bg-red-600 text-white'
+            }
+            hover:scale-[1.02] hover:shadow-md
+          `}
+        >
+          <span>❌</span>
+          <span>Non, toujours bloqué</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Composant d'escalation simplifié - Email uniquement
+ */
+function EscalationCard({ 
+  onEscalate, 
+  darkMode 
+}: { 
+  onEscalate: () => void; 
+  darkMode: boolean;
+}) {
+  return (
+    <div className={`
+      mt-3 pt-3 border-t
+      ${darkMode ? 'border-gray-600' : 'border-gray-300'}
+    `}>
+      <div className={`
+        p-3 rounded-lg
+        ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}
+      `}>
+        <p className={`
+          text-sm mb-3
+          ${darkMode ? 'text-gray-300' : 'text-gray-700'}
+        `}>
+          Je comprends que le problème persiste malgré nos tentatives. Notre équipe va examiner votre cas en détail.
+        </p>
+        <button
+          onClick={onEscalate}
+          className={`
+            w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+            text-sm font-medium transition-all duration-200
+            ${darkMode
+              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+              : 'bg-blue-500 hover:bg-blue-600 text-white'
+            }
+            hover:scale-[1.02] hover:shadow-md
+          `}
+        >
+          <Mail className="w-4 h-4" />
+          <span>📧 Envoyer un email au support</span>
+        </button>
+        <p className={`
+          text-xs mt-2 text-center
+          ${darkMode ? 'text-gray-400' : 'text-gray-500'}
+        `}>
+          Un email avec le résumé du problème sera automatiquement généré et envoyé à notre équipe
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function ChatbotWidget({ 
@@ -100,11 +376,96 @@ export function ChatbotWidget({
         });
         setShowEscalation(true);
       } else {
-        addMessage('bot', response.message);
+        const newMessage = addMessage('bot', response.message);
+        if (response.showConfirmationButtons) {
+          // Marquer le message pour afficher les boutons de confirmation
+          setMessages(prev => prev.map(msg => 
+            msg.id === newMessage.id 
+              ? { ...msg, showConfirmationButtons: true }
+              : msg
+          ));
+        }
       }
     } catch (error) {
       console.error('Erreur chatbot:', error);
       addMessage('bot', t('chatbot_error') || 'Désolé, une erreur s\'est produite. Voulez-vous que je vous aide à rédiger un email à notre équipe de support ?');
+      setShowEscalation(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleProblemResolved = async () => {
+    // Envoyer "oui" au chatbot pour obtenir une astuce
+    const userMessage = 'oui, c\'est réglé';
+    setInputValue('');
+    setIsLoading(true);
+
+    addMessage('user', '✅ Oui, c\'est réglé');
+
+    try {
+      const response = await chatbotService.sendMessage({
+        message: userMessage,
+        userId: user?.id || 'anonymous',
+        userEmail: user?.email || '',
+        userName: user?.full_name || user?.email || 'Utilisateur',
+        conversationHistory: messages.slice(-5).map(m => ({
+          role: m.type === 'user' ? 'user' : 'assistant',
+          content: m.content
+        }))
+      });
+
+      addMessage('bot', response.message);
+      
+      // Retirer les boutons de confirmation du message précédent
+      setMessages(prev => prev.map(msg => 
+        msg.showConfirmationButtons ? { ...msg, showConfirmationButtons: false } : msg
+      ));
+    } catch (error) {
+      console.error('Erreur chatbot:', error);
+      addMessage('bot', 'Super ! Je suis content que ça fonctionne maintenant. 😊');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleProblemNotResolved = async () => {
+    // Envoyer "non" au chatbot pour déclencher l'escalation
+    const userMessage = 'non, toujours bloqué';
+    setInputValue('');
+    setIsLoading(true);
+
+    addMessage('user', '❌ Non, toujours bloqué');
+
+    try {
+      const response = await chatbotService.sendMessage({
+        message: userMessage,
+        userId: user?.id || 'anonymous',
+        userEmail: user?.email || '',
+        userName: user?.full_name || user?.email || 'Utilisateur',
+        conversationHistory: messages.slice(-5).map(m => ({
+          role: m.type === 'user' ? 'user' : 'assistant',
+          content: m.content
+        }))
+      });
+
+      if (response.requiresEscalation) {
+        addMessage('bot', response.message, {
+          ticketId: response.ticketId,
+          emailDraft: response.emailDraft
+        });
+        setShowEscalation(true);
+      } else {
+        addMessage('bot', response.message);
+      }
+
+      // Retirer les boutons de confirmation du message précédent
+      setMessages(prev => prev.map(msg => 
+        msg.showConfirmationButtons ? { ...msg, showConfirmationButtons: false } : msg
+      ));
+    } catch (error) {
+      console.error('Erreur chatbot:', error);
+      addMessage('bot', 'Je comprends. Je vais t\'aider à contacter notre équipe de support.');
       setShowEscalation(true);
     } finally {
       setIsLoading(false);
@@ -264,24 +625,22 @@ export function ChatbotWidget({
                 }
               `}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <StructuredMessage 
+                content={message.content} 
+                darkMode={darkMode}
+              />
+              {message.showConfirmationButtons && (
+                <ConfirmationButtons
+                  onResolved={handleProblemResolved}
+                  onNotResolved={handleProblemNotResolved}
+                  darkMode={darkMode}
+                />
+              )}
               {message.requiresEscalation && message.escalationData && (
-                <div className="mt-2 pt-2 border-t border-gray-400/30">
-                  <button
-                    onClick={handleEscalateToEmail}
-                    className={`
-                      w-full flex items-center justify-center gap-2 px-3 py-2 rounded
-                      text-sm font-medium transition-colors
-                      ${darkMode
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                        : 'bg-blue-500 hover:bg-blue-600 text-white'
-                      }
-                    `}
-                  >
-                    <Mail className="w-4 h-4" />
-                    {t('chatbot_create_email') || 'Créer un email de support'}
-                  </button>
-                </div>
+                <EscalationCard 
+                  onEscalate={handleEscalateToEmail}
+                  darkMode={darkMode}
+                />
               )}
             </div>
           </div>

@@ -22,6 +22,7 @@ interface ChatbotResponse {
   confidence?: number;
   ticketId?: string;
   emailDraft?: string;
+  showConfirmationButtons?: boolean;
 }
 
 interface EscalationRequest {

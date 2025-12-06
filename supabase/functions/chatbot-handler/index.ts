@@ -3,21 +3,24 @@
  * Gère les interactions avec l'IA et l'escalation vers email
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Variables d'environnement
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
+// Interfaces TypeScript
 interface ChatbotRequest {
-  action: 'chat' | 'escalate';
+  action: 'chat' | 'escalate' | 'confirm-escalation';
   message?: string;
   userId: string;
   userEmail: string;
   userName: string;
   conversationHistory?: Array<{ role: string; content: string }>;
   ticketId?: string;
+  problemResolved?: boolean;
 }
 
 interface ChatbotResponse {
@@ -26,6 +29,7 @@ interface ChatbotResponse {
   confidence?: number;
   ticketId?: string;
   emailDraft?: string;
+  showConfirmationButtons?: boolean;
 }
 
 interface EscalationResponse {
@@ -34,69 +38,107 @@ interface EscalationResponse {
   estimatedResponseTime: string;
 }
 
+// Headers CORS
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
 };
 
-serve(async (req) => {
-  // Gérer les requêtes OPTIONS pour CORS (preflight)
+/**
+ * Handler principal de l'Edge Function
+ */
+Deno.serve(async (req) => {
+  console.log(`[chatbot-handler] ${req.method} request received at ${new Date().toISOString()}`);
+
+  // 1. CORS OPTIONS d'abord - CRITIQUE
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
+    console.log('[chatbot-handler] OPTIONS preflight request - returning CORS headers');
+    return new Response('ok', {
       status: 200,
       headers: corsHeaders
     });
   }
 
-  // Vérifier que c'est une requête POST
+  // 2. Vérifier que c'est une requête POST
   if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.log(`[chatbot-handler] Method ${req.method} not allowed`);
+    return new Response(JSON.stringify({ error: 'Méthode non autorisée' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // 3. Validation des variables d'environnement
+  if (!OPENAI_API_KEY) {
+    console.error('[chatbot-handler] OPENAI_API_KEY is not configured');
+    return new Response(JSON.stringify({ error: 'Erreur de configuration serveur: OPENAI_API_KEY manquant' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[chatbot-handler] Supabase configuration missing');
+    return new Response(JSON.stringify({ error: 'Erreur de configuration serveur: Supabase non configuré' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
   try {
-    // Vérifier que OPENAI_API_KEY est configuré
-    if (!OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY is not configured');
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error: OPENAI_API_KEY missing' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    
-    // Parser le body de la requête
+    // 4. Parser le body de la requête
     let request: ChatbotRequest;
     try {
-      request = await req.json();
+      const body = await req.json();
+      request = body;
+      console.log(`[chatbot-handler] Request parsed: action=${request.action}, userId=${request.userId}`);
     } catch (error) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid JSON in request body' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error('[chatbot-handler] Error parsing JSON:', error);
+      return new Response(JSON.stringify({ error: 'Format JSON invalide dans le corps de la requête' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
+    // 5. Validation de la requête
+    if (!request.action) {
+      return new Response(JSON.stringify({ error: 'Action requise (chat ou escalate)' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // 6. Créer le client Supabase
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    console.log('[chatbot-handler] Supabase client created');
+
+    // 7. Router vers le bon handler
     if (request.action === 'chat') {
+      console.log('[chatbot-handler] Routing to handleChat');
       return await handleChat(request, supabase);
     } else if (request.action === 'escalate') {
+      console.log('[chatbot-handler] Routing to handleEscalation');
       return await handleEscalation(request, supabase);
+    } else if (request.action === 'confirm-escalation') {
+      console.log('[chatbot-handler] Routing to handleConfirmEscalation');
+      return await handleConfirmEscalation(request, supabase);
     } else {
-      return new Response(
-        JSON.stringify({ error: 'Invalid action' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error(`[chatbot-handler] Invalid action: ${request.action}`);
+      return new Response(JSON.stringify({ error: 'Action invalide' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
   } catch (error) {
-    console.error('Erreur chatbot-handler:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Erreur serveur' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('[chatbot-handler] Unexpected error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Erreur serveur inattendue',
+      details: error instanceof Error ? error.message : 'Erreur inconnue'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 });
 
@@ -107,56 +149,161 @@ async function handleChat(
   request: ChatbotRequest,
   supabase: any
 ): Promise<Response> {
-  if (!request.message) {
-    return new Response(
-      JSON.stringify({ error: 'Message is required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
   try {
+    // Validation du message
+    if (!request.message || request.message.trim().length === 0) {
+      console.error('[chatbot-handler] Empty message received');
+      return new Response(JSON.stringify({ error: 'Le message est requis' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log(`[chatbot-handler] Processing chat message: "${request.message.substring(0, 100)}..."`);
+
     // Compter le nombre d'échanges dans l'historique
     const exchangeCount = (request.conversationHistory || []).length;
     const shouldEscalate = exchangeCount >= 3; // Escalation après 3 échanges minimum
+    console.log(`[chatbot-handler] Exchange count: ${exchangeCount}, shouldEscalate: ${shouldEscalate}`);
 
     // Construire le contexte pour l'IA
-    const systemPrompt = `Tu es l'assistant Centrinote, un assistant intelligent pour l'application Centrinote.
+    const systemPrompt = `Tu es l'assistant Centrinote, un assistant intelligent et moderne pour l'application Centrinote. Ton style est chaleureux, naturel et engageant, comme un collègue qui aide avec bienveillance.
 
-Centrinote est une plateforme de gestion de connaissances avec les fonctionnalités suivantes:
+**CENTRINOTE - GUIDE COMPLET DES FONCTIONNALITÉS :**
 
-1. **Gestion de documents et notes** : Création, édition, organisation de notes avec recherche IA
-2. **Vocabulaire et flashcards** : Apprentissage de vocabulaire avec système de révision adaptatif
-3. **Planification de tâches** : Gestion de tâches avec notifications et rappels
-4. **Collaboration et réunions** : Réunions vidéo intégrées, partage de documents
-5. **Recherche IA** : Recherche intelligente dans tout le contenu
-6. **Automatisations** : Système d'automatisation pour :
-   - Citations quotidiennes de motivation
-   - Résumés hebdomadaires de progression
-   - Bilans mensuels
-   - Rappels de révision
-   - Notifications personnalisées
+1. **GESTION DE NOTES ET DOCUMENTS** :
+   - Création de notes : Menu "Notes" → "+ Nouvelle note" → Écrire titre et contenu (sauvegarde automatique)
+   - Édition : Cliquer sur une note → Icône crayon (édition) en haut à droite → Modifier → Sauvegarder
+   - Organisation : Tags, catégories, épinglage (pin), recherche
+   - Import : Menu "Notes" → "Importer" → PDF ou Google Drive (transformation automatique en texte modifiable)
+   - Export : Paramètres → Export → PDF, Markdown ou ZIP complet
+   - Formatage : Support Markdown (# titre, **gras**, *italique*)
+   - Pièces jointes : Possibilité d'ajouter des fichiers aux notes
 
-**Comment fonctionnent les automatisations dans Centrinote :**
-- Les automatisations sont des règles "Si... Alors..." (style IFTTT)
-- Elles peuvent être déclenchées par des événements (heure, date, action utilisateur)
-- Elles peuvent envoyer des emails, des notifications, ou exécuter des actions
-- Elles sont configurables dans la section "Automatisations" des paramètres
-- Exemples : "Tous les jours à 9h, envoyer une citation de motivation", "Chaque lundi, envoyer un résumé hebdomadaire"
+2. **VOCABULAIRE ET FLASHCARDS** :
+   - Ajout de mots : Menu "Vocabulaire" → "+ Ajouter un mot" → Remplir mot, définition, exemple, catégorie
+   - Mode révision : "Vocabulaire" → "🎴 Mode révision" → Cartes avec "Je sais" / "À revoir"
+   - Système de maîtrise : Score 0-100, priorité aux mots moins maîtrisés
+   - Catégories : Organisation par catégories personnalisées
+   - Difficulté : Niveaux 1-5
+   - Limite Free : 100 mots max, illimité en Pro
 
-Ton rôle est d'aider les utilisateurs à:
-- Comprendre comment utiliser les fonctionnalités de Centrinote
-- Expliquer en détail comment fonctionnent les automatisations
-- Résoudre des problèmes techniques
-- Guider les utilisateurs vers les bonnes sections
+3. **PLANIFICATION ET TÂCHES** :
+   - Création : Menu "📅 Planning" → "+ Ajouter un rappel" → Choisir matière, date, heure
+   - Notifications : Alertes automatiques aux moments programmés
+   - Rappels récurrents : Possibilité de créer des rappels hebdomadaires/mensuels
+   - Gestion : Vue calendrier, liste des tâches, filtres
 
-**IMPORTANT** : 
-- Réponds TOUJOURS d'abord à la question de l'utilisateur de manière complète et détaillée
-- Ne propose l'escalation vers email QUE si :
-  1. Tu as déjà répondu à la question mais l'utilisateur indique que ça ne fonctionne pas
-  2. OU si tu ne peux vraiment pas répondre après avoir essayé
-  3. OU si l'utilisateur demande explicitement à contacter le support
-- Réponds toujours en français de manière amicale et professionnelle
-- Sois précis et donne des exemples concrets quand c'est possible`;
+4. **RECHERCHE IA (AI SEARCH)** :
+   - Accès : Menu "🔍 Recherche"
+   - Utilisation : Questions en langage naturel (ex: "c'était quoi la formule des intégrales ?")
+   - Fonctionnement : Recherche sémantique, pas besoin de mots-clés exacts
+   - Disponibilité : Base gratuite, illimitée en Pro
+
+5. **COLLABORATION ET RÉUNIONS** :
+   - Partage de notes : Ouvrir note → "👥 Partager" → Entrer email → "Peut modifier" ou "Lecture seule"
+   - Édition temps réel : Modifications visibles instantanément (style Google Docs)
+   - Réunions vidéo : Intégration Jitsi Meet et Zoom
+   - Chat temps réel : Communication pendant les sessions de collaboration
+   - Limite Free : 2 collaborateurs max, illimité en Pro
+
+6. **AUTOMATISATIONS** :
+   - Concept : Règles "Si... Alors..." (style IFTTT)
+   - Accès : Menu "⚡ Automatisation" → "Créer une règle"
+   - Déclencheurs : Heure, date, action utilisateur, événements
+   - Actions : Envoi d'emails, notifications, exécution d'actions
+   - Exemples :
+     * "Tous les jours à 9h, envoyer une citation de motivation"
+     * "Chaque lundi, envoyer un résumé hebdomadaire"
+     * "Si j'ajoute #urgent à une note, envoyer un rappel demain matin"
+     * "Tous les vendredis, envoyer un résumé de la semaine par email"
+   - Configuration : Section "Automatisations" dans les paramètres
+   - Disponibilité : Fonctionnalités avancées en Pro
+
+7. **FORFAITS ET LIMITES** :
+   - **Free** : Notes illimitées, recherche de base, vocabulaire (100 mots max), partage (2 collaborateurs max)
+   - **Pro (5€/mois)** : AI Search illimitée, automatisations avancées, réunions enregistrées + transcriptions, stockage illimité, essai gratuit 14 jours
+   - Passage Pro : Menu "💳 Plan" → Comparer → "Passer Pro"
+
+**MÉTHODES DE DÉPANNAGE :**
+
+**Problèmes de notes :**
+- Note ne s'enregistre pas : Vérifier la connexion internet, actualiser la page, vérifier les permissions
+- Note introuvable : Utiliser la recherche IA, vérifier les filtres/tags, vérifier les archives
+- Import échoue : Vérifier le format du fichier (PDF supporté), taille du fichier, connexion internet
+- Formatage perdu : Vérifier le support Markdown, réessayer avec syntaxe correcte
+
+**Problèmes de vocabulaire :**
+- Mot ne s'ajoute pas : Vérifier la limite (100 mots en Free), actualiser la page
+- Révision ne fonctionne pas : Vérifier qu'il y a des mots à réviser, réinitialiser le mode révision
+- Score de maîtrise incorrect : Les scores se mettent à jour après chaque révision
+
+**Problèmes de tâches/planning :**
+- Notification ne s'affiche pas : Vérifier les paramètres de notifications du navigateur, vérifier l'heure système
+- Rappel ne se déclenche pas : Vérifier que le rappel est actif, vérifier la date/heure
+
+**Problèmes d'automatisations :**
+- Automatisation ne se déclenche pas : Vérifier qu'elle est active, vérifier la configuration du déclencheur, vérifier les logs
+- Email non reçu : Vérifier les spams, vérifier l'adresse email, vérifier les logs d'exécution
+- Double exécution : Problème connu résolu, vérifier la dernière version
+
+**Problèmes généraux :**
+- Lenteur : Vérifier la connexion internet, vider le cache du navigateur, fermer les onglets inutiles
+- Erreur de chargement : Actualiser la page (F5), vérifier la connexion, réessayer dans quelques instants
+- Données perdues : Vérifier la sauvegarde automatique, vérifier l'historique, contacter le support si persistant
+- Connexion : Vérifier internet, se déconnecter/reconnecter, vider le cache
+
+**STYLE D'ÉCRITURE MODERNE ET ENGAGEANT :**
+
+- **Tone** : Conversationnel, amical et professionnel. Parle comme un expert bienveillant, pas comme un manuel d'instruction
+- **Structure** : Évite les listes numérotées rigides (1. 2. 3.). Préfère des paragraphes fluides avec des transitions naturelles
+- **Approche** : Commence par comprendre le besoin réel de l'utilisateur, puis guide-le de manière intuitive
+- **Exemples** : Utilise des exemples concrets et des scénarios réels plutôt que des instructions abstraites
+- **Engagement** : Pose des questions de clarification si nécessaire, montre de l'empathie
+- **Actionnable** : Donne des conseils pratiques et des astuces, pas juste des étapes mécaniques
+- **Personnalisation** : Adapte ton langage au contexte (débutant vs expert)
+
+**EXEMPLE DE BONNE RÉPONSE :**
+Au lieu de "1. Accéder à vos notes : Ouvrez l'application... 2. Sélectionner la note...", préfère :
+"Pour corriger une note, c'est très simple ! Ouvre Centrinote et va dans tes notes. Tu verras toutes tes notes listées - clique simplement sur celle que tu veux modifier. Une fois ouverte, tu trouveras l'icône d'édition (un petit crayon) en haut à droite. Clique dessus et tu peux commencer à modifier directement. N'oublie pas de sauvegarder quand tu as terminé - le bouton est bien visible en haut de l'écran. Si tu veux, je peux te guider étape par étape en temps réel !"
+
+**IMPORTANT - MÉTHODE DE DIAGNOSTIC PROGRESSIF :**
+
+1. **COMPRENDRE LE PROBLÈME** :
+   - Pose TOUJOURS des questions ciblées pour comprendre précisément la situation
+   - Exemples de questions : "À quelle étape l'enregistrement bloque-t-il ?", "Voyez-vous le bouton Enregistrer ?", "Quel message d'erreur apparaît ?", "Sur quelle page êtes-vous actuellement ?"
+   - Ne devine JAMAIS, demande toujours des précisions avant de proposer une solution
+
+2. **SOLUTIONS PROGRESSIVES** :
+   - Commence par la solution la plus simple et la plus probable
+   - Si ça ne fonctionne pas, propose la solution suivante en fonction de la réponse de l'utilisateur
+   - Adapte tes solutions en fonction des réponses : "Ah, vous ne voyez pas le bouton ? Alors essayons ceci..."
+   - Structure tes réponses avec des étapes claires et numérotées quand c'est pertinent
+
+3. **AFFICHAGE STRUCTURÉ** :
+   - Utilise des marqueurs visuels pour structurer tes réponses :
+     * 🔍 Pour les questions de diagnostic
+     * ✅ Pour les solutions/étapes
+     * ⚠️ Pour les avertissements
+     * 💡 Pour les astuces
+   - Organise les étapes de manière claire et lisible
+   - Utilise des encadrés conceptuels pour séparer les différentes parties de ta réponse
+
+4. **RÈGLES D'ESCALATION STRICTES** :
+   - L'escalation vers email est UNIQUEMENT en dernier recours
+   - Ne propose l'escalation QUE si :
+     * Tu as posé au moins 2-3 questions de diagnostic
+     * Tu as proposé au moins 2-3 solutions progressives
+     * L'utilisateur confirme que rien ne fonctionne après toutes tes tentatives
+     * OU si l'utilisateur demande explicitement à contacter le support
+   - Ne propose JAMAIS l'escalation dès la première réponse
+   - Après avoir donné une solution, demande TOUJOURS : "Est-ce que le problème est réglé ?" pour vérifier
+
+5. **STYLE DE RÉPONSE** :
+   - Réponds toujours en français de manière naturelle et engageante
+   - Sois précis, donne des exemples concrets
+   - Montre de l'empathie : "Je comprends que c'est frustrant, essayons ensemble de résoudre ça"
+   - Utilise les méthodes de dépannage ci-dessus pour résoudre les problèmes avant de proposer l'escalation`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -164,30 +311,49 @@ Ton rôle est d'aider les utilisateurs à:
       { role: 'user', content: request.message }
     ];
 
-    // Appel à OpenAI
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 500
-      })
-    });
+    console.log(`[chatbot-handler] Calling OpenAI API with ${messages.length} messages`);
 
-    if (!openaiResponse.ok) {
-      throw new Error('OpenAI API error');
+    // Appel à OpenAI avec gestion d'erreurs
+    let openaiResponse: Response;
+    try {
+      openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: messages,
+          temperature: 0.8,
+          max_tokens: 800
+        })
+      });
+    } catch (fetchError) {
+      console.error('[chatbot-handler] OpenAI fetch error:', fetchError);
+      throw new Error('Erreur de connexion à l\'API OpenAI');
     }
 
-    const openaiData = await openaiResponse.json();
+    if (!openaiResponse.ok) {
+      const errorText = await openaiResponse.text();
+      console.error('[chatbot-handler] OpenAI API error:', openaiResponse.status, errorText);
+      throw new Error(`Erreur API OpenAI: ${openaiResponse.status}`);
+    }
+
+    let openaiData: any;
+    try {
+      openaiData = await openaiResponse.json();
+    } catch (parseError) {
+      console.error('[chatbot-handler] Error parsing OpenAI response:', parseError);
+      throw new Error('Erreur lors du parsing de la réponse OpenAI');
+    }
+
     const aiMessage = openaiData.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu traiter votre demande.';
-    
+    console.log(`[chatbot-handler] OpenAI response received, length: ${aiMessage.length} characters`);
+
     // Calculer la confiance (amélioré)
     const confidence = calculateConfidence(aiMessage, request.message, exchangeCount);
+    console.log(`[chatbot-handler] Confidence calculated: ${confidence.toFixed(2)}`);
 
     // Vérifier si l'utilisateur demande explicitement de l'aide supplémentaire
     const userMessageLower = request.message.toLowerCase();
@@ -199,28 +365,193 @@ Ton rôle est d'aider les utilisateurs à:
       userMessageLower.includes('problème persiste') ||
       userMessageLower.includes('toujours pas') ||
       userMessageLower.includes('contact support') ||
-      userMessageLower.includes('parler à un humain');
+      userMessageLower.includes('parler à un humain') ||
+      userMessageLower.includes('aide supplémentaire') ||
+      userMessageLower.includes('besoin d\'aide') ||
+      userMessageLower.includes('ne comprends pas') ||
+      userMessageLower.includes('ne fonctionne toujours pas');
 
-    // Si besoin d'escalation, proposer après la réponse
-    if (needsEscalation && exchangeCount >= 2) {
+    console.log(`[chatbot-handler] Needs escalation: ${needsEscalation}`);
+
+    // Détecter si c'est une question de diagnostic (ne pas afficher les boutons)
+    const isDiagnosticQuestion = 
+      aiMessage.toLowerCase().includes('quelle étape') ||
+      aiMessage.toLowerCase().includes('voyez-vous') ||
+      aiMessage.toLowerCase().includes('quel message') ||
+      aiMessage.toLowerCase().includes('sur quelle page') ||
+      aiMessage.toLowerCase().includes('pouvez-vous me dire') ||
+      aiMessage.toLowerCase().includes('🔍');
+
+    // Vérifier si la réponse contient une question de confirmation
+    const hasConfirmationQuestion = 
+      aiMessage.toLowerCase().includes('est-ce que le problème est réglé') ||
+      aiMessage.toLowerCase().includes('est-ce que le problème') ||
+      aiMessage.toLowerCase().includes('ça fonctionne maintenant') ||
+      aiMessage.toLowerCase().includes('problème résolu') ||
+      aiMessage.toLowerCase().includes('est-ce que ça marche') ||
+      aiMessage.toLowerCase().includes('fonctionne-t-il') ||
+      aiMessage.toLowerCase().includes('est-ce que c\'est bon');
+
+    // Détecter si l'utilisateur a confirmé que le problème n'est PAS résolu
+    const userConfirmedProblemNotResolved = 
+      (userMessageLower.includes('non') || userMessageLower.includes('pas')) && 
+      (userMessageLower.includes('résolu') || 
+       userMessageLower.includes('marche') || 
+       userMessageLower.includes('fonctionne') ||
+       userMessageLower.includes('toujours pas') ||
+       userMessageLower.includes('ne marche pas') ||
+       userMessageLower.includes('ça ne fonctionne pas') ||
+       userMessageLower.includes('problème persiste'));
+
+    // Détecter si l'utilisateur a confirmé que le problème EST résolu
+    const userConfirmedProblemResolved = 
+      (userMessageLower.includes('oui') || 
+       userMessageLower.includes('résolu') || 
+       userMessageLower.includes('fonctionne') ||
+       userMessageLower.includes('ça marche') ||
+       userMessageLower.includes('c\'est bon') ||
+       userMessageLower.includes('parfait') ||
+       userMessageLower.includes('merci')) &&
+      !userMessageLower.includes('pas') &&
+      !userMessageLower.includes('non');
+
+    // Si l'utilisateur confirme que le problème est résolu, proposer une astuce
+    if (userConfirmedProblemResolved) {
+      console.log('[chatbot-handler] User confirmed problem is resolved, suggesting tip');
+      
+      // Générer une astuce basée sur le contexte de la conversation
+      const conversationContext = (request.conversationHistory || [])
+        .slice(-3)
+        .map(msg => `${msg.role === 'user' ? 'Utilisateur' : 'Assistant'}: ${msg.content}`)
+        .join('\n');
+      
+      const tipPrompt = `L'utilisateur vient de résoudre un problème avec Centrinote. Voici le contexte de la conversation :
+
+${conversationContext}
+
+Propose-lui une astuce ou suggestion d'utilisation intéressante et pertinente liée à Centrinote, en lien avec ce qu'il vient de faire. Sois créatif, utile et moderne. Réponds en une phrase ou deux maximum, de manière amicale et engageante. Ne répète pas ce qui a déjà été dit.`;
+      
+      try {
+        const tipResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENAI_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { 
+                role: 'system', 
+                content: 'Tu es un assistant Centrinote expert qui propose des astuces utiles, créatives et contextuelles. Tu connais toutes les fonctionnalités de Centrinote (notes, vocabulaire, flashcards, automatisations, collaboration, recherche IA).' 
+              },
+              { role: 'user', content: tipPrompt }
+            ],
+            temperature: 0.9,
+            max_tokens: 150
+          })
+        });
+
+        let tipMessage = 'Super ! Je suis content que ça fonctionne maintenant. 😊\n\n💡 Astuce : Explore les automatisations pour gagner du temps sur tes tâches répétitives !';
+        
+        if (tipResponse.ok) {
+          const tipData = await tipResponse.json();
+          const generatedTip = tipData.choices[0]?.message?.content?.trim();
+          if (generatedTip) {
+            tipMessage = `Super ! Je suis content que ça fonctionne maintenant. 😊\n\n💡 ${generatedTip}`;
+          }
+        }
+
+        const response: ChatbotResponse = {
+          message: tipMessage,
+          requiresEscalation: false,
+          confidence: 1.0
+        };
+
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('[chatbot-handler] Error generating tip:', error);
+        const response: ChatbotResponse = {
+          message: 'Super ! Je suis content que ça fonctionne maintenant. 😊\n\n💡 Astuce : Explore les automatisations pour gagner du temps sur tes tâches répétitives !',
+          requiresEscalation: false,
+          confidence: 1.0
+        };
+
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // Si besoin d'escalation ET que l'utilisateur a confirmé que le problème n'est pas résolu
+    if (needsEscalation && exchangeCount >= 1 && userConfirmedProblemNotResolved) {
+      console.log('[chatbot-handler] User confirmed problem not resolved, creating support ticket');
       const ticketId = await createSupportTicket(request, supabase, false);
       const emailDraft = generateEmailDraft(request, aiMessage);
 
       const response: ChatbotResponse = {
-        message: `${aiMessage}\n\n---\n\nSi le problème persiste ou si vous avez besoin d'aide supplémentaire, je peux vous aider à rédiger un email à notre équipe de support. Souhaitez-vous que je crée cet email ?`,
+        message: `${aiMessage}\n\n---\n\nJe comprends que le problème persiste. Je peux t'aider à contacter directement notre équipe de support pour qu'ils puissent t'aider plus en profondeur. On peut rédiger un email ensemble pour expliquer ta situation. Ça te dit ?`,
         requiresEscalation: true,
         confidence,
         ticketId,
         emailDraft
       };
 
-      return new Response(
-        JSON.stringify(response),
-        { 
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
+      console.log('[chatbot-handler] Returning response with escalation option');
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Détecter si c'est une réponse de dépannage/solution qui nécessite une confirmation
+    const isTroubleshootingResponse = 
+      !isDiagnosticQuestion && (
+        aiMessage.toLowerCase().includes('vérifier') ||
+        aiMessage.toLowerCase().includes('essayer') ||
+        aiMessage.toLowerCase().includes('solution') ||
+        aiMessage.toLowerCase().includes('étape') ||
+        aiMessage.toLowerCase().includes('clique') ||
+        aiMessage.toLowerCase().includes('menu') ||
+        aiMessage.toLowerCase().includes('ouvre') ||
+        aiMessage.toLowerCase().includes('va dans') ||
+        aiMessage.toLowerCase().includes('clique sur') ||
+        aiMessage.toLowerCase().includes('✅')
       );
+
+    // Afficher les boutons de confirmation après une réponse de dépannage
+    // Ne pas afficher si c'est une question de diagnostic ou si l'utilisateur a déjà répondu
+    const shouldShowConfirmationButtons = 
+      isTroubleshootingResponse && 
+      !isDiagnosticQuestion &&
+      !userConfirmedProblemNotResolved && 
+      !userConfirmedProblemResolved &&
+      !hasConfirmationQuestion &&
+      exchangeCount >= 1; // Au moins un échange pour avoir du contexte
+
+    if (shouldShowConfirmationButtons) {
+      // Retirer la question de confirmation du message si elle existe déjà
+      let cleanMessage = aiMessage;
+      if (hasConfirmationQuestion) {
+        cleanMessage = aiMessage.replace(/\n\nEst-ce que.*\?/gi, '').trim();
+      }
+
+      const response: ChatbotResponse = {
+        message: cleanMessage,
+        requiresEscalation: false,
+        confidence,
+        showConfirmationButtons: true
+      };
+
+      console.log('[chatbot-handler] Returning response with confirmation buttons');
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // Réponse normale sans escalation
@@ -230,35 +561,41 @@ Ton rôle est d'aider les utilisateurs à:
       confidence
     };
 
-    return new Response(
-      JSON.stringify(response),
-      { 
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    console.log('[chatbot-handler] Returning normal response');
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   } catch (error) {
-    console.error('Erreur handleChat:', error);
+    console.error('[chatbot-handler] Error in handleChat:', error);
     
     // En cas d'erreur technique, proposer l'escalation
-    const ticketId = await createSupportTicket(request, supabase, false);
-    const emailDraft = generateEmailDraft(request, 'Erreur technique lors du traitement de la demande.');
+    try {
+      const ticketId = await createSupportTicket(request, supabase, false);
+      const emailDraft = generateEmailDraft(request, 'Erreur technique lors du traitement de la demande.');
 
-    const response: ChatbotResponse = {
-      message: 'Je rencontre une difficulté technique. Souhaitez-vous que je vous aide à rédiger un email à notre équipe de support ?',
-      requiresEscalation: true,
-      confidence: 0,
-      ticketId,
-      emailDraft
-    };
+      const response: ChatbotResponse = {
+        message: 'Oups, je rencontre un petit souci technique de mon côté. Pas de panique ! Je peux t\'aider à contacter directement notre équipe de support pour qu\'ils puissent t\'aider. On rédige un email ensemble ?',
+        requiresEscalation: true,
+        confidence: 0,
+        ticketId,
+        emailDraft
+      };
 
-    return new Response(
-      JSON.stringify(response),
-      { 
+      return new Response(JSON.stringify(response), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+      });
+    } catch (ticketError) {
+      console.error('[chatbot-handler] Error creating ticket:', ticketError);
+      return new Response(JSON.stringify({ 
+        error: 'Erreur technique. Veuillez réessayer plus tard.',
+        requiresEscalation: false
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
   }
 }
 
@@ -270,11 +607,41 @@ async function handleEscalation(
   supabase: any
 ): Promise<Response> {
   try {
-    // Créer ou mettre à jour le ticket
-    const ticketId = request.ticketId || await createSupportTicket(request, supabase, true);
+    console.log('[chatbot-handler] Handling escalation request');
+    
+    // Si un ticket existe déjà, le mettre à jour
+    let ticketId = request.ticketId;
+    
+    if (ticketId && !ticketId.startsWith('temp-')) {
+      // Mettre à jour le message existant dans support_messages
+      const { error: updateError } = await supabase
+        .from('support_messages')
+        .update({ 
+          status: 'nouveau',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', ticketId);
+      
+      if (updateError) {
+        console.error('[chatbot-handler] Error updating support message:', updateError);
+        // Créer un nouveau message si la mise à jour échoue
+        ticketId = await createSupportTicket(request, supabase, true);
+      }
+    } else {
+      // Créer un nouveau message
+      ticketId = await createSupportTicket(request, supabase, true);
+    }
+    
+    console.log(`[chatbot-handler] Support message ID: ${ticketId}`);
     
     // Envoyer l'email à l'équipe admin
-    await sendEmailToAdmin(request, ticketId, supabase);
+    try {
+      await sendEmailToAdmin(request, ticketId, supabase);
+      console.log('[chatbot-handler] Email sent to admin');
+    } catch (emailError) {
+      console.error('[chatbot-handler] Error sending email:', emailError);
+      // Ne pas faire échouer la requête si l'email échoue
+    }
 
     const response: EscalationResponse = {
       ticketId,
@@ -282,19 +649,98 @@ async function handleEscalation(
       estimatedResponseTime: '24h'
     };
 
-    return new Response(
-      JSON.stringify(response),
-      { 
+    console.log('[chatbot-handler] Escalation completed successfully');
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('[chatbot-handler] Error in handleEscalation:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Erreur lors de l\'escalation',
+      details: error instanceof Error ? error.message : 'Erreur inconnue'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Gère la confirmation d'escalation - vérifie si le problème est résolu avant d'envoyer l'email
+ */
+async function handleConfirmEscalation(
+  request: ChatbotRequest,
+  supabase: any
+): Promise<Response> {
+  try {
+    console.log('[chatbot-handler] Handling confirmation escalation request');
+    
+    // Vérifier si le problème est résolu
+    const problemResolved = request.problemResolved === true;
+    const userMessage = (request.message || '').toLowerCase();
+    
+    // Détecter si le problème est résolu depuis le message
+    const resolvedIndicators = [
+      'oui', 'résolu', 'fonctionne', 'ça marche', 'c\'est bon', 
+      'parfait', 'merci', 'ok', 'd\'accord', 'super'
+    ];
+    const isResolvedFromMessage = resolvedIndicators.some(indicator => 
+      userMessage.includes(indicator) && 
+      !userMessage.includes('pas') && 
+      !userMessage.includes('non')
+    );
+
+    const isActuallyResolved = problemResolved || isResolvedFromMessage;
+
+    if (isActuallyResolved) {
+      console.log('[chatbot-handler] Problem is resolved, no escalation needed');
+      return new Response(JSON.stringify({ 
+        message: 'Super ! Je suis content que ça fonctionne maintenant. Si tu as d\'autres questions, n\'hésite pas à me demander ! 😊',
+        requiresEscalation: false,
+        problemResolved: true
+      }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+      });
+    }
+
+    // Le problème n'est pas résolu, procéder à l'escalation
+    console.log('[chatbot-handler] Problem not resolved, proceeding with escalation');
+    
+    // Créer ou mettre à jour le ticket
+    const ticketId = request.ticketId || await createSupportTicket(request, supabase, true);
+    console.log(`[chatbot-handler] Ticket ID: ${ticketId}`);
+    
+    // Envoyer l'email à l'équipe admin
+    try {
+      await sendEmailToAdmin(request, ticketId, supabase);
+      console.log('[chatbot-handler] Email sent to admin');
+    } catch (emailError) {
+      console.error('[chatbot-handler] Error sending email:', emailError);
+      // Ne pas faire échouer la requête si l'email échoue
+    }
+
+    const response: EscalationResponse = {
+      ticketId,
+      status: 'sent',
+      estimatedResponseTime: '24h'
+    };
+
+    console.log('[chatbot-handler] Escalation completed successfully');
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   } catch (error) {
-    console.error('Erreur handleEscalation:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Erreur serveur' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('[chatbot-handler] Error in handleConfirmEscalation:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Erreur lors de la confirmation d\'escalation',
+      details: error instanceof Error ? error.message : 'Erreur inconnue'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 }
 
@@ -306,11 +752,14 @@ function calculateConfidence(aiMessage: string, userMessage: string, exchangeCou
   const positiveKeywords = [
     'voici', 'vous pouvez', 'pour cela', 'étapes', 'solution', 'comment',
     'dans', 'section', 'paramètres', 'cliquez', 'allez', 'utilisez',
-    'fonctionne', 'automatisation', 'règle', 'déclencheur', 'action'
+    'fonctionne', 'automatisation', 'règle', 'déclencheur', 'action',
+    'première', 'ensuite', 'enfin', 'exemple', 'par exemple'
   ];
+  
   const negativeKeywords = [
     'je ne sais pas', 'désolé je ne peux pas', 'impossible de',
-    'je ne comprends pas', 'je ne peux pas vous aider'
+    'je ne comprends pas', 'je ne peux pas vous aider',
+    'je ne suis pas sûr', 'je ne connais pas'
   ];
   
   let confidence = 0.75; // Base plus élevée
@@ -347,11 +796,17 @@ function calculateConfidence(aiMessage: string, userMessage: string, exchangeCou
     confidence += 0.1;
   }
   
+  // Augmenter la confiance si la réponse contient des exemples
+  if (lowerMessage.includes('exemple') || lowerMessage.includes('par exemple')) {
+    confidence += 0.05;
+  }
+  
   // Après plusieurs échanges, la confiance diminue légèrement
   if (exchangeCount > 2) {
     confidence -= 0.1;
   }
   
+  // Normaliser entre 0 et 1
   return Math.max(0, Math.min(1, confidence));
 }
 
@@ -363,38 +818,56 @@ async function createSupportTicket(
   supabase: any,
   escalated: boolean
 ): Promise<string> {
-  const { data, error } = await supabase
-    .from('support_tickets')
-    .insert({
-      user_id: request.userId === 'anonymous' ? null : request.userId,
-      user_email: request.userEmail,
-      user_name: request.userName,
-      subject: escalated 
-        ? `Demande de support - ${request.userName}`
-        : `Question chatbot - ${request.userName}`,
-      content: formatConversationHistory(request.conversationHistory || []),
-      status: 'open',
-      priority: 'normal',
-      source: 'chatbot',
-      escalated: escalated,
-      created_at: new Date().toISOString()
-    })
-    .select()
-    .single();
+  try {
+    console.log('[chatbot-handler] Creating support ticket, escalated:', escalated);
+    
+    // Utiliser support_messages (table existante qui fonctionne)
+    const conversationText = formatConversationHistory(request.conversationHistory || []);
+    const subject = escalated 
+      ? `[Chatbot] Demande de support - ${request.userName}`
+      : `[Chatbot] Question - ${request.userName}`;
+    
+    const { data, error } = await supabase
+      .from('support_messages')
+      .insert({
+        name: request.userName,
+        email: request.userEmail,
+        subject: subject,
+        message: conversationText,
+        status: 'nouveau',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-  if (error) {
-    console.error('Erreur création ticket:', error);
-    // Générer un ID temporaire si la création échoue
-    return `temp-${Date.now()}`;
+    if (error) {
+      console.error('[chatbot-handler] Error creating support message:', error);
+      // Générer un ID temporaire si la création échoue
+      const tempId = `temp-${Date.now()}`;
+      console.log(`[chatbot-handler] Generated temporary ticket ID: ${tempId}`);
+      return tempId;
+    }
+
+    console.log(`[chatbot-handler] Support message created successfully: ${data.id}`);
+    return data.id;
+  } catch (error) {
+    console.error('[chatbot-handler] Exception creating support message:', error);
+    // Générer un ID temporaire en cas d'exception
+    const tempId = `temp-${Date.now()}`;
+    console.log(`[chatbot-handler] Generated temporary ticket ID after exception: ${tempId}`);
+    return tempId;
   }
-
-  return data.id;
 }
 
 /**
  * Formate l'historique de conversation pour le ticket
  */
 function formatConversationHistory(history: Array<{ role: string; content: string }>): string {
+  if (!history || history.length === 0) {
+    return 'Aucun historique de conversation';
+  }
+  
   return history
     .map(msg => `${msg.role === 'user' ? 'Utilisateur' : 'Assistant'}: ${msg.content}`)
     .join('\n\n');
@@ -406,15 +879,15 @@ function formatConversationHistory(history: Array<{ role: string; content: strin
 function generateEmailDraft(request: ChatbotRequest, aiMessage: string): string {
   return `Bonjour,
 
-Je contacte le support Centrinote concernant une question que j'ai posée via le chatbot.
+J'ai une question concernant Centrinote que j'ai posée via le chatbot, et j'aurais besoin d'aide supplémentaire.
 
-Question initiale: ${request.message}
+Ma question : ${request.message || 'Non spécifiée'}
 
-Réponse du chatbot: ${aiMessage}
+Réponse du chatbot : ${aiMessage}
 
-Je souhaiterais obtenir de l'aide supplémentaire sur ce sujet.
+J'aimerais obtenir plus d'informations ou de l'aide sur ce sujet.
 
-Cordialement,
+Merci par avance !
 ${request.userName}
 ${request.userEmail}`;
 }
@@ -428,6 +901,8 @@ async function sendEmailToAdmin(
   supabase: any
 ): Promise<void> {
   try {
+    console.log(`[chatbot-handler] Sending email to admin for ticket ${ticketId}`);
+    
     // Appeler l'Edge Function automation-email pour envoyer l'email
     const emailResponse = await fetch(`${SUPABASE_URL}/functions/v1/automation-email`, {
       method: 'POST',
@@ -461,11 +936,15 @@ async function sendEmailToAdmin(
     });
 
     if (!emailResponse.ok) {
-      console.error('Erreur envoi email:', await emailResponse.text());
+      const errorText = await emailResponse.text();
+      console.error('[chatbot-handler] Error sending email:', emailResponse.status, errorText);
+      throw new Error(`Erreur envoi email: ${emailResponse.status}`);
     }
+
+    console.log('[chatbot-handler] Email sent successfully');
   } catch (error) {
-    console.error('Erreur sendEmailToAdmin:', error);
+    console.error('[chatbot-handler] Exception sending email:', error);
     // Ne pas faire échouer la requête si l'email échoue
+    throw error;
   }
 }
-
