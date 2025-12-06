@@ -18,9 +18,10 @@ export function AdminFloatingButton({ user }: AdminFloatingButtonProps) {
     return null;
   }
 
-  // Masquer le FAB sur /settings pour éviter les conflits de clics
-  const isSettingsPage = location.pathname === '/settings';
-  if (isSettingsPage) {
+  // Masquer le FAB sur certaines pages pour éviter les conflits de clics
+  const pagesToHide = ['/settings', '/vocabulary'];
+  const shouldHide = pagesToHide.some(page => location.pathname === page || location.pathname.startsWith(page + '/'));
+  if (shouldHide) {
     return null;
   }
 

@@ -333,6 +333,19 @@ export function ChatbotWidget({
     scrollToBottom();
   }, [messages]);
 
+  // Écouter l'événement personnalisé pour ouvrir le chatbot
+  useEffect(() => {
+    const handleOpenChatbot = () => {
+      setIsMinimized(false);
+    };
+
+    window.addEventListener('open-chatbot', handleOpenChatbot);
+    
+    return () => {
+      window.removeEventListener('open-chatbot', handleOpenChatbot);
+    };
+  }, []);
+
   const addMessage = (type: 'user' | 'bot' | 'system', content: string, escalationData?: any) => {
     const newMessage: Message = {
       id: Date.now().toString(),

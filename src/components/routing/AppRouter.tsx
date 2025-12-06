@@ -223,21 +223,6 @@ export function AppRouter() {
         />
         
         <Route 
-          path="/collaboration" 
-          element={
-            <ProtectedRoute>
-              <AppProvider>
-                <MeetingsProvider>
-                  <LanguageProvider>
-                    <AppLayout />
-                  </LanguageProvider>
-                </MeetingsProvider>
-              </AppProvider>
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
           path="/meetings" 
           element={
             <ProtectedRoute>

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Plus, Calendar, Clock, Users, Video, Play, Trash2, 
-  MoreVertical, Copy, Loader2, Search, Filter, AlertCircle, Settings, Mail, FileText, CheckCircle
+  MoreVertical, Copy, Loader2, Search, Filter, AlertCircle, Mail, FileText, CheckCircle
 } from 'lucide-react';
 import { useMeetings, Meeting } from '../../hooks/useMeetings';
 import { useApp } from '../../contexts/AppContext';
@@ -68,7 +68,6 @@ export function MeetingList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'scheduled' | 'active' | 'completed'>('all');
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
-  const [forceShowMeetings, setForceShowMeetings] = useState(false);
   
   // États pour le formulaire de création avec participants
   const [formTitle, setFormTitle] = useState('');
@@ -372,25 +371,6 @@ export function MeetingList() {
             </p>
           </div>
           <div className="flex space-x-3 mt-4 md:mt-0">
-            <button
-              onClick={() => {
-                console.log('🔄 [MEETINGS] Actualisation des données...');
-                refresh();
-              }}
-              className="flex items-center space-x-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all duration-200"
-              title="Actualiser les données"
-            >
-              <Settings className="w-5 h-5" />
-              <span>Recharger</span>
-            </button>
-            <Link
-              to="/meetings/settings"
-              className="flex items-center space-x-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200"
-              title="Debug Daily.co"
-            >
-              <Settings className="w-5 h-5" />
-              <span>Debug</span>
-            </Link>
             <Link
               to="/meetings/new"
               className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-md transition-all duration-200"
@@ -593,44 +573,6 @@ export function MeetingList() {
           </div>
         </div>
 
-        {/* Indicateur de debug */}
-        <div className={`mb-6 p-4 rounded-lg border ${
-          darkMode ? 'bg-blue-900/20 border-blue-800 text-blue-300' : 'bg-blue-50 border-blue-200 text-blue-800'
-        }`}>
-          <p className="text-sm">
-            🔍 Debug: {meetings.length} réunions chargées | Loading: {loading ? 'Oui' : 'Non'} | Error: {error || 'Aucune'}
-          </p>
-          <div className="flex space-x-2 mt-2">
-            <button
-              onClick={() => {
-                console.log('🔍 [DEBUG] État meetings actuel:', { meetings, loading, error });
-                console.log('🔍 [DEBUG] Meetings array:', meetings);
-              }}
-              className="px-3 py-1 bg-blue-600 text-white text-xs rounded"
-            >
-              Log État
-            </button>
-            <button
-              onClick={() => {
-                console.log('🔄 [DEBUG] Forcer re-render...');
-                window.location.reload();
-              }}
-              className="px-3 py-1 bg-red-600 text-white text-xs rounded"
-            >
-              Force Render
-            </button>
-            <button
-              onClick={() => {
-                console.log('👁️ [DEBUG] Forcer affichage des réunions...');
-                setForceShowMeetings(!forceShowMeetings);
-              }}
-              className="px-3 py-1 bg-purple-600 text-white text-xs rounded"
-            >
-              Force Show: {forceShowMeetings ? 'ON' : 'OFF'}
-            </button>
-          </div>
-        </div>
-
         {/* Message de confirmation après quitter réunion */}
         {location.state?.meetingCompleted && (
           <div className={`mb-6 p-4 rounded-lg border animate-in slide-in-from-top duration-300 ${
@@ -679,9 +621,9 @@ export function MeetingList() {
         )}
 
         {/* Liste des réunions */}
-        {(filteredMeetings.length > 0 || forceShowMeetings) ? (
+        {filteredMeetings.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {(forceShowMeetings ? meetings : filteredMeetings).map(meeting => (
+            {filteredMeetings.map(meeting => (
               <MeetingCard
                 key={meeting.id}
                 meeting={meeting}

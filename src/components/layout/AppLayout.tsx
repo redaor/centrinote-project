@@ -13,7 +13,6 @@ import { NeuroDashboard } from '../dashboard/NeuroDashboard';
 import { ModernNotesManager } from '../documents/ModernNotesManager';
 import { VocabularyNotebook } from '../vocabulary/VocabularyNotebook';
 import { NeuroVocabulary } from '../vocabulary/NeuroVocabulary';
-import { Collaboration } from '../collaboration/Collaboration';
 import { AISearchPage } from '../../pages/AISearchPage';
 import { PlanPage } from '../../pages/PlanPage';
 import { StudyPlanning } from '../planning/StudyPlanning';
@@ -116,7 +115,7 @@ export function AppLayout() {
     }
 
     const validViews = [
-      'dashboard', 'notes', 'vocabulary', 'collaboration', 'meetings',
+      'dashboard', 'notes', 'vocabulary', 'meetings',
       'search', 'plan', 'planning', 'automation', 'settings', 'help', 'admin/support'
     ];
 
@@ -191,8 +190,6 @@ export function AppLayout() {
         return <ModernNotesManager key={`notes-${Date.now()}`} />;
       case 'vocabulary':
         return <NeuroVocabulary key={`vocabulary-${Date.now()}`} />;
-      case 'collaboration':
-        return <Collaboration key={`collaboration-${Date.now()}`} />;
       case 'meetings':
         return <MeetingList key={`meetings-${Date.now()}`} />;
       case 'search':

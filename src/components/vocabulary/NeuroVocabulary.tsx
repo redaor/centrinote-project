@@ -1284,7 +1284,7 @@ export function NeuroVocabulary() {
         </motion.div>
 
         {/* Header sticky : Filtres + Recherche + Tri - Alignés et uniformes */}
-        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 backdrop-blur-sm bg-opacity-95">
+        <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 backdrop-blur-sm bg-opacity-95">
           <div className="flex items-center gap-1.5 py-2 overflow-x-auto scrollbar-hide">
             {/* Filtres compacts avec animations - Alignés à gauche */}
             {(['all', 'forgotten', 'mastered', 'recent'] as const).map((mode) => {
@@ -1918,7 +1918,7 @@ export function NeuroVocabulary() {
                         transition={{ delay: index * 0.05, duration: 0.2 }}
                         whileHover={{ y: -2 }}
                         className={`
-                          relative rounded-lg border shadow-sm
+                          relative rounded-lg border shadow-sm overflow-hidden
                           transition-all duration-200 hover:shadow-lg hover:border-blue-300
                           ${darkMode
                             ? 'bg-gray-800 border-gray-700 hover:border-blue-600'
@@ -1931,7 +1931,7 @@ export function NeuroVocabulary() {
                         aria-label={`Mot: ${word.word}`}
                       >
                         {/* Badge statut discret en haut à gauche */}
-                        <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+                        <div className="absolute top-2 left-2 z-0 flex items-center gap-1">
                           {/* Icône IA si généré par IA */}
                           {isAIGenerated && (
                             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white text-[8px] font-semibold" title="Généré par IA">

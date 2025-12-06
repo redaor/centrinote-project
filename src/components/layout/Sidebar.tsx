@@ -27,7 +27,6 @@ const menuItems = [
   { id: 'dashboard', label: 'dashboard', icon: Home },
   { id: 'notes', label: 'notes', icon: StickyNote },
   { id: 'vocabulary', label: 'vocabulary', icon: BookOpen },
-  { id: 'collaboration', label: 'collaboration', icon: Users },
   { id: 'meetings', label: 'Réunions', icon: Video },
   { id: 'search', label: 'search', icon: Search },
   { id: 'planning', label: 'planning', icon: Calendar },

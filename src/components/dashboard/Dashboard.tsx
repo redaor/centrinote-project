@@ -231,12 +231,6 @@ export function Dashboard() {
               action: () => dispatch({ type: 'SET_CURRENT_VIEW', payload: 'vocabulary' })
             },
             { 
-              label: 'Collaborer', 
-              icon: Users, 
-              color: 'text-purple-500',
-              action: () => dispatch({ type: 'SET_CURRENT_VIEW', payload: 'collaboration' })
-            },
-            { 
               label: 'Planifier', 
               icon: Calendar, 
               color: 'text-orange-500',

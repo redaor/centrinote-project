@@ -49,6 +49,10 @@ export function AdminMobileInterface({ user, isOpen, onClose }: AdminMobileInter
   const viewports = {
     mobile: { width: '375px', height: '667px', name: 'iPhone SE' },
     mobileLarge: { width: '414px', height: '896px', name: 'iPhone 11' },
+    iphone14: { width: '390px', height: '844px', name: 'iPhone 14' },
+    iphone14ProMax: { width: '430px', height: '932px', name: 'iPhone 14 Pro Max' },
+    iphone15: { width: '393px', height: '852px', name: 'iPhone 15' },
+    iphone15ProMax: { width: '430px', height: '932px', name: 'iPhone 15 Pro Max' },
     tablet: { width: '768px', height: '1024px', name: 'iPad' },
     desktop: { width: '100%', height: '100vh', name: 'Desktop' }
   };
@@ -156,7 +160,7 @@ export function AdminMobileInterface({ user, isOpen, onClose }: AdminMobileInter
               Simulateur Mobile
             </h3>
             
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="grid grid-cols-2 gap-2 mb-4 max-h-64 overflow-y-auto">
               {Object.entries(viewports).map(([key, viewport]) => (
                 <Button
                   key={key}
@@ -165,7 +169,7 @@ export function AdminMobileInterface({ user, isOpen, onClose }: AdminMobileInter
                   onClick={() => handleViewportChange(key)}
                   className="text-xs p-2"
                 >
-                  {key === 'mobile' && <Smartphone className="w-3 h-3 mr-1" />}
+                  {(key.startsWith('mobile') || key.startsWith('iphone')) && <Smartphone className="w-3 h-3 mr-1" />}
                   {key === 'tablet' && <Tablet className="w-3 h-3 mr-1" />}
                   {key === 'desktop' && <Monitor className="w-3 h-3 mr-1" />}
                   {viewport.name}
