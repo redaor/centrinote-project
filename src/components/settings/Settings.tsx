@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useSettings } from '../../hooks/settings/useSettings';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { ProfileSection } from './sections/ProfileSection';
 import { AppearanceSection } from './sections/AppearanceSection';
 import { NotificationsSection } from './sections/NotificationsSection';
@@ -19,6 +20,7 @@ export function Settings() {
   const { state } = useApp();
   const { user } = state || {};
   const { setTheme } = useTheme();
+  const { t } = useTranslation();
   const isDark = state?.darkMode ?? false;
 
   const {
@@ -59,7 +61,7 @@ export function Settings() {
               ${isDark ? 'text-gray-300' : 'text-gray-700'}
             `}
           >
-            Chargement des paramètres...
+            {t('settings_loading')}
           </p>
         </div>
       </div>
@@ -93,7 +95,7 @@ export function Settings() {
                 ${isDark ? 'text-white' : 'text-gray-900'}
               `}
             >
-              Paramètres
+              {t('settings_title')}
             </h1>
             <p
               className={`
@@ -101,7 +103,7 @@ export function Settings() {
                 ${isDark ? 'text-gray-400' : 'text-gray-600'}
               `}
             >
-              Gérez vos préférences et votre compte
+              {t('settings_subtitle')}
             </p>
           </div>
 
@@ -117,11 +119,11 @@ export function Settings() {
               focus:outline-none focus:ring-4 focus:ring-blue-500/20
               transform hover:scale-105 active:scale-95
             `}
-            aria-label="Retour au tableau de bord"
+            aria-label={t('back')}
             style={{ minHeight: '44px' }}
           >
             <ArrowLeft className="w-5 h-5" />
-            <span className="hidden sm:inline">Retour</span>
+            <span className="hidden sm:inline">{t('back')}</span>
           </button>
         </div>
 

@@ -105,6 +105,60 @@ export interface Translation {
   // Welcome message
   welcome: string;
 
+  // Appearance & Language
+  appearance_and_language: string;
+  appearance_description: string;
+  theme: string;
+  theme_system: string;
+  theme_light: string;
+  theme_dark: string;
+  text_size: string;
+  text_size_small: string;
+  text_size_medium: string;
+  text_size_large: string;
+  text_size_updated: string;
+  language_updated: string;
+  language_applied_note: string;
+  language_french: string;
+  language_english: string;
+  language_spanish: string;
+  language_german: string;
+  resources: string;
+  guide_user: string;
+  guide_user_description: string;
+  forum_community: string;
+  forum_community_description: string;
+  contact_support: string;
+  quick_answers: string;
+  contact_form_email: string;
+  contact_form_subject: string;
+  contact_form_message: string;
+  contact_form_send: string;
+  contact_form_sent: string;
+  contact_form_response_time: string;
+  contact_form_email_placeholder: string;
+  contact_form_subject_placeholder: string;
+  contact_form_message_placeholder: string;
+  settings_title: string;
+  settings_subtitle: string;
+  settings_loading: string;
+  back: string;
+
+  // Chatbot
+  chatbot_title: string;
+  chatbot_subtitle: string;
+  chatbot_welcome: string;
+  chatbot_need_help: string;
+  chatbot_open: string;
+  chatbot_close: string;
+  chatbot_minimize: string;
+  chatbot_placeholder: string;
+  chatbot_send: string;
+  chatbot_error: string;
+  chatbot_create_email: string;
+  chatbot_email_sent: string;
+  chatbot_email_error: string;
+
   // Help & Support
   help_support_title: string;
   help_support_subtitle: string;
@@ -256,6 +310,10 @@ export const translations: Record<string, Translation> = {
     
     // Welcome message
     welcome: 'Welcome',
+    settings_title: 'Settings',
+    settings_subtitle: 'Manage your preferences and account',
+    settings_loading: 'Loading settings...',
+    back: 'Back',
 
     // Help & Support
     help_support_title: 'Help & Support',
@@ -408,6 +466,58 @@ export const translations: Record<string, Translation> = {
     // Welcome message
     welcome: 'Bienvenue',
 
+    // Appearance & Language
+    appearance_and_language: 'Apparence & Langue',
+    appearance_description: 'Personnalisez l\'apparence de l\'interface',
+    theme: 'Thème',
+    theme_system: 'Système',
+    theme_light: 'Clair',
+    theme_dark: 'Sombre',
+    text_size: 'Taille du texte',
+    text_size_small: 'Petit',
+    text_size_medium: 'Moyen',
+    text_size_large: 'Grand',
+    text_size_updated: 'Taille du texte mise à jour',
+    language_updated: 'Langue mise à jour avec succès',
+    language_applied_note: 'La langue sera appliquée immédiatement pour les éléments traduits',
+    language_french: 'Français',
+    language_english: 'Anglais',
+    language_spanish: 'Espagnol',
+    language_german: 'Allemand',
+    resources: 'Ressources',
+    guide_user: 'Guide utilisateur',
+    guide_user_description: 'Documentation complète de toutes les fonctionnalités',
+    forum_community: 'Forum communautaire',
+    forum_community_description: 'Échangez avec d\'autres utilisateurs et partagez vos astuces',
+    contact_support: 'Contacter le support',
+    quick_answers: 'Réponses rapides',
+    contact_form_email: 'Email',
+    contact_form_subject: 'Sujet',
+    contact_form_message: 'Message',
+    contact_form_send: 'Envoyer',
+    contact_form_sent: 'Message envoyé !',
+    contact_form_response_time: 'Nous vous répondrons sous 24h',
+    contact_form_email_placeholder: 'votre@email.com',
+    contact_form_subject_placeholder: 'Résumé de votre question',
+    contact_form_message_placeholder: 'Décrivez votre question en détail...',
+    settings_title: 'Paramètres',
+    settings_subtitle: 'Gérez vos préférences et votre compte',
+    settings_loading: 'Chargement des paramètres...',
+    back: 'Retour',
+    chatbot_title: 'Assistant Centrinote',
+    chatbot_subtitle: 'Je suis là pour vous aider',
+    chatbot_welcome: 'Bonjour ! Je suis l\'assistant Centrinote. Comment puis-je vous aider aujourd\'hui ?',
+    chatbot_need_help: 'Besoin d\'aide ?',
+    chatbot_open: 'Ouvrir le chatbot',
+    chatbot_close: 'Fermer',
+    chatbot_minimize: 'Réduire',
+    chatbot_placeholder: 'Tapez votre message...',
+    chatbot_send: 'Envoyer',
+    chatbot_error: 'Désolé, une erreur s\'est produite. Voulez-vous que je vous aide à rédiger un email à notre équipe de support ?',
+    chatbot_create_email: 'Créer un email de support',
+    chatbot_email_sent: 'Email envoyé avec succès ! Ticket {ticketId} créé. Notre équipe vous répondra sous 24h.',
+    chatbot_email_error: 'Erreur lors de l\'envoi de l\'email. Veuillez réessayer.',
+
     // Help & Support
     help_support_title: 'Aide & Support',
     help_support_subtitle: 'Trouvez des réponses à vos questions et obtenez l\'aide dont vous avez besoin',
@@ -559,6 +669,45 @@ export const translations: Record<string, Translation> = {
     // Welcome message
     welcome: 'Bienvenido',
 
+    // Appearance & Language
+    appearance_and_language: 'Apariencia e Idioma',
+    appearance_description: 'Personaliza la apariencia de la interfaz',
+    theme: 'Tema',
+    theme_system: 'Sistema',
+    theme_light: 'Claro',
+    theme_dark: 'Oscuro',
+    text_size: 'Tamaño del texto',
+    text_size_small: 'Pequeño',
+    text_size_medium: 'Mediano',
+    text_size_large: 'Grande',
+    text_size_updated: 'Tamaño del texto actualizado',
+    language_updated: 'Idioma actualizado con éxito',
+    language_applied_note: 'El idioma se aplicará inmediatamente para los elementos traducidos',
+    language_french: 'Francés',
+    language_english: 'Inglés',
+    language_spanish: 'Español',
+    language_german: 'Alemán',
+    resources: 'Recursos',
+    guide_user: 'Guía del Usuario',
+    guide_user_description: 'Documentación completa para todas las funciones',
+    forum_community: 'Foro de la Comunidad',
+    forum_community_description: 'Conéctate con otros usuarios y comparte consejos',
+    contact_support: 'Contactar Soporte',
+    quick_answers: 'Respuestas Rápidas',
+    contact_form_email: 'Email',
+    contact_form_subject: 'Asunto',
+    contact_form_message: 'Mensaje',
+    contact_form_send: 'Enviar',
+    contact_form_sent: '¡Mensaje enviado!',
+    contact_form_response_time: 'Te responderemos en 24 horas',
+    contact_form_email_placeholder: 'tu@email.com',
+    contact_form_subject_placeholder: 'Resumen de tu pregunta',
+    contact_form_message_placeholder: 'Describe tu pregunta en detalle...',
+    settings_title: 'Configuración',
+    settings_subtitle: 'Administra tus preferencias y cuenta',
+    settings_loading: 'Cargando configuración...',
+    back: 'Volver',
+
     // Help & Support
     help_support_title: 'Ayuda y Soporte',
     help_support_subtitle: 'Encuentra respuestas a tus preguntas y obtén la ayuda que necesitas',
@@ -709,6 +858,58 @@ export const translations: Record<string, Translation> = {
     
     // Welcome message
     welcome: 'Willkommen',
+
+    // Appearance & Language
+    appearance_and_language: 'Erscheinungsbild & Sprache',
+    appearance_description: 'Passen Sie das Erscheinungsbild der Benutzeroberfläche an',
+    theme: 'Thema',
+    theme_system: 'System',
+    theme_light: 'Hell',
+    theme_dark: 'Dunkel',
+    text_size: 'Textgröße',
+    text_size_small: 'Klein',
+    text_size_medium: 'Mittel',
+    text_size_large: 'Groß',
+    text_size_updated: 'Textgröße aktualisiert',
+    language_updated: 'Sprache erfolgreich aktualisiert',
+    language_applied_note: 'Die Sprache wird sofort für übersetzte Elemente angewendet',
+    language_french: 'Französisch',
+    language_english: 'Englisch',
+    language_spanish: 'Spanisch',
+    language_german: 'Deutsch',
+    resources: 'Ressourcen',
+    guide_user: 'Benutzerhandbuch',
+    guide_user_description: 'Umfassende Dokumentation für alle Funktionen',
+    forum_community: 'Community-Forum',
+    forum_community_description: 'Verbinden Sie sich mit anderen Benutzern und teilen Sie Tipps',
+    contact_support: 'Support Kontaktieren',
+    quick_answers: 'Schnelle Antworten',
+    contact_form_email: 'E-Mail',
+    contact_form_subject: 'Betreff',
+    contact_form_message: 'Nachricht',
+    contact_form_send: 'Senden',
+    contact_form_sent: 'Nachricht gesendet!',
+    contact_form_response_time: 'Wir werden Ihnen innerhalb von 24 Stunden antworten',
+    contact_form_email_placeholder: 'ihre@email.com',
+    contact_form_subject_placeholder: 'Zusammenfassung Ihrer Frage',
+    contact_form_message_placeholder: 'Beschreiben Sie Ihre Frage im Detail...',
+    settings_title: 'Einstellungen',
+    settings_subtitle: 'Verwalten Sie Ihre Präferenzen und Ihr Konto',
+    settings_loading: 'Einstellungen werden geladen...',
+    back: 'Zurück',
+    chatbot_title: 'Centrinote Assistent',
+    chatbot_subtitle: 'Ich bin hier, um zu helfen',
+    chatbot_welcome: 'Hallo! Ich bin der Centrinote-Assistent. Wie kann ich Ihnen heute helfen?',
+    chatbot_need_help: 'Brauchen Sie Hilfe?',
+    chatbot_open: 'Chatbot öffnen',
+    chatbot_close: 'Schließen',
+    chatbot_minimize: 'Minimieren',
+    chatbot_placeholder: 'Geben Sie Ihre Nachricht ein...',
+    chatbot_send: 'Senden',
+    chatbot_error: 'Entschuldigung, ein Fehler ist aufgetreten. Möchten Sie, dass ich Ihnen beim Verfassen einer E-Mail an unser Support-Team helfe?',
+    chatbot_create_email: 'Support-E-Mail erstellen',
+    chatbot_email_sent: 'E-Mail erfolgreich gesendet! Ticket {ticketId} erstellt. Unser Team wird innerhalb von 24 Stunden antworten.',
+    chatbot_email_error: 'Fehler beim Senden der E-Mail. Bitte versuchen Sie es erneut.',
 
     // Help & Support
     help_support_title: 'Hilfe & Support',

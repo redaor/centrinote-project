@@ -10,6 +10,7 @@ import { AppearanceSettings } from '../../../types/settings.types';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useTheme } from '../../../hooks/useTheme';
 import { useTextSize } from '../../../hooks/useTextSize';
+import { useTranslation } from '../../../hooks/useTranslation';
 
 interface AppearanceSectionProps {
   appearance: AppearanceSettings;
@@ -25,18 +26,19 @@ export function AppearanceSection({
   const { setTheme } = useTheme(); // ✅ Utiliser useTheme pour la synchronisation
   const { textSize, setTextSize } = useTextSize(); // ✅ Lire et modifier via useTextSize pour la synchronisation
   const { language, setLanguage } = useLanguage(); // ✅ Lire ET modifier la langue
+  const { t } = useTranslation(); // ✅ Utiliser les traductions
   const [languageUpdateSuccess, setLanguageUpdateSuccess] = useState(false);
   const [textSizeUpdateSuccess, setTextSizeUpdateSuccess] = useState(false);
   const textSizes = [
-    { value: 's' as const, label: 'Petit', example: 'text-sm' },
-    { value: 'm' as const, label: 'Moyen', example: 'text-base' },
-    { value: 'l' as const, label: 'Grand', example: 'text-lg' }
+    { value: 's' as const, label: t('text_size_small'), example: 'text-sm' },
+    { value: 'm' as const, label: t('text_size_medium'), example: 'text-base' },
+    { value: 'l' as const, label: t('text_size_large'), example: 'text-lg' }
   ];
 
   const languages = [
-    { value: 'fr' as const, label: 'Français', flag: '🇫🇷' },
-    { value: 'en' as const, label: 'English', flag: '🇬🇧' },
-    { value: 'es' as const, label: 'Español', flag: '🇪🇸' }
+    { value: 'fr' as const, label: t('language_french'), flag: '🇫🇷' },
+    { value: 'en' as const, label: t('language_english'), flag: '🇬🇧' },
+    { value: 'es' as const, label: t('language_spanish'), flag: '🇪🇸' }
   ];
 
   // ✅ SYNCHRONISATION : Appliquer le textSize depuis les paramètres chargés (Supabase → LocalStorage)
@@ -108,8 +110,8 @@ export function AppearanceSection({
   return (
     <SettingsCard
       icon={Palette}
-      title="Apparence & Langue"
-      description="Personnalisez l'apparence de l'interface"
+      title={t('appearance_and_language')}
+      description={t('appearance_description')}
       isDark={isDark}
     >
       <div className="space-y-6">
@@ -122,7 +124,7 @@ export function AppearanceSection({
               ${isDark ? 'text-gray-300' : 'text-gray-700'}
             `}
           >
-            Thème
+            {t('theme')}
           </label>
           <select
             id="theme-select"
@@ -138,11 +140,11 @@ export function AppearanceSection({
               focus:outline-none focus:ring-4 focus:ring-blue-500/20
               transition-all cursor-pointer
             `}
-            aria-label="Sélectionner le thème"
+            aria-label={t('theme')}
           >
-            <option value="system">🖥️ Système</option>
-            <option value="light">☀️ Clair</option>
-            <option value="dark">🌙 Sombre</option>
+            <option value="system">🖥️ {t('theme_system')}</option>
+            <option value="light">☀️ {t('theme_light')}</option>
+            <option value="dark">🌙 {t('theme_dark')}</option>
           </select>
         </div>
 
@@ -154,9 +156,9 @@ export function AppearanceSection({
               ${isDark ? 'text-gray-300' : 'text-gray-700'}
             `}
           >
-            Taille du texte
+            {t('text_size')}
           </label>
-          <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Taille du texte">
+          <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label={t('text_size')}>
             {textSizes.map((size) => (
               <button
                 key={size.value}
@@ -189,7 +191,7 @@ export function AppearanceSection({
           </div>
           {textSizeUpdateSuccess && (
             <p className="text-sm text-green-500 mt-2" role="status">
-              ✓ Taille du texte mise à jour
+              ✓ {t('text_size_updated')}
             </p>
           )}
         </div>
@@ -203,7 +205,7 @@ export function AppearanceSection({
               ${isDark ? 'text-gray-300' : 'text-gray-700'}
             `}
           >
-            Langue
+            {t('language')}
           </label>
           <select
             id="language-select"
@@ -219,7 +221,7 @@ export function AppearanceSection({
               focus:outline-none focus:ring-4 focus:ring-blue-500/20
               transition-all cursor-pointer
             `}
-            aria-label="Sélectionner la langue"
+            aria-label={t('language')}
           >
             {languages.map((lang) => (
               <option key={lang.value} value={lang.value}>
@@ -229,7 +231,7 @@ export function AppearanceSection({
           </select>
           {languageUpdateSuccess && (
             <p className="text-sm text-green-500 mt-2" role="status">
-              ✓ Langue mise à jour avec succès
+              ✓ {t('language_updated')}
             </p>
           )}
           <p
@@ -238,7 +240,7 @@ export function AppearanceSection({
               ${isDark ? 'text-gray-500' : 'text-gray-500'}
             `}
           >
-            La langue sera appliquée immédiatement pour les éléments traduits
+            {t('language_applied_note')}
           </p>
         </div>
       </div>

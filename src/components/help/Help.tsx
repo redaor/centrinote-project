@@ -10,13 +10,12 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronRight,
-  Video,
-  FileText,
   Users,
   Send
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
+import { ChatbotWidget } from '../chatbot/ChatbotWidget';
 
 interface FAQItem {
   id: string;
@@ -185,11 +184,6 @@ export function Help() {
     }
   };
 
-  const isAdmin =
-    user?.email === 'contact@centrinote.fr' ||
-    user?.email === 'reda_sahraoui@outlook.fr' ||
-    user?.role === 'admin';
-
   return (
     <div className="p-6 space-y-8">
       {/* Header */}
@@ -210,31 +204,9 @@ export function Help() {
       {/* Ressources simplifiées - Liste verticale compacte */}
       <div className="max-w-2xl mx-auto">
         <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          📚 Ressources
+          📚 {t('resources')}
         </h2>
         <div className="space-y-3">
-          {/* Tutoriels vidéo */}
-          <a
-            href="#tutorials"
-            className={`
-              flex items-start space-x-3 p-4 rounded-lg transition-colors
-              ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
-            `}
-          >
-            <span className="text-2xl">📹</span>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Tutoriels vidéo
-                </h3>
-                <ExternalLink className="w-4 h-4 text-blue-500" />
-              </div>
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Apprenez à utiliser Centrinote en vidéo
-              </p>
-            </div>
-          </a>
-
           {/* Guide utilisateur */}
           <button
             onClick={() => navigate('/guide')}
@@ -247,12 +219,12 @@ export function Help() {
             <div className="flex-1">
               <div className="flex items-center space-x-2">
                 <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Guide utilisateur
+                  {t('guide_user')}
                 </h3>
                 <ExternalLink className="w-4 h-4 text-blue-500" />
               </div>
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Documentation complète de toutes les fonctionnalités
+                {t('guide_user_description')}
               </p>
             </div>
           </button>
@@ -269,12 +241,12 @@ export function Help() {
             <div className="flex-1">
               <div className="flex items-center space-x-2">
                 <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Forum communautaire
+                  {t('forum_community')}
                 </h3>
                 <ExternalLink className="w-4 h-4 text-blue-500" />
               </div>
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Échangez avec d'autres utilisateurs et partagez vos astuces
+                {t('forum_community_description')}
               </p>
             </div>
           </button>
@@ -288,7 +260,7 @@ export function Help() {
           className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:shadow-lg transition-all duration-200"
         >
           <Mail className="w-5 h-5" />
-          <span>📩 Contacter le support</span>
+          <span>📩 {t('contact_support')}</span>
         </button>
 
         {/* Formulaire de contact */}
@@ -303,17 +275,17 @@ export function Help() {
                   <Send className="w-8 h-8 text-white" />
                 </div>
                 <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Message envoyé !
+                  {t('contact_form_sent')}
                 </h3>
                 <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Nous vous répondrons sous 24h
+                  {t('contact_form_response_time')}
                 </p>
               </div>
             ) : (
               <form onSubmit={handleContactSubmit} className="space-y-4">
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Email
+                    {t('contact_form_email')}
                   </label>
                   <input
                     type="email"
@@ -328,13 +300,13 @@ export function Help() {
                       }
                       focus:ring-2 focus:ring-blue-500 focus:border-transparent
                     `}
-                    placeholder="votre@email.com"
+                    placeholder={t('contact_form_email_placeholder')}
                   />
                 </div>
 
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Sujet
+                    {t('contact_form_subject')}
                   </label>
                   <input
                     type="text"
@@ -349,13 +321,13 @@ export function Help() {
                       }
                       focus:ring-2 focus:ring-blue-500 focus:border-transparent
                     `}
-                    placeholder="Résumé de votre question"
+                    placeholder={t('contact_form_subject_placeholder')}
                   />
                 </div>
 
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Message
+                    {t('contact_form_message')}
                   </label>
                   <textarea
                     required
@@ -370,7 +342,7 @@ export function Help() {
                       }
                       focus:ring-2 focus:ring-blue-500 focus:border-transparent
                     `}
-                    placeholder="Décrivez votre question en détail..."
+                    placeholder={t('contact_form_message_placeholder')}
                   />
                 </div>
 
@@ -384,7 +356,7 @@ export function Help() {
                   ) : (
                     <>
                       <Send className="w-5 h-5" />
-                      <span>Envoyer</span>
+                      <span>{t('contact_form_send')}</span>
                     </>
                   )}
                 </button>
@@ -397,7 +369,7 @@ export function Help() {
       {/* Réponses rapides */}
       <div className="max-w-2xl mx-auto">
         <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          ⚡ Réponses rapides
+          ⚡ {t('quick_answers')}
         </h2>
         <div className="space-y-3">
           {quickAnswers.map((qa) => (
@@ -531,37 +503,9 @@ export function Help() {
         )}
       </div>
 
-      {/* Mode Admin - Répondre aux questions (visible uniquement pour les admins) */}
-      {isAdmin && (
-        <div className="max-w-4xl mx-auto">
-          <div className={`
-            ${darkMode ? 'bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-purple-700' : 'bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200'}
-            border rounded-lg p-6
-          `}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-purple-500 rounded-lg">
-                  <FileText className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    👨‍💼 Mode Administrateur
-                  </h3>
-                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Gérer et répondre aux questions fréquentes
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => alert('Interface d\'administration FAQ à venir...')}
-                className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors font-medium"
-              >
-                Gérer la FAQ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Chatbot Widget */}
+      <ChatbotWidget position="bottom-right" initialMinimized={false} />
+
     </div>
   );
 }

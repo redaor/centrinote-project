@@ -12,7 +12,7 @@ const LanguageContext = createContext<LanguageContextType | null>(null);
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const { state, dispatch } = useApp();
   const { language } = state;
-  const [storedLanguage, setStoredLanguage] = useLocalStorage('centrinote-language', 'en');
+  const [storedLanguage, setStoredLanguage] = useLocalStorage('centrinote-language', 'fr');
 
   // Initialiser la langue depuis localStorage au démarrage
   useEffect(() => {
