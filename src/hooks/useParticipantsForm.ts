@@ -2,6 +2,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { MeetingParticipant } from '../types/meetings';
 import { useToasts, createSuccessToast, createErrorToast, createInfoToast } from './useToasts';
+import { usePlanLimits } from './usePlanLimits';
 
 export interface ParticipantsFormState {
   participants: MeetingParticipant[];
@@ -46,7 +47,7 @@ export interface ValidationError {
   participantId: string;
 }
 
-const MAX_PARTICIPANTS = 20;
+// MAX_PARTICIPANTS sera récupéré dynamiquement via usePlanLimits
 
 // Validation email
 const isValidEmail = (email: string): boolean => {
@@ -58,6 +59,10 @@ export function useParticipantsForm(
   initialOrganizer: { name: string; email: string }
 ): ParticipantsFormState {
   const { showToast } = useToasts();
+  
+  // Récupérer les limites du plan utilisateur
+  const { limits } = usePlanLimits();
+  const MAX_PARTICIPANTS = limits?.meeting_max_participants ?? 20; // Fallback à 20 si non défini
   
   // État local
   const [organizer, setOrganizerState] = useState(initialOrganizer);
@@ -87,7 +92,7 @@ export function useParticipantsForm(
   }, []);
 
   const addParticipant = useCallback(() => {
-    if (participants.length >= MAX_PARTICIPANTS) {
+    if (MAX_PARTICIPANTS !== null && participants.length >= MAX_PARTICIPANTS) {
       showToast(createErrorToast(
         'Limite atteinte',
         `Maximum ${MAX_PARTICIPANTS} participants autorisés`
@@ -155,7 +160,7 @@ export function useParticipantsForm(
   const addBulkParticipants = useCallback((
     newParticipants: Omit<MeetingParticipant, 'id'>[]
   ) => {
-    const availableSlots = MAX_PARTICIPANTS - participants.length;
+    const availableSlots = MAX_PARTICIPANTS === null ? newParticipants.length : MAX_PARTICIPANTS - participants.length;
     
     if (availableSlots <= 0) {
       showToast(createErrorToast(
@@ -258,12 +263,12 @@ export function useParticipantsForm(
   const stats = useMemo(() => {
     const total = participants.length;
     const guests = participants.filter(p => p.role === 'guest').length;
-    const availableSlots = MAX_PARTICIPANTS - total;
+    const availableSlots = MAX_PARTICIPANTS === null ? Infinity : MAX_PARTICIPANTS - total;
     
     return {
       total,
       guests,
-      canAddMore: total < MAX_PARTICIPANTS,
+      canAddMore: MAX_PARTICIPANTS === null || total < MAX_PARTICIPANTS,
       availableSlots
     };
   }, [participants]);

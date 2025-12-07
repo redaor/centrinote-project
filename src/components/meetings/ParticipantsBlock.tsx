@@ -5,6 +5,7 @@ import { MeetingParticipant } from '../../types/meetings';
 import { EmailField } from '../ui/EmailField';
 import { ImportGuestsModal } from './ImportGuestsModal';
 import { useApp } from '../../contexts/AppContext';
+import { usePlanLimits } from '../../hooks/usePlanLimits';
 
 interface ParticipantsBlockProps {
   participants: MeetingParticipant[];
@@ -45,14 +46,16 @@ export function ParticipantsBlock({
   const [showImportModal, setShowImportModal] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  const MAX_PARTICIPANTS = 20;
+  // Récupérer les limites du plan utilisateur
+  const { limits } = usePlanLimits();
+  const MAX_PARTICIPANTS = limits?.meeting_max_participants ?? 20; // Fallback à 20 si non défini
 
   return (
     <div className="space-y-6">
       <div className="flex items-center space-x-2">
         <Users className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
         <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Participants ({stats.total}/{MAX_PARTICIPANTS})
+          Participants ({stats.total}{MAX_PARTICIPANTS !== null ? `/${MAX_PARTICIPANTS}` : ''})
         </h3>
         {validation.isValid && (
           <CheckCircle className="w-4 h-4 text-green-500" />

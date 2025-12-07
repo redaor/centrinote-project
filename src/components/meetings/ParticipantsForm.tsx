@@ -4,6 +4,7 @@ import { Plus, X, User, Mail, AlertCircle, Upload } from 'lucide-react';
 import { MeetingParticipant } from '../../types/meetings';
 import { EmailField } from '../ui/EmailField';
 import { ImportGuestsModal } from './ImportGuestsModal';
+import { usePlanLimits } from '../../hooks/usePlanLimits';
 
 interface ParticipantsFormProps {
   participants: MeetingParticipant[];
@@ -96,9 +97,10 @@ export function ParticipantsForm({
     setErrors(newErrors);
   };
 
-  // Constantes
-  const MAX_PARTICIPANTS = 20;
-  const canAddMore = participants.length < MAX_PARTICIPANTS;
+  // Récupérer les limites du plan utilisateur
+  const { limits } = usePlanLimits();
+  const MAX_PARTICIPANTS = limits?.meeting_max_participants ?? 20; // Fallback à 20 si non défini
+  const canAddMore = MAX_PARTICIPANTS === null || participants.length < MAX_PARTICIPANTS;
   const guestsCount = participants.filter(p => p.role !== 'organizer').length;
 
   // Ajouter un participant
@@ -145,10 +147,10 @@ export function ParticipantsForm({
   
   // Ajouter des participants en masse
   const addBulkParticipants = (newParticipants: Omit<MeetingParticipant, 'id'>[]) => {
-    const availableSlots = MAX_PARTICIPANTS - participants.length;
+    const availableSlots = MAX_PARTICIPANTS === null ? newParticipants.length : MAX_PARTICIPANTS - participants.length;
     
     if (availableSlots <= 0) {
-      alert('Limite de 20 participants atteinte');
+      alert(`Limite de ${MAX_PARTICIPANTS} participants atteinte`);
       return { added: 0, ignored: newParticipants.length };
     }
     
@@ -184,7 +186,7 @@ export function ParticipantsForm({
       <div className="flex items-center justify-between">
         <div>
           <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            👥 Participants ({participants.length}/{MAX_PARTICIPANTS})
+            👥 Participants ({participants.length}{MAX_PARTICIPANTS !== null ? `/${MAX_PARTICIPANTS}` : ''})
           </h4>
           <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             {guestsCount} invité{guestsCount > 1 ? 's' : ''}

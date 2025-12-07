@@ -17,6 +17,8 @@ import { MeetingProgress } from './MeetingProgress';
 import { ModernCompletedMeetingCard } from './ModernCompletedMeetingCard';
 import { ModernMeetingStats } from './ModernMeetingStats';
 import { ModernMeetingForm } from './ModernMeetingForm';
+import { useQuotaCheck } from '../../hooks/useQuotaCheck';
+import { checkMeetingDurationLimit } from '../../services/quotaService';
 
 export function MeetingList() {
   const { state } = useApp();
@@ -24,6 +26,7 @@ export function MeetingList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { check: checkQuota, increment: incrementQuotaUsage } = useQuotaCheck();
   
   // ⚠️ IMPORTANT: Déclarer useMeetings() AVANT les useEffect qui l'utilisent
   const { 
@@ -134,9 +137,35 @@ export function MeetingList() {
 
     setCreateLoading(true);
     
+    try {
+      // Vérifier les quotas avant création
+      // Vérifier le quota de réunions
+      const meetingQuota = await checkQuota('meeting_count', 1);
+      if (!meetingQuota.allowed) {
+        alert(`Quota de réunions épuisé (${meetingQuota.usage}/${meetingQuota.limit}). Veuillez upgrader votre plan.`);
+        setCreateLoading(false);
+        return;
+      }
+
+      // Vérifier la durée de réunion
+      const durationCheck = await checkMeetingDurationLimit(user!.id, 60);
+      if (!durationCheck.allowed) {
+        alert(`Durée max : ${durationCheck.max_duration} min pour votre plan. Veuillez upgrader pour des réunions plus longues.`);
+        setCreateLoading(false);
+        return;
+      }
+
+      // Vérifier le quota de résumés si activé
+      if (enableAiSummary) {
+        const summaryQuota = await checkQuota('summary_count', 1);
+        if (!summaryQuota.allowed) {
+          alert(`Quota de résumés épuisé (${summaryQuota.usage}/${summaryQuota.limit}). Le résumé automatique sera désactivé.`);
+          setEnableAiSummary(false);
+        }
+      }
+    
       console.log('[CREATE] participants payload:', participants);
 
-    try {
       const payload: CreateMeetingPayload = {
         title: formTitle.trim(),
         description: formDescription.trim() || 'Réunion créée avec participants',
@@ -169,6 +198,17 @@ export function MeetingList() {
 
       console.log('✅ Réunion créée:', data.meetingId);
       console.log('📋 [CREATE] Données complètes reçues:', data);
+      
+      // Incrémenter les quotas après création réussie
+      try {
+        await incrementQuotaUsage('meeting_count', 1);
+        await incrementQuotaUsage('meeting_minutes', 60);
+        if (enableAiSummary) {
+          await incrementQuotaUsage('summary_count', 1);
+        }
+      } catch (quotaError) {
+        console.error('⚠️ Erreur incrémentation quota (non bloquant):', quotaError);
+      }
       
       // Reset du formulaire AVANT le refresh pour éviter les conflits
       const createdTitle = formTitle.trim();

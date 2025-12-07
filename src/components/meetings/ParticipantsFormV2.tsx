@@ -5,6 +5,7 @@ import {
   AlertCircle, Check, Mail, Users, Crown
 } from 'lucide-react';
 import { MeetingParticipant } from '../../types/meetings';
+import { usePlanLimits } from '../../hooks/usePlanLimits';
 
 interface ParticipantsFormV2Props {
   participants: MeetingParticipant[];
@@ -26,10 +27,11 @@ export function ParticipantsFormV2({
   const [pasteContent, setPasteContent] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Constantes
-  const MAX_PARTICIPANTS = 20;
+  // Récupérer les limites du plan utilisateur
+  const { limits } = usePlanLimits();
+  const MAX_PARTICIPANTS = limits?.meeting_max_participants ?? 20; // Fallback à 20 si non défini
   const guestsCount = participants.filter(p => p.role !== 'organizer').length;
-  const canAddMore = participants.length < MAX_PARTICIPANTS;
+  const canAddMore = MAX_PARTICIPANTS === null || participants.length < MAX_PARTICIPANTS;
 
   // Générer les initiales pour l'avatar
   const getInitials = (name: string) => {
@@ -172,7 +174,7 @@ export function ParticipantsFormV2({
   // Gérer le collage de liste
   const handlePasteList = () => {
     const parsed = parsePastedList(pasteContent);
-    const availableSlots = MAX_PARTICIPANTS - participants.length;
+    const availableSlots = MAX_PARTICIPANTS === null ? parsed.length : MAX_PARTICIPANTS - participants.length;
     const toAdd = parsed.slice(0, availableSlots);
 
     const newParticipants = toAdd.map(p => ({
@@ -201,7 +203,7 @@ export function ParticipantsFormV2({
     reader.onload = (event) => {
       const text = event.target?.result as string;
       const parsed = parsePastedList(text);
-      const availableSlots = MAX_PARTICIPANTS - participants.length;
+      const availableSlots = MAX_PARTICIPANTS === null ? parsed.length : MAX_PARTICIPANTS - participants.length;
       const toAdd = parsed.slice(0, availableSlots);
 
       const newParticipants = toAdd.map(p => ({
@@ -247,7 +249,7 @@ export function ParticipantsFormV2({
             Participants
           </h4>
           <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            {participants.length}/{MAX_PARTICIPANTS} participants ajoutés • {guestsCount} invité{guestsCount !== 1 ? 's' : ''}
+            {participants.length}{MAX_PARTICIPANTS !== null ? `/${MAX_PARTICIPANTS}` : ''} participants ajoutés • {guestsCount} invité{guestsCount !== 1 ? 's' : ''}
           </p>
         </div>
         

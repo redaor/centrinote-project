@@ -3,11 +3,13 @@
  * Design élégant avec animations fluides et sections groupées
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Users, Zap, RefreshCw, Sparkles, Mail } from 'lucide-react';
+import { FileText, Users, Zap, RefreshCw, Sparkles, Mail, AlertCircle, Crown } from 'lucide-react';
 import { MeetingParticipant } from '../../types/meetings';
 import { ParticipantsFormV2 } from './ParticipantsFormV2';
+import { useQuotaCheck } from '../../hooks/useQuotaCheck';
+import { usePlanLimits } from '../../hooks/usePlanLimits';
 
 export interface ModernMeetingFormProps {
   onSubmit: (data: {
@@ -42,7 +44,55 @@ export function ModernMeetingForm({
       role: 'organizer'
     }] : []
   );
-  const [autoSummary, setAutoSummary] = useState(true);
+  const [autoSummary, setAutoSummary] = useState(false);
+  const [summaryQuotaCheck, setSummaryQuotaCheck] = useState<any>(null);
+  const [checkingQuota, setCheckingQuota] = useState(true);
+  
+  const { check: checkQuota } = useQuotaCheck();
+  const { limits } = usePlanLimits();
+
+  // Vérifier le quota de résumés au chargement
+  useEffect(() => {
+    const verifySummaryQuota = async () => {
+      try {
+        setCheckingQuota(true);
+        const result = await checkQuota('summary_count', 1);
+        setSummaryQuotaCheck(result);
+        // Si le quota est disponible, activer par défaut si le plan le permet
+        if (result.allowed && limits?.summary_count_limit !== null) {
+          setAutoSummary(true);
+        }
+      } catch (error) {
+        console.error('Erreur vérification quota résumé:', error);
+        setSummaryQuotaCheck({ allowed: false });
+      } finally {
+        setCheckingQuota(false);
+      }
+    };
+    verifySummaryQuota();
+  }, [checkQuota, limits]);
+
+  const handleToggleSummary = async () => {
+    if (autoSummary) {
+      // Désactiver directement
+      setAutoSummary(false);
+      return;
+    }
+
+    // Vérifier le quota avant d'activer
+    try {
+      const result = await checkQuota('summary_count', 1);
+      if (result.allowed) {
+        setAutoSummary(true);
+      } else {
+        // Afficher un message d'erreur ou proposer l'upgrade
+        alert(`Quota de résumés épuisé (${result.usage}/${result.limit}). Veuillez upgrader votre plan pour générer plus de résumés.`);
+      }
+    } catch (error) {
+      console.error('Erreur vérification quota:', error);
+      alert('Erreur lors de la vérification du quota. Veuillez réessayer.');
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -242,12 +292,15 @@ export function ModernMeetingForm({
           </div>
 
           <motion.div
-            whileHover={{ scale: 1.005 }}
-            whileTap={{ scale: 0.995 }}
-            onClick={() => setAutoSummary(!autoSummary)}
+            whileHover={summaryQuotaCheck?.allowed !== false ? { scale: 1.005 } : {}}
+            whileTap={summaryQuotaCheck?.allowed !== false ? { scale: 0.995 } : {}}
+            onClick={summaryQuotaCheck?.allowed !== false ? handleToggleSummary : undefined}
             className={`
-              rounded-lg p-3 border cursor-pointer
-              transition-all duration-200
+              rounded-lg p-3 border transition-all duration-200
+              ${summaryQuotaCheck?.allowed === false
+                ? 'opacity-60 cursor-not-allowed'
+                : 'cursor-pointer'
+              }
               ${autoSummary
                 ? darkMode
                   ? 'bg-blue-900/20 border-blue-600'
@@ -272,11 +325,23 @@ export function ModernMeetingForm({
                     text-xs
                     ${darkMode ? 'text-gray-400' : 'text-gray-600'}
                   `}>
-                    {autoSummary 
+                    {checkingQuota 
+                      ? 'Vérification du quota...'
+                      : summaryQuotaCheck?.allowed === false
+                      ? `Quota épuisé (${summaryQuotaCheck?.usage || 0}/${summaryQuotaCheck?.limit || 0})`
+                      : autoSummary 
                       ? 'Active · Génération IA incluse' 
                       : 'Inactive · Pas de résumé généré'
                     }
                   </div>
+                  {summaryQuotaCheck?.allowed === false && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Crown className="w-3 h-3 text-amber-500" />
+                      <span className="text-xs text-amber-600 dark:text-amber-400">
+                        Upgrade requis
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               

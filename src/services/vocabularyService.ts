@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { VocabularyEntry } from '../types';
 import { logger } from '../utils/logger';
+import { checkQuota, incrementQuota } from './quotaService';
 // Import dynamique comme pour les notes (pour éviter les problèmes de circular dependencies)
 
 class VocabularyService {
@@ -66,6 +67,18 @@ class VocabularyService {
       
       if (!trimmedDefinition || trimmedDefinition.length === 0) {
         throw new Error('La définition ne peut pas être vide');
+      }
+      
+      // Vérifier le quota de vocabulaire
+      if (!entry.userId) {
+        throw new Error('User ID requis pour ajouter un mot de vocabulaire');
+      }
+      const quotaCheck = await checkQuota(entry.userId, 'vocab_words', 1);
+      if (!quotaCheck.allowed) {
+        throw new Error(
+          `Limite de vocabulaire atteinte (${quotaCheck.usage}/${quotaCheck.limit} mots). ` +
+          `Veuillez upgrader votre plan pour ajouter plus de mots.`
+        );
       }
       
       // 📏 VALIDATION: Vérifier les tailles de texte
@@ -272,6 +285,15 @@ class VocabularyService {
 
       console.log('✅ [VocabularyService] Mot inséré avec succès dans Supabase:', data.id, data.word);
       logger.debug('✅ Mot inséré avec succès dans Supabase:', data.id);
+      
+      // Incrémenter le quota après ajout réussi
+      if (entry.userId) {
+        try {
+          await incrementQuota(entry.userId, 'vocab_words', 1);
+        } catch (quotaError) {
+          logger.warn('⚠️ Erreur incrémentation quota vocabulaire (non bloquant):', quotaError);
+        }
+      }
       
       // Convertir le résultat au format VocabularyEntry
       const newEntry: VocabularyEntry = {
