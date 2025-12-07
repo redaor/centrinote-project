@@ -69,12 +69,14 @@ export function ModernNoteoMessage({
 
   useEffect(() => {
     if (showProgressively) {
+      // Affichage progressif rapide
       segments.forEach((_, index) => {
         setTimeout(() => {
           setVisibleSegments(prev => [...prev, index]);
         }, segmentDelay * index);
       });
     } else {
+      // Affichage instantané (pour le chatbot)
       setVisibleSegments(segments.map((_, index) => index));
     }
   }, [segments, showProgressively, segmentDelay]);
@@ -99,25 +101,25 @@ export function ModernNoteoMessage({
           return (
             <motion.div
               key={segment.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={isVisible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 20, scale: 0.95 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              initial={showProgressively ? { opacity: 0, y: 10, scale: 0.98 } : { opacity: 1, y: 0, scale: 1 }}
+              animate={isVisible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 10, scale: 0.98 }}
+              exit={{ opacity: 0, scale: 0.98 }}
               transition={{
-                duration: 0.4,
-                delay: isVisible ? index * 0.1 : 0,
-                ease: [0.4, 0, 0.2, 1]
+                duration: showProgressively ? 0.2 : 0.1, // Animation plus rapide
+                delay: 0, // Pas de délai supplémentaire
+                ease: 'easeOut'
               }}
               className="w-full"
             >
               {/* Message bubble style chat moderne */}
-              <div className="flex gap-3">
+              <div className="flex gap-3 w-full">
                 {/* Avatar Noteo */}
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
                   <Brain className="w-4 h-4 text-white" />
                 </div>
 
                 {/* Message content */}
-                <div className="flex-1 max-w-[85%]">
+                <div className="flex-1 min-w-0">
                   {/* Message bubble */}
                   <div className={`
                     rounded-2xl rounded-tl-sm p-4 shadow-md border

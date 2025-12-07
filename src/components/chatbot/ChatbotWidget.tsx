@@ -3,7 +3,7 @@
  * Intégré dans la section Contact pour aider les utilisateurs
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Send, X, Minimize2, Maximize2, Mail, MessageCircle, CheckCircle, AlertCircle, Lightbulb, Search } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -31,13 +31,40 @@ interface ChatbotWidgetProps {
 }
 
 /**
+ * Composant optimisé pour afficher un message moderne (avec cache)
+ */
+function OptimizedModernMessage({
+  message,
+  userName,
+  darkMode
+}: {
+  message: Message;
+  userName?: string;
+  darkMode: boolean;
+}) {
+  // Mettre en cache le parsing pour éviter de le refaire à chaque rendu
+  const segments = useMemo(() => {
+    return modernNoteoService.parseTextToSegments(message.content, userName);
+  }, [message.content, message.id, userName]); // Re-parser uniquement si le contenu change
+
+  return (
+    <ModernNoteoMessage
+      segments={segments}
+      darkMode={darkMode}
+      showProgressively={false} // DÉSACTIVER les animations progressives pour le chatbot
+      segmentDelay={0} // Pas de délai entre les segments
+    />
+  );
+}
+
+/**
  * Composant pour afficher les messages structurés avec icônes et encadrés
  */
-function StructuredMessage({ 
-  content, 
-  darkMode 
-}: { 
-  content: string; 
+function StructuredMessage({
+  content,
+  darkMode
+}: {
+  content: string;
   darkMode: boolean;
 }) {
   // Détecter les marqueurs visuels et structurer le message
@@ -329,11 +356,15 @@ export function ChatbotWidget({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll instantané pour éviter les animations lentes
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Utiliser requestAnimationFrame pour un scroll fluide sans bloquer le rendu
+    requestAnimationFrame(() => {
+      scrollToBottom();
+    });
   }, [messages]);
 
   // Écouter l'événement personnalisé pour ouvrir le chatbot
@@ -767,17 +798,18 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
         {messages.map((message) => {
           // Détecter si le message du bot doit utiliser le format moderne
           const isBot = message.type === 'bot';
-          const analysis = isBot ? analyzeMessage(message.content) : null;
-          const shouldUseModern = analysis?.shouldUseEnhanced || false;
+          const shouldUseModern = isBot && analyzeMessage(message.content).shouldUseEnhanced;
 
-          // Si c'est un message bot avec des étapes numérotées, utiliser ModernNoteoMessage
-          if (isBot && shouldUseModern) {
-            const segments = modernNoteoService.parseTextToSegments(message.content, user?.full_name || undefined);
-
+          // Si c'est un message bot avec des étapes numérotées, utiliser le composant optimisé
+          if (shouldUseModern) {
             return (
-              <div key={message.id} className="flex justify-start">
-                <div className="w-full max-w-[90%]">
-                  <ModernNoteoMessage segments={segments} />
+              <div key={message.id} className="flex justify-start w-full">
+                <div className="w-full">
+                  <OptimizedModernMessage
+                    message={message}
+                    userName={user?.full_name || undefined}
+                    darkMode={darkMode}
+                  />
                   {message.showConfirmationButtons && (
                     <div className={`
                       mt-4 p-4 rounded-lg border
