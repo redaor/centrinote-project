@@ -8,6 +8,9 @@ import { Send, X, Minimize2, Maximize2, Mail, MessageCircle, CheckCircle, AlertC
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { chatbotService } from '../../services/chatbotService';
+import { analyzeMessage } from '../../utils/noteoMessageDetector';
+import { modernNoteoService } from '../../services/modernNoteoService';
+import { ModernNoteoMessage } from '../ai/ModernNoteoMessage';
 
 interface Message {
   id: string;
@@ -206,45 +209,45 @@ function ConfirmationButtons({
 }) {
   return (
     <div className={`
-      mt-3 pt-3 border-t
-      ${darkMode ? 'border-gray-600' : 'border-gray-300'}
+      mt-4 pt-3 border-t
+      ${darkMode ? 'border-gray-600/50' : 'border-gray-200'}
     `}>
       <p className={`
-        text-xs font-medium mb-3
-        ${darkMode ? 'text-gray-300' : 'text-gray-700'}
+        text-xs font-medium mb-2
+        ${darkMode ? 'text-gray-400' : 'text-gray-600'}
       `}>
-        Est-ce que votre problème est résolu ?
+        Cette réponse vous aide-t-elle ?
       </p>
       <div className="flex gap-2">
         <button
           onClick={onResolved}
           className={`
-            flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg
-            text-sm font-medium transition-all duration-200
+            flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md
+            text-xs font-medium transition-all duration-150
             ${darkMode
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-green-500 hover:bg-green-600 text-white'
+              ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600'
+              : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
             }
-            hover:scale-[1.02] hover:shadow-md
+            hover:scale-[1.01]
           `}
         >
-          <span>✅</span>
-          <span>Oui, c'est réglé</span>
+          <span className="text-sm">✓</span>
+          <span>Oui, merci</span>
         </button>
         <button
           onClick={onNotResolved}
           className={`
-            flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg
-            text-sm font-medium transition-all duration-200
+            flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md
+            text-xs font-medium transition-all duration-150
             ${darkMode
-              ? 'bg-red-600 hover:bg-red-700 text-white'
-              : 'bg-red-500 hover:bg-red-600 text-white'
+              ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600'
+              : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
             }
-            hover:scale-[1.02] hover:shadow-md
+            hover:scale-[1.01]
           `}
         >
-          <span>❌</span>
-          <span>Non, toujours bloqué</span>
+          <span className="text-sm">✗</span>
+          <span>Pas encore</span>
         </button>
       </div>
     </div>
@@ -314,7 +317,7 @@ export function ChatbotWidget({
     {
       id: '1',
       type: 'bot',
-      content: t('chatbot_welcome') || 'Bonjour ! Je suis l\'assistant Centrinote. Comment puis-je vous aider aujourd\'hui ?',
+      content: t('chatbot_welcome') || 'Bonjour ! Je suis Noteo, votre assistant IA. Comment puis-je vous aider aujourd\'hui ?',
       timestamp: new Date()
     }
   ]);
@@ -717,7 +720,7 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
           </div>
           <div>
             <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {t('chatbot_title') || 'Assistant Centrinote'}
+              {t('chatbot_title') || 'Noteo'}
             </h3>
             <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               {t('chatbot_subtitle') || 'Je suis là pour vous aider'}
@@ -761,49 +764,93 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
           ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}
         `}
       >
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+        {messages.map((message) => {
+          // Détecter si le message du bot doit utiliser le format moderne
+          const isBot = message.type === 'bot';
+          const analysis = isBot ? analyzeMessage(message.content) : null;
+          const shouldUseModern = analysis?.shouldUseEnhanced || false;
+
+          // Si c'est un message bot avec des étapes numérotées, utiliser ModernNoteoMessage
+          if (isBot && shouldUseModern) {
+            const segments = modernNoteoService.parseTextToSegments(message.content, user?.full_name || undefined);
+
+            return (
+              <div key={message.id} className="flex justify-start">
+                <div className="w-full max-w-[90%]">
+                  <ModernNoteoMessage segments={segments} />
+                  {message.showConfirmationButtons && (
+                    <div className={`
+                      mt-4 p-4 rounded-lg border
+                      ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}
+                    `}>
+                      <ConfirmationButtons
+                        onResolved={handleProblemResolved}
+                        onNotResolved={handleProblemNotResolved}
+                        darkMode={darkMode}
+                      />
+                    </div>
+                  )}
+                  {message.requiresEscalation && message.escalationData && (
+                    <div className={`
+                      mt-4 p-4 rounded-lg border
+                      ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}
+                    `}>
+                      <EscalationCard
+                        onEscalate={handleEscalateToEmail}
+                        darkMode={darkMode}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // Format classique pour les messages utilisateur et les messages simples
+          return (
             <div
-              className={`
-                max-w-[80%] rounded-lg px-4 py-2
-                ${
-                  message.type === 'user'
-                    ? darkMode
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-blue-500 text-white'
-                    : message.type === 'system'
-                    ? darkMode
-                      ? 'bg-yellow-900/30 text-yellow-200 border border-yellow-700'
-                      : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
-                    : darkMode
-                    ? 'bg-gray-700 text-gray-100'
-                    : 'bg-white text-gray-900 border border-gray-200'
-                }
-              `}
+              key={message.id}
+              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <StructuredMessage 
-                content={message.content} 
-                darkMode={darkMode}
-              />
-              {message.showConfirmationButtons && (
-                <ConfirmationButtons
-                  onResolved={handleProblemResolved}
-                  onNotResolved={handleProblemNotResolved}
+              <div
+                className={`
+                  max-w-[80%] rounded-lg px-4 py-2
+                  ${
+                    message.type === 'user'
+                      ? darkMode
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-blue-500 text-white'
+                      : message.type === 'system'
+                      ? darkMode
+                        ? 'bg-yellow-900/30 text-yellow-200 border border-yellow-700'
+                        : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                      : darkMode
+                      ? 'bg-gray-700 text-gray-100'
+                      : 'bg-white text-gray-900 border border-gray-200'
+                  }
+                `}
+              >
+                <StructuredMessage
+                  content={message.content}
                   darkMode={darkMode}
                 />
-              )}
-              {message.requiresEscalation && message.escalationData && (
-                <EscalationCard 
-                  onEscalate={handleEscalateToEmail}
-                  darkMode={darkMode}
-                />
-              )}
+                {message.showConfirmationButtons && (
+                  <ConfirmationButtons
+                    onResolved={handleProblemResolved}
+                    onNotResolved={handleProblemNotResolved}
+                    darkMode={darkMode}
+                  />
+                )}
+                {message.requiresEscalation && message.escalationData && (
+                  <EscalationCard
+                    onEscalate={handleEscalateToEmail}
+                    darkMode={darkMode}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {isLoading && (
           <div className="flex justify-start">
             <div

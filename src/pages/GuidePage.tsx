@@ -46,6 +46,19 @@ export function GuidePage() {
       tip: 'Les PDF sont automatiquement transformés en texte modifiable, pratique pour surligner et annoter.'
     },
     {
+      id: 'noteo',
+      icon: <Search className="w-6 h-6" />,
+      title: 'Utiliser Noteo (Assistant IA avec chat segmenté)',
+      intro: 'Discute avec Noteo, ton assistant IA intelligent qui répond de manière progressive et claire.',
+      steps: [
+        'Clique sur « 🔍 Recherche » dans le menu',
+        'Tape ta question en langage naturel (ex: "c\'était quoi la formule des intégrales ?")',
+        'Noteo répond avec des messages segmentés et horodatés pour une meilleure compréhension',
+        'Les réponses longues sont automatiquement divisées en plusieurs messages progressifs'
+      ],
+      tip: 'Noteo analyse automatiquement ton problème et adapte ses réponses. Les messages sont horodatés (ex: 07h58) et utilisent des emojis pour une meilleure lisibilité.'
+    },
+    {
       id: 'ai-search',
       icon: <Search className="w-6 h-6" />,
       title: 'Utiliser l\'AI Search (recherche intelligente)',
@@ -53,9 +66,9 @@ export function GuidePage() {
       steps: [
         'Clique sur « 🔍 Recherche » dans le menu',
         'Tape ta question en langage naturel (ex: "c\'était quoi la formule des intégrales ?")',
-        'L\'IA trouve les notes pertinentes même si les mots sont différents'
+        'Noteo trouve les notes pertinentes même si les mots sont différents'
       ],
-      tip: 'Pas besoin de mots-clés précis ! Pose ta question comme à un ami, l\'IA comprend le sens.'
+      tip: 'Pas besoin de mots-clés précis ! Pose ta question comme à un ami, Noteo comprend le sens.'
     },
     {
       id: 'vocabulary',
@@ -351,6 +364,9 @@ export function GuidePage() {
           <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
             🆘 Besoin d'aide ?
           </h2>
+          <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            <strong>🤖 Noteo</strong> : Ton assistant IA disponible 24/7 pour répondre à toutes tes questions
+          </p>
           <div className="flex flex-wrap justify-center gap-4">
             <button
               onClick={() => navigate('/help')}

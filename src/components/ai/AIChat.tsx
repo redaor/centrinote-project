@@ -22,6 +22,11 @@ import { FileContextCard } from './FileContextCard';
 import { ContextBadge } from './ContextBadge';
 import { AIResponseCard } from './AIResponseCard';
 import { VoiceRecognition } from './VoiceRecognition';
+import { useChatSegmentation, type ChatSegment } from '../../hooks/useChatSegmentation';
+import { chatSegmentationService } from '../../services/chatSegmentationService';
+import { SegmentedMessage } from './SegmentedMessage';
+import { NoteoMessageWrapper } from './NoteoMessageWrapper';
+import { analyzeMessage } from '../../utils/noteoMessageDetector';
 
 interface Message {
   id: string;
@@ -72,6 +77,17 @@ export function AIChat() {
   const lastLocationRef = useRef<string>('');
   const sessionIdRef = useRef<string | null>(null);
   const userIdRef = useRef<string | null>(user?.id || null);
+
+  // Hook de segmentation pour les messages
+  const {
+    segments,
+    addSegment,
+    addSegments,
+    clearSegments,
+  } = useChatSegmentation();
+  
+  // État pour savoir si on utilise la segmentation pour le dernier message
+  const [lastMessageSegmented, setLastMessageSegmented] = useState(false);
 
   // État pour les actions proposées par l'IA
   const [pendingAction, setPendingAction] = useState<AIAction | null>(null);
@@ -196,16 +212,41 @@ export function AIChat() {
     // - Le chargement est terminé
     // - Il n'y a pas de messages
     // - On n'a pas déjà affiché le message de bienvenue
-    if (isReady && !isLoadingMessages && messages.length === 0 && !welcomeMessageShown.current) {
-      const timer = setTimeout(() => {
-        if (messages.length === 0 && !welcomeMessageShown.current) {
+    if (isReady && !isLoadingMessages && messages.length === 0 && segments.length === 0 && !welcomeMessageShown.current) {
+      const timer = setTimeout(async () => {
+        if (messages.length === 0 && segments.length === 0 && !welcomeMessageShown.current) {
           welcomeMessageShown.current = true;
+          
+          // 🎯 NOUVEAU: Utiliser la segmentation pour le message de bienvenue
+          clearSegments();
+          const welcomeSegments = [
+            {
+              emoji: '🤖',
+              content: `Bonjour${user?.name ? ` ${user.name}` : ''} ! Je suis Noteo, votre assistant IA.`,
+            },
+            {
+              emoji: '💡',
+              content: 'Je peux vous aider à répondre à vos questions, analyser votre code, ou vous guider dans l\'utilisation de Centrinote.',
+            },
+            {
+              emoji: '✨',
+              content: 'Comment puis-je vous aider aujourd\'hui ?',
+            },
+          ];
+          
+          await addSegments(welcomeSegments, 2000);
+          
+          // Sauvegarder aussi un message de bienvenue classique pour la compatibilité
           const welcomeMessage: Message = {
             id: `welcome-${Date.now()}`,
             type: 'ai',
-            content: '👋 Bonjour ! Je suis l\'assistant IA de Centrinote. Je peux vous aider à répondre à vos questions ou analyser votre code existant.',
+            content: `Bonjour${user?.name ? ` ${user.name}` : ''} ! Je suis Noteo, votre assistant IA. Je peux vous aider à répondre à vos questions ou analyser votre code existant.`,
             timestamp: new Date(),
+            metadata: {
+              isSegmented: true,
+            },
           };
+          
           setMessages([welcomeMessage]);
           
           // Sauvegarder le message de bienvenue
@@ -217,13 +258,13 @@ export function AIChat() {
             ).catch(err => console.warn('⚠️ Erreur sauvegarde message bienvenue:', err));
           }
           
-          console.log('✅ [AIChat] Message de bienvenue affiché');
+          console.log('✅ [AIChat] Message de bienvenue segmenté affiché');
         }
       }, 200);
       
       return () => clearTimeout(timer);
     }
-  }, [isReady, isLoadingMessages, messages.length]);
+  }, [isReady, isLoadingMessages, messages.length, segments.length, user?.name, clearSegments, addSegments]);
 
   const handleSend = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -411,6 +452,9 @@ export function AIChat() {
         }
 
         // Mode normal sans fichier - Utiliser chat-memory pour la mémoire persistante
+        // 🎯 NOUVEAU: Analyser le problème AVANT d'envoyer le message
+        const problemType = chatSegmentationService.analyzeProblem(message);
+        
         const memoryResponse = await chatMemoryService.sendMessage(message, user?.id || null);
 
         if (!memoryResponse.success) {
@@ -506,6 +550,9 @@ export function AIChat() {
           return;
         }
 
+        // Préparer la segmentation
+        setLastMessageSegmented(true);
+
         // Traiter la réponse pour détecter si c'est du code ou du texte
         let processedContent = result.suggestion.trim();
         let messageType: 'ai' | 'code' = 'ai';
@@ -599,35 +646,70 @@ export function AIChat() {
         
         console.log('✅ [AIChat] Ajout du message AI avec contenu:', processedContent.substring(0, 50), 'type:', messageType);
         
-        const newMessage: Message = {
-          id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // ID unique avec timestamp + random
-          type: messageType,
-          content: processedContent,
-          timestamp: new Date(),
-          metadata: {
-            securityScore: result.securityScore,
-            isValid: result.isValid,
-          },
-        };
-        
-        console.log('📝 [AIChat] Nouveau message créé:', {
-          id: newMessage.id,
-          type: newMessage.type,
-          contentLength: newMessage.content.length,
-          contentPreview: newMessage.content.substring(0, 100),
-        });
-        
-        // Utiliser la forme fonctionnelle pour garantir la mise à jour
-        setMessages(prev => {
-          const updated = [...prev, newMessage];
-          console.log('🔄 [AIChat] State mis à jour, total messages:', updated.length);
-          console.log('📋 [AIChat] Dernier message dans state:', {
-            id: updated[updated.length - 1]?.id,
-            type: updated[updated.length - 1]?.type,
-            contentLength: updated[updated.length - 1]?.content?.length,
+        // 🎯 NOUVEAU: Segmenter la réponse si elle est longue
+        if (processedContent.length > 200) {
+          // Segmenter la réponse complète
+          const responseSegments = chatSegmentationService.segmentResponse(processedContent, problemType);
+          
+          // Effacer les segments précédents et ajouter les nouveaux
+          clearSegments();
+          
+          // Ajouter les segments de réponse progressivement
+          await addSegments(responseSegments, 1500);
+          
+          // Créer aussi un message normal pour la sauvegarde (masqué visuellement)
+          const newMessage: Message = {
+            id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: messageType,
+            content: processedContent,
+            timestamp: new Date(),
+            metadata: {
+              securityScore: result.securityScore,
+              isValid: result.isValid,
+              isSegmented: true,
+            },
+          };
+          
+          // Sauvegarder le message complet en arrière-plan
+          if (userIdRef.current && sessionIdRef.current) {
+            aiConversationService.saveMessage(
+              userIdRef.current,
+              sessionIdRef.current,
+              newMessage
+            ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
+          }
+          
+          setLastMessageSegmented(false);
+        } else {
+          // Mode normal : message unique (courtes réponses)
+          const newMessage: Message = {
+            id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: messageType,
+            content: processedContent,
+            timestamp: new Date(),
+            metadata: {
+              securityScore: result.securityScore,
+              isValid: result.isValid,
+            },
+          };
+          
+          setMessages(prev => {
+            const updated = [...prev, newMessage];
+            console.log('🔄 [AIChat] State mis à jour, total messages:', updated.length);
+            return updated;
           });
-          return updated;
-        });
+          
+          // Sauvegarder le message
+          if (userIdRef.current && sessionIdRef.current) {
+            aiConversationService.saveMessage(
+              userIdRef.current,
+              sessionIdRef.current,
+              newMessage
+            ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
+          }
+          
+          setLastMessageSegmented(false);
+        }
         
         // 🔍 Détecter les actions proposées par l'IA
         if (mode === 'chat' && processedContent) {
@@ -664,15 +746,6 @@ export function AIChat() {
               setIsActionModalOpen(true);
             }
           }
-        }
-        
-        // Sauvegarder le message IA (chat/completion)
-        if (userIdRef.current && sessionIdRef.current) {
-          aiConversationService.saveMessage(
-            userIdRef.current,
-            sessionIdRef.current,
-            newMessage
-          ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
         }
       }
     } catch (err) {
@@ -728,9 +801,11 @@ export function AIChat() {
     }
 
     setMessages([]);
+    clearSegments(); // 🎯 NOUVEAU: Effacer aussi les segments
+    setLastMessageSegmented(false);
     clearAllErrors();
     welcomeMessageShown.current = false; // Permettre de réafficher le message de bienvenue
-  }, [clearAllErrors, resetSession]);
+  }, [clearAllErrors, resetSession, clearSegments]);
 
   const contextStats = getContextStats();
   const [isMinimized, setIsMinimized] = useState(false);
@@ -765,7 +840,7 @@ export function AIChat() {
               </div>
             </motion.div>
             <h1 className="text-base font-bold text-slate-900 dark:text-white">
-              Assistant Centrinote
+              Noteo
             </h1>
           </div>
 
@@ -890,14 +965,60 @@ export function AIChat() {
               </motion.div>
             )}
 
+            {/* Afficher les segments de message si disponibles */}
+            {segments.length > 0 && (
+              <AnimatePresence>
+                {segments.map((segment, index) => (
+                  <SegmentedMessage
+                    key={segment.id}
+                    segment={segment}
+                    index={index}
+                    darkMode={darkMode}
+                  />
+                ))}
+              </AnimatePresence>
+            )}
+
             <AnimatePresence>
               {messages.map((message, index) => {
                 if (!message.content || message.content.trim().length === 0) {
                   return null;
                 }
 
-                // Message AI
-                if (message.type === 'ai') {
+                // Message AI (afficher seulement si pas segmenté)
+                if (message.type === 'ai' && !message.metadata?.isSegmented) {
+                  // 🎯 NOUVEAU: Détecter si le message doit utiliser le format EnhancedNoteoMessage
+                  const messageAnalysis = analyzeMessage(message.content);
+                  
+                  if (messageAnalysis.shouldUseEnhanced) {
+                    return (
+                      <motion.div
+                        key={message.id}
+                        className="w-full mb-4"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.4 }}
+                      >
+                        <NoteoMessageWrapper
+                          content={message.content}
+                          problemType={messageAnalysis.problemType || 'general'}
+                          userName={user?.name}
+                          darkMode={darkMode}
+                          onSuccess={() => {
+                            console.log('✅ Problème résolu');
+                            // Optionnel : ajouter un message de confirmation
+                          }}
+                          onFailure={() => {
+                            console.log('❌ Problème persiste');
+                            // Optionnel : demander plus d'informations
+                          }}
+                        />
+                      </motion.div>
+                    );
+                  }
+
+                  // Format standard pour les messages sans étapes
                   return (
                     <motion.div
                       key={message.id}

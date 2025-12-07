@@ -613,6 +613,21 @@ Fonctionnalités spéciales:
 - Utilise des phrases comme "Voici la version corrigée :" ou "La note devrait être :" pour faciliter la détection automatique
 - Mentionne clairement le titre de la note entre guillemets quand tu proposes une modification (ex: "Voici la version corrigée de la note 'Titre de la note' :")
 
+FORMAT DES RÉPONSES (IMPORTANT):
+- Pour les guides ou instructions, utilise TOUJOURS ce format avec étapes numérotées:
+
+  Bonjour ! Je vais vous aider à [action].
+
+  **1. Titre de l'étape** : Description courte de l'étape (50-80 mots max).
+
+  **2. Titre de l'étape** : Description courte de l'étape (50-80 mots max).
+
+  **3. Titre de l'étape** : Description courte de l'étape (50-80 mots max).
+
+- Chaque étape doit commencer par **N.** (où N est le numéro)
+- Garde chaque description concise et actionnable
+- Utilise des émojis contextuels si approprié (📂 🎯 📝 👥 📤)
+
 Réponds de manière naturelle, concise et utile. Si tu détectes une langue autre que le français dans les messages, adapte ta réponse à cette langue.`;
 
   messages.push({

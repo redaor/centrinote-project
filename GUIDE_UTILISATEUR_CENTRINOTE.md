@@ -35,22 +35,38 @@ Bienvenue sur Centrinote ! On a créé ce guide pour que tu puisses maîtriser l
 
 ---
 
-## 3️⃣ Utiliser l'AI Search (recherche intelligente)
+## 3️⃣ Utiliser Noteo (Assistant IA avec chat segmenté)
+
+**En 1 seconde :** Discute avec Noteo, ton assistant IA intelligent qui répond de manière progressive et claire.
+
+**Comment faire :**
+1. Clique sur **« 🔍 Recherche »** dans le menu
+2. Tape ta question en langage naturel (ex: "c'était quoi la formule des intégrales ?")
+3. Noteo répond avec des messages segmentés et horodatés pour une meilleure compréhension
+4. Les réponses longues sont automatiquement divisées en plusieurs messages progressifs
+
+[Image : Interface de chat avec Noteo montrant les messages segmentés]
+
+*💡 Astuce : Noteo analyse automatiquement ton problème et adapte ses réponses. Les messages sont horodatés (ex: 07h58) et utilisent des emojis pour une meilleure lisibilité.*
+
+---
+
+## 4️⃣ Utiliser l'AI Search (recherche intelligente)
 
 **En 1 seconde :** Retrouve n'importe quelle info même si tu ne te souviens plus des mots exacts.
 
 **Comment faire :**
 1. Clique sur **« 🔍 Recherche »** dans le menu
 2. Tape ta question en langage naturel (ex: "c'était quoi la formule des intégrales ?")
-3. L'IA trouve les notes pertinentes même si les mots sont différents
+3. Noteo trouve les notes pertinentes même si les mots sont différents
 
 [Image : Barre de recherche avec exemple de question]
 
-*💡 Astuce : Pas besoin de mots-clés précis ! Pose ta question comme à un ami, l'IA comprend le sens.*
+*💡 Astuce : Pas besoin de mots-clés précis ! Pose ta question comme à un ami, Noteo comprend le sens.*
 
 ---
 
-## 4️⃣ Créer des cartes de vocabulaire
+## 5️⃣ Créer des cartes de vocabulaire
 
 **En 1 seconde :** Transforme n'importe quel mot en carte mémo pour l'apprendre.
 
@@ -66,7 +82,7 @@ Bienvenue sur Centrinote ! On a créé ce guide pour que tu puisses maîtriser l
 
 ---
 
-## 5️⃣ Étudier en mode flashcards
+## 6️⃣ Étudier en mode flashcards
 
 **En 1 seconde :** Révise tes mots de vocabulaire façon jeu de cartes.
 
@@ -82,7 +98,7 @@ Bienvenue sur Centrinote ! On a créé ce guide pour que tu puisses maîtriser l
 
 ---
 
-## 6️⃣ Partager une note (collaboration temps-réel)
+## 7️⃣ Partager une note (collaboration temps-réel)
 
 **En 1 seconde :** Travaille sur la même note avec tes amis en direct, comme sur Google Docs.
 
@@ -98,7 +114,7 @@ Bienvenue sur Centrinote ! On a créé ce guide pour que tu puisses maîtriser l
 
 ---
 
-## 7️⃣ Planifier une révision (rappels)
+## 8️⃣ Planifier une révision (rappels)
 
 **En 1 seconde :** Programme des alertes pour ne jamais oublier de réviser.
 
@@ -114,7 +130,7 @@ Bienvenue sur Centrinote ! On a créé ce guide pour que tu puisses maîtriser l
 
 ---
 
-## 8️⃣ Automatiser des tâches (règles simples)
+## 9️⃣ Automatiser des tâches (règles simples)
 
 **En 1 seconde :** Demande à Centrinote de faire des actions répétitives à ta place.
 
@@ -130,7 +146,7 @@ Bienvenue sur Centrinote ! On a créé ce guide pour que tu puisses maîtriser l
 
 ---
 
-## 9️⃣ Choisir son forfait (Free / Pro)
+## 🔟 Choisir son forfait (Free / Pro)
 
 **En 1 seconde :** Découvre ce qui est gratuit et ce qui nécessite un abonnement.
 
@@ -157,7 +173,7 @@ Bienvenue sur Centrinote ! On a créé ce guide pour que tu puisses maîtriser l
 
 ---
 
-## 🔟 Sauvegarder & exporter ses données
+## 1️⃣1️⃣ Sauvegarder & exporter ses données
 
 **En 1 seconde :** Récupère toutes tes notes en un clic, au cas où.
 
@@ -175,6 +191,7 @@ Bienvenue sur Centrinote ! On a créé ce guide pour que tu puisses maîtriser l
 
 ## 🆘 Besoin d'aide ?
 
+- **🤖 Noteo** : Ton assistant IA disponible 24/7 pour répondre à toutes tes questions
 - **📹 Tutoriels vidéo** : Regarde des démos courtes sur notre chaîne
 - **📘 Documentation complète** : Pour aller plus loin
 - **💬 Forum communautaire** : Pose tes questions à d'autres utilisateurs

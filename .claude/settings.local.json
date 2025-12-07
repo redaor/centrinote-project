@@ -42,7 +42,8 @@
       "Bash(pgrep:*)",
       "Bash(xargs kill:*)",
       "Bash(then grep -r \"VITE_SUPABASE_ANON_KEY\\|VITE_SUPABASE_URL\\|OPENAI_API_KEY\\|DAILY_API_KEY\" dist/)",
-      "Bash(then grep -r \"SUPABASE_SERVICE\\|sk-proj\\|OPENAI_API_KEY\\|DAILY_API_KEY\" dist/)"
+      "Bash(then grep -r \"SUPABASE_SERVICE\\|sk-proj\\|OPENAI_API_KEY\\|DAILY_API_KEY\" dist/)",
+      "Bash(kill:*)"
     ],
     "deny": [],
     "ask": []

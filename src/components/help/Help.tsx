@@ -366,7 +366,7 @@ export function Help() {
                 text-sm sm:text-base md:text-lg font-medium text-center
                 ${darkMode ? 'text-gray-200' : 'text-gray-800'}
               `}>
-                "Bonjour ! Je suis votre assistant IA, prêt à vous aider 24/7"
+                "Bonjour ! Je suis Noteo, votre assistant IA, prêt à vous aider 24/7"
               </p>
             </div>
             <button
