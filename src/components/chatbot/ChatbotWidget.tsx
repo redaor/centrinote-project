@@ -53,6 +53,8 @@ function OptimizedModernMessage({
       darkMode={darkMode}
       showProgressively={false} // DÉSACTIVER les animations progressives pour le chatbot
       segmentDelay={0} // Pas de délai entre les segments
+      onSuccess={undefined} // ✅ Désactiver les boutons intégrés (ils sont affichés par ChatbotWidget)
+      onFailure={undefined} // ✅ Désactiver les boutons intégrés
     />
   );
 }

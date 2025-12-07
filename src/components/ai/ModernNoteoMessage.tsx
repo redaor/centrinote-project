@@ -193,8 +193,8 @@ export function ModernNoteoMessage({
         })}
       </AnimatePresence>
 
-      {/* Boutons de résultat (affichés après le dernier segment) */}
-      {visibleSegments.length === segments.length && (
+      {/* Boutons de résultat (affichés après le dernier segment) - UNIQUEMENT si onSuccess/onFailure sont fournis */}
+      {visibleSegments.length === segments.length && (onSuccess || onFailure) && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
