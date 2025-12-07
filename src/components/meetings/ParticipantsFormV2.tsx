@@ -326,7 +326,7 @@ export function ParticipantsFormV2({
             type="button"
             onClick={handleSmartAdd}
             disabled={!canAddMore || !inputValue.trim()}
-            className={`absolute right-2 top-2 px-3 py-1.5 rounded-md text-sm font-medium transition ${
+            className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition leading-none ${
               !canAddMore || !inputValue.trim()
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'

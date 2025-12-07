@@ -17,7 +17,6 @@ import {
   X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import EmailLinkTest from '../debug/EmailLinkTest';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -627,19 +626,6 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
         </div>
       </footer>
 
-      {/* 🧪 Test component en développement uniquement */}
-      {import.meta.env.DEV && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <details className="cursor-pointer">
-            <summary className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
-              🧪 Test n8n
-            </summary>
-            <div className="mt-2">
-              <EmailLinkTest />
-            </div>
-          </details>
-        </div>
-      )}
     </div>
   );
 }

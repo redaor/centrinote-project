@@ -31,4 +31,7 @@ export type Meeting = {
   started_at?: string;
   ended_at?: string;
   duration_minutes: number;
+  recording_url?: string;
+  transcript?: string;
+  ai_summary?: any;
 };

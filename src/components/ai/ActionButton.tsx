@@ -96,3 +96,4 @@ export function QuickActions({ actions, darkMode = false }: QuickActionsProps) {
   );
 }
 
+

@@ -14,6 +14,9 @@ import { CreateMeetingPayload, MeetingParticipant } from '../../types/meetings';
 import { PerformanceMonitor } from '../debug/PerformanceMonitor';
 import { useSummary } from '../../hooks/useSummary';
 import { MeetingProgress } from './MeetingProgress';
+import { ModernCompletedMeetingCard } from './ModernCompletedMeetingCard';
+import { ModernMeetingStats } from './ModernMeetingStats';
+import { ModernMeetingForm } from './ModernMeetingForm';
 
 export function MeetingList() {
   const { state } = useApp();
@@ -217,6 +220,34 @@ export function MeetingList() {
       return matchesSearch && matchesFilter;
     });
   }, [meetings, searchTerm, filterStatus]);
+
+  // Séparer les réunions terminées des autres
+  const completedMeetings = useMemo(() => {
+    return filteredMeetings.filter(meeting => {
+      const hasRecording = !!meeting.recording_url;
+      const hasTranscript = !!meeting.transcript;
+      const hasSummary = !!meeting.ai_summary;
+      return meeting.status === 'completed' || 
+             !!meeting.ended_at || 
+             hasRecording || 
+             hasTranscript || 
+             hasSummary;
+    });
+  }, [filteredMeetings]);
+
+  const activeMeetings = useMemo(() => {
+    return filteredMeetings.filter(meeting => {
+      const hasRecording = !!meeting.recording_url;
+      const hasTranscript = !!meeting.transcript;
+      const hasSummary = !!meeting.ai_summary;
+      const isCompleted = meeting.status === 'completed' || 
+                         !!meeting.ended_at || 
+                         hasRecording || 
+                         hasTranscript || 
+                         hasSummary;
+      return !isCompleted;
+    });
+  }, [filteredMeetings]);
   
   // DEBUG: Log du filtrage (removed for performance)
 
@@ -359,220 +390,79 @@ export function MeetingList() {
   }
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} p-6`}>
+    <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} p-4 md:p-6`}>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-5">
           <div>
-            <h1 className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            <h1 className={`text-2xl md:text-3xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
               🎥 Mes Réunions
             </h1>
-            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               Gérez vos réunions vidéo Daily.co
             </p>
           </div>
-          <div className="flex space-x-3 mt-4 md:mt-0">
+          <div className="flex space-x-2 mt-3 md:mt-0">
             <Link
               to="/meetings/new"
-              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-md transition-all duration-200"
+              className="flex items-center space-x-2 px-4 py-2 md:px-6 md:py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-md transition-all duration-200 text-sm md:text-base"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4 md:w-5 md:h-5" />
               <span>Nouvelle Réunion</span>
             </Link>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-6`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total</p>
-                <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {totalMeetings}
-                </p>
-              </div>
-              <Calendar className={`w-8 h-8 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-            </div>
-          </div>
-          
-          <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-6`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Actives</p>
-                <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {activeCount}
-                </p>
-              </div>
-              <Video className="w-8 h-8 text-green-500" />
-            </div>
-          </div>
-          
-          <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-6`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Terminées</p>
-                <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {completedCount}
-                </p>
-              </div>
-              <Clock className={`w-8 h-8 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-            </div>
-          </div>
-          
-          <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-6`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Cette semaine</p>
-                <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {meetings.filter(m => {
-                    const weekAgo = new Date();
-                    weekAgo.setDate(weekAgo.getDate() - 7);
-                    return new Date(m.created_at) > weekAgo;
-                  }).length}
-                </p>
-              </div>
-              <Users className={`w-8 h-8 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-            </div>
-          </div>
-        </div>
+        {/* Stats modernes */}
+        <ModernMeetingStats
+          total={totalMeetings}
+          active={activeCount}
+          completed={completedCount}
+          weekly={meetings.filter(m => {
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            return new Date(m.created_at) > weekAgo;
+          }).length}
+          darkMode={darkMode}
+        />
 
-        {/* Formulaire de création avec participants */}
-        <div className={`mb-6 p-6 rounded-lg border ${
-          darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-        }`}>
-          <h3 className={`font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            🚀 Créer une nouvelle réunion
-          </h3>
-          
-          <div className="space-y-4">
-            {/* Titre et description */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  darkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Titre de la réunion *
-                </label>
-                <input
-                  type="text"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Ex: Réunion équipe marketing"
-                  className={`w-full px-3 py-2 rounded border ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                  } focus:border-blue-500 focus:ring-blue-500/20`}
-                />
-              </div>
+        {/* Formulaire de création moderne */}
+        {user && (
+          <ModernMeetingForm
+            onSubmit={async (data) => {
+              // Mettre à jour les états locaux
+              setFormTitle(data.title);
+              setFormDescription(data.description);
+              setParticipants(data.participants);
+              setEnableAiSummary(data.enableAiSummary);
               
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  darkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Description (optionnel)
-                </label>
-                <input
-                  type="text"
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Brève description..."
-                  className={`w-full px-3 py-2 rounded border ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                  } focus:border-blue-500 focus:ring-blue-500/20`}
-                />
-              </div>
-            </div>
-
-            {/* Participants - Nouveau composant amélioré */}
-            {user && (
-              <ParticipantsFormV2
-                participants={participants}
-                onChange={setParticipants}
-                organizer={{ name: user.name || user.email.split('@')[0], email: user.email }}
-                darkMode={darkMode}
-              />
-            )}
-
-            {/* Option : Résumé automatique par IA */}
-            <div className={`p-4 rounded-lg border ${
-              darkMode 
-                ? 'bg-gray-800 border-gray-700' 
-                : 'bg-gray-50 border-gray-200'
-            }`}>
-              <label className="flex items-start space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={enableAiSummary}
-                  onChange={(e) => setEnableAiSummary(e.target.checked)}
-                  className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <div className="flex-1">
-                  <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    🤖 Générer un résumé automatique
-                  </div>
-                  <div className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Active l'enregistrement de la réunion et génère automatiquement un résumé avec transcription, décisions et actions après la réunion.
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            {/* Bouton de création */}
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setFormTitle('');
-                  setFormDescription('');
-                  setEnableAiSummary(false);
-                  if (user) {
-                    setParticipants([{
-                      id: crypto.randomUUID(),  // 🆔 UUID stable
-                      name: user.name || user.email.split('@')[0],
-                      email: user.email,
-                      role: 'organizer'
-                    }]);
-                  }
-                }}
-                disabled={createLoading}
-                className={`px-4 py-2 rounded transition-colors ${
-                  darkMode 
-                    ? 'bg-gray-600 hover:bg-gray-700 text-gray-300' 
-                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                } disabled:opacity-50`}
-              >
-                Réinitialiser
-              </button>
+              // Attendre un peu pour que les états se mettent à jour
+              await new Promise(resolve => setTimeout(resolve, 100));
               
-              <button
-                type="button"
-                onClick={handleCreateMeeting}
-                disabled={createLoading || !formTitle.trim() || !user}
-                className={`flex items-center space-x-2 px-6 py-2 rounded transition-colors ${
-                  createLoading || !formTitle.trim() || !user
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                } text-white disabled:opacity-50`}
-              >
-                {createLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Création...</span>
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    <span>Créer la réunion</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+              // Appeler la fonction de création existante
+              await handleCreateMeeting();
+            }}
+            onReset={() => {
+              setFormTitle('');
+              setFormDescription('');
+              setEnableAiSummary(false);
+              if (user) {
+                setParticipants([{
+                  id: crypto.randomUUID(),
+                  name: user.name || user.email.split('@')[0],
+                  email: user.email,
+                  role: 'organizer'
+                }]);
+              }
+            }}
+            organizer={{
+              name: user.name || user.email.split('@')[0],
+              email: user.email
+            }}
+            darkMode={darkMode}
+            isLoading={createLoading}
+          />
+        )}
 
         {/* Message de confirmation après quitter réunion */}
         {location.state?.meetingCompleted && (
@@ -621,25 +511,69 @@ export function MeetingList() {
           </div>
         )}
 
-        {/* Liste des réunions */}
-        {filteredMeetings.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredMeetings.map(meeting => (
-              <MeetingCard
-                key={meeting.id}
-                meeting={meeting}
-                darkMode={darkMode}
-                onDelete={handleDelete}
-                onCopyUrl={copyRoomUrl}
-                onSendInvites={sendInvitations}
-                deleteLoading={deleteLoading === meeting.id}
-                getStatusColor={getStatusColor}
-                getStatusLabel={getStatusLabel}
-                formatDate={formatDate}
-              />
-            ))}
+        {/* Liste des réunions actives */}
+        {activeMeetings.length > 0 && (
+          <div className="mb-8">
+            <h2 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Réunions actives
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {activeMeetings.map(meeting => (
+                <MeetingCard
+                  key={meeting.id}
+                  meeting={meeting}
+                  darkMode={darkMode}
+                  onDelete={handleDelete}
+                  onCopyUrl={copyRoomUrl}
+                  onSendInvites={sendInvitations}
+                  deleteLoading={deleteLoading === meeting.id}
+                  getStatusColor={getStatusColor}
+                  getStatusLabel={getStatusLabel}
+                  formatDate={formatDate}
+                />
+              ))}
+            </div>
           </div>
-        ) : (
+        )}
+
+        {/* Section réunions terminées avec design moderne */}
+        {completedMeetings.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                📊 Résumés de Réunion
+              </h2>
+              <span className={`
+                text-sm px-3 py-1 rounded-full
+                ${darkMode 
+                  ? 'bg-gray-700 text-gray-300' 
+                  : 'bg-gray-100 text-gray-700'
+                }
+              `}>
+                {completedMeetings.length} {completedMeetings.length > 1 ? 'réunions' : 'réunion'}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {completedMeetings.map((meeting, index) => (
+                <ModernCompletedMeetingCard
+                  key={meeting.id}
+                  meeting={meeting}
+                  darkMode={darkMode}
+                  index={index}
+                  onViewSummary={(meetingId) => navigate(`/meetings/${meetingId}/summary`)}
+                  onDownloadSummary={(meetingId) => {
+                    // TODO: Implémenter le téléchargement
+                    console.log('Télécharger résumé:', meetingId);
+                  }}
+                  onRefresh={refresh}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Message si aucune réunion */}
+        {filteredMeetings.length === 0 && (
           <div className="text-center py-12">
             <Video className={`w-16 h-16 mx-auto mb-4 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} />
             <h3 className={`text-lg font-medium mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
