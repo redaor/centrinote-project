@@ -91,6 +91,21 @@ class AutomationService {
    */
   async createAutomation(userId: string, automationData: AutomationFormData): Promise<Automation> {
     try {
+      // Vérifier le quota d'automatisations actives
+      const { checkQuota } = await import('./quotaService');
+      const quotaCheck = await checkQuota(userId, 'automations_active', 1);
+      
+      if (!quotaCheck.allowed) {
+        throw new Error(
+          `LIMITE_QUOTA:${JSON.stringify({
+            feature: 'automation',
+            usage: quotaCheck.usage,
+            limit: quotaCheck.limit,
+            planName: quotaCheck.plan_display_name || 'Free'
+          })}`
+        );
+      }
+      
       console.log('🔄 Creating automation:', automationData.name);
       
       const automationRequest: CreateAutomationRequest = {

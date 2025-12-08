@@ -50,6 +50,7 @@ import { AIContentHelper } from '../ai/AIContentHelper';
 import { FlashcardMode } from './FlashcardMode';
 import { AlphaFilter } from './AlphaFilter';
 import { AlphaFilterVertical } from './AlphaFilterVertical';
+import { useQuotaLimit } from '../../hooks/useQuotaLimit';
 
 interface VocabularyStats {
   mastered: number;
@@ -73,8 +74,9 @@ export function NeuroVocabulary() {
   // ✅ Tous les hooks contextes en premier
   const { state, dispatch } = useApp();
   const { vocabulary, darkMode, user } = state;
-  const { addVocabularyEntry, updateVocabularyEntry, deleteVocabularyEntry, loading: vocabularyLoading } = useVocabulary();
+  const { addVocabularyEntry, updateVocabularyEntry, deleteVocabularyEntry, loading: vocabularyLoading, quotaModal } = useVocabulary();
   const { triggerReward, focusAttention, pulseEffect } = useNeuroFeedback();
+  const { checkAndShowModal: checkQuotaWithModal } = useQuotaLimit();
   
   // ✅ Tous les useState en un seul bloc
   const [isAddingWord, setIsAddingWord] = useState(false);
@@ -632,9 +634,32 @@ export function NeuroVocabulary() {
     });
 
     // Validation des champs requis
-    if (!newWord.term || !newWord.definition) {
-      console.log('⚠️ [NeuroVocabulary] Validation échouée - champs vides');
-      triggerReward('Remplissez les champs requis! ⚠️', { type: 'warning' });
+    // Validation des champs vides avec suggestion IA
+    if (!newWord.term || !newWord.term.trim()) {
+      const hasAIAccess = await checkQuotaWithModal('ai_help', 1);
+      if (hasAIAccess) {
+        const useSuggestion = confirm('Le champ "mot" ne peut pas être vide. Souhaitez-vous que je génère une suggestion avec l\'Aide IA ?');
+        if (useSuggestion) {
+          alert('Fonctionnalité de suggestion IA en cours de développement. Veuillez saisir un mot manuellement.');
+          return;
+        }
+      } else {
+        alert('Le champ "mot" ne peut pas être vide. Veuillez saisir un mot.');
+      }
+      return;
+    }
+    
+    if (!newWord.definition || !newWord.definition.trim()) {
+      const hasAIAccess = await checkQuotaWithModal('ai_help', 1);
+      if (hasAIAccess) {
+        const useSuggestion = confirm('Le champ "définition" ne peut pas être vide. Souhaitez-vous que je génère une définition avec l\'Aide IA ?');
+        if (useSuggestion) {
+          alert('Fonctionnalité de suggestion IA en cours de développement. Veuillez saisir une définition manuellement.');
+          return;
+        }
+      } else {
+        alert('Le champ "définition" ne peut pas être vide. Veuillez saisir une définition.');
+      }
       return;
     }
 
@@ -2607,6 +2632,9 @@ export function NeuroVocabulary() {
           </span>
         </motion.button>
       </div>
+      
+      {/* Modal de limite de quota */}
+      {quotaModal}
     </div>
   );
 }

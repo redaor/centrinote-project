@@ -6,6 +6,7 @@ import { SimpleAutomationDashboard } from './SimpleAutomationDashboard';
 import { AutomationBuilder } from './AutomationBuilder';
 import { AutomationTemplates } from './AutomationTemplates';
 import { automationService } from '../../services/automationService';
+import { useQuotaLimit } from '../../hooks/useQuotaLimit';
 import type { 
   Automation, 
   AutomationTemplate, 
@@ -63,6 +64,12 @@ export function AutomationManager() {
   const handleSaveAutomation = useCallback(async (formData: AutomationFormData) => {
     if (!user?.id) {
       throw new Error('User not authenticated');
+    }
+
+    // Vérifier le quota d'automatisations avant de créer
+    const canCreate = await checkQuotaWithModal('automation', 1);
+    if (!canCreate) {
+      return; // Le modal est déjà affiché
     }
 
     try {

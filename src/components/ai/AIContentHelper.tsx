@@ -10,6 +10,8 @@ interface AIContentHelperProps {
   contentType: 'note' | 'vocabulaire';
   onApply: (improvedContent: string) => void;
   darkMode?: boolean;
+  disabled?: boolean; // Nouveau: pour désactiver le bouton si pas d'accès
+  onGenerateFromTitle?: () => void; // Nouveau: callback pour générer depuis le titre
 }
 
 type ActionType = 'corriger' | 'améliorer' | 'reformuler' | 'enrichir';
@@ -56,7 +58,9 @@ export function AIContentHelper({
   title,
   contentType,
   onApply,
-  darkMode = false
+  darkMode = false,
+  disabled = false,
+  onGenerateFromTitle
 }: AIContentHelperProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<ActionType | null>(null);
@@ -193,8 +197,9 @@ export function AIContentHelper({
       <Button
         variant="ghost"
         onClick={() => setIsOpen(true)}
-        className="gap-2"
-        title="Aide IA pour améliorer le contenu"
+        disabled={disabled}
+        className={`gap-2 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        title={disabled ? 'Aide IA non disponible avec votre plan actuel' : 'Aide IA pour améliorer le contenu'}
       >
         <Sparkles className="w-4 h-4" />
         <span>Aide IA</span>

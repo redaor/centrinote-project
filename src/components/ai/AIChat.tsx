@@ -27,6 +27,7 @@ import { chatSegmentationService } from '../../services/chatSegmentationService'
 import { SegmentedMessage } from './SegmentedMessage';
 import { NoteoMessageWrapper } from './NoteoMessageWrapper';
 import { analyzeMessage } from '../../utils/noteoMessageDetector';
+import { useQuotaLimit } from '../../hooks/useQuotaLimit';
 
 interface Message {
   id: string;
@@ -47,6 +48,7 @@ export function AIChat() {
   const { state } = useApp();
   const { darkMode, user } = state;
   const location = useLocation(); // Pour détecter les changements de route
+  const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
 
   const {
     isReady,
@@ -273,6 +275,12 @@ export function AIChat() {
     if (!message || isLoading || !isReady) {
       console.log('⚠️ [AIChat] Envoi bloqué:', { message: !!message, isLoading, isReady });
       return;
+    }
+    
+    // Vérifier l'accès à l'IA Discussion (seuls Starter, Pro, Teams)
+    const canUseAIChat = await checkQuotaWithModal('ai_chat', 0);
+    if (!canUseAIChat) {
+      return; // Le modal est déjà affiché par useQuotaLimit
     }
 
     console.log('🚀 [AIChat] Début envoi message:', message.substring(0, 50));
@@ -1586,6 +1594,9 @@ export function AIChat() {
         isLoading={isApplyingAction}
         darkMode={darkMode}
       />
+      
+      {/* Modal de limite de quota */}
+      {quotaModal}
     </motion.div>
   );
 }

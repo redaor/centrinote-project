@@ -57,6 +57,9 @@ import { LoadingSpinner, ProgressBar } from '../ui/LoadingStates';
 import { DatabaseErrorMessage } from '../common/DatabaseErrorMessage';
 import { AIContentHelper } from '../ai/AIContentHelper';
 import { LongRecButton } from './LongRecButton';
+import { EmptyNoteAlert } from './EmptyNoteAlert';
+import { useQuotaCheck } from '../../hooks/useQuotaCheck';
+import { useQuotaLimit } from '../../hooks/useQuotaLimit';
 
 interface FilterChip {
   id: string;
@@ -187,7 +190,14 @@ export function ModernNotesManager() {
   const [formData, setFormData] = useState(emptyFormState);
   const [showNoteMenu, setShowNoteMenu] = useState<string | null>(null);
   const [showAIMenu, setShowAIMenu] = useState(false);
+  const [showEmptyNoteAlert, setShowEmptyNoteAlert] = useState(false);
+  const [hasAIAccess, setHasAIAccess] = useState(false);
+  const [checkingAIAccess, setCheckingAIAccess] = useState(true);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Hooks pour vérifier l'accès à l'Aide IA
+  const { check: checkQuota } = useQuotaCheck();
+  const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
 
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout>();
   
@@ -393,8 +403,41 @@ export function ModernNotesManager() {
 
   // Gestion CRUD
   const handleAddNote = async () => {
+    console.log('🚀 [handleAddNote] Déclenché avec formData:', {
+      title: formData.title,
+      content: formData.content,
+      contentLength: formData.content?.length || 0,
+      contentType: typeof formData.content,
+      contentIsEmpty: !formData.content || formData.content.trim().length === 0
+    });
+
     if (!formData.title.trim()) {
       setMessage({ type: 'error', text: 'Le titre est obligatoire' });
+      return;
+    }
+
+    // Vérifier si le contenu est vide
+    const contentValue = formData.content || '';
+    const contentTrimmed = contentValue.trim();
+    const isEmpty = contentTrimmed.length === 0;
+    
+    console.log('🔍 [handleAddNote] Vérification contenu:', {
+      contentValue,
+      contentLength: contentValue.length,
+      contentTrimmed,
+      contentTrimmedLength: contentTrimmed.length,
+      isEmpty,
+      willShowAlert: isEmpty
+    });
+
+    if (isEmpty) {
+      console.log('⚠️ [handleAddNote] Contenu vide détecté, affichage de l\'alerte');
+      console.log('📊 [handleAddNote] État avant affichage:', {
+        showEmptyNoteAlert,
+        hasAIAccess,
+        title: formData.title
+      });
+      setShowEmptyNoteAlert(true);
       return;
     }
 
@@ -622,8 +665,14 @@ export function ModernNotesManager() {
                     content={formData.content || ''}
                     title={formData.title || ''}
                     contentType="note"
+                    disabled={!hasAIAccess}
                     onApply={async (improvedContent) => {
                       try {
+                        // Vérifier le quota avant d'appliquer
+                        const canUse = await checkQuotaWithModal('ai_help', 1);
+                        if (!canUse) {
+                          return;
+                        }
                         handleFormDataChange('content', improvedContent);
                         setHasUnsavedChanges(true);
                         setMessage({ type: 'success', text: 'Contenu amélioré par l\'IA. N\'oubliez pas de sauvegarder.' });
@@ -906,6 +955,12 @@ export function ModernNotesManager() {
   const handleUpdateNote = useCallback(async () => {
     if (!selectedNote || !formData.title.trim()) {
       setMessage({ type: 'error', text: 'Le titre est obligatoire' });
+      return;
+    }
+
+    // Vérifier si le contenu est vide
+    if (!formData.content.trim()) {
+      setShowEmptyNoteAlert(true);
       return;
     }
 
@@ -1948,6 +2003,66 @@ export function ModernNotesManager() {
             </div>
           </div>
         </Modal>
+
+        {/* Modal d'alerte pour notes vides */}
+        <EmptyNoteAlert
+          isOpen={showEmptyNoteAlert}
+          onClose={() => setShowEmptyNoteAlert(false)}
+          onGenerateWithAI={hasAIAccess ? async () => {
+            // Vérifier le quota avant de générer
+            const canUse = await checkQuotaWithModal('ai_help', 1);
+            if (!canUse || !formData.title.trim()) {
+              return;
+            }
+
+            try {
+              // Générer le contenu depuis le titre via l'API
+              const response = await fetch('/.netlify/functions/improve-content', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  action: 'enrichir',
+                  contentType: 'note',
+                  content: '', // Contenu vide, on génère à partir du titre
+                  title: formData.title.trim(),
+                  generateFromTitle: true, // Flag pour indiquer qu'on génère depuis le titre
+                }),
+              });
+
+              const data = await response.json();
+
+              if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Erreur lors de la génération du contenu');
+              }
+
+              // Appliquer le contenu généré
+              const generatedContent = data.improved || data.generated || '';
+              if (generatedContent) {
+                handleFormDataChange('content', generatedContent);
+                setHasUnsavedChanges(true);
+                setMessage({ 
+                  type: 'success', 
+                  text: 'Contenu généré avec succès. N\'oubliez pas de sauvegarder.' 
+                });
+              }
+            } catch (error) {
+              console.error('Erreur génération contenu:', error);
+              setMessage({ 
+                type: 'error', 
+                text: `Erreur: ${error instanceof Error ? error.message : 'Inconnue'}` 
+              });
+            }
+          } : undefined}
+          hasAIAccess={hasAIAccess}
+          darkMode={darkMode}
+          isEditing={isEditing}
+          title={formData.title}
+        />
+
+        {/* Modal de quota */}
+        {quotaModal}
       </div>
     </div>
   );

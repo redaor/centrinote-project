@@ -19,6 +19,7 @@ import { ModernMeetingStats } from './ModernMeetingStats';
 import { ModernMeetingForm } from './ModernMeetingForm';
 import { useQuotaCheck } from '../../hooks/useQuotaCheck';
 import { checkMeetingDurationLimit } from '../../services/quotaService';
+import { useQuotaLimit } from '../../hooks/useQuotaLimit';
 
 export function MeetingList() {
   const { state } = useApp();
@@ -27,6 +28,7 @@ export function MeetingList() {
   const navigate = useNavigate();
   const location = useLocation();
   const { check: checkQuota, increment: incrementQuotaUsage } = useQuotaCheck();
+  const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
   
   // ⚠️ IMPORTANT: Déclarer useMeetings() AVANT les useEffect qui l'utilisent
   const { 
@@ -82,6 +84,45 @@ export function MeetingList() {
   const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
   const [createLoading, setCreateLoading] = useState(false);
   const [enableAiSummary, setEnableAiSummary] = useState(false);
+  const [canCreateMeeting, setCanCreateMeeting] = useState(true);
+  const [checkingQuota, setCheckingQuota] = useState(true);
+
+  // Vérifier le quota de réunions au chargement pour désactiver le bouton si nécessaire
+  useEffect(() => {
+    const checkMeetingQuota = async () => {
+      // Attendre que l'utilisateur soit chargé
+      if (!user?.id) {
+        setCheckingQuota(false);
+        setCanCreateMeeting(true); // Par défaut, permettre la création
+        return;
+      }
+
+      try {
+        setCheckingQuota(true);
+        // Utiliser checkQuota du hook (qui gère déjà user.id en interne)
+        const result = await checkQuota('meeting_count', 1);
+        setCanCreateMeeting(result.allowed);
+      } catch (error) {
+        // Afficher l'erreur complète pour le debug
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        // Ne pas logger l'erreur "Utilisateur non connecté" car c'est normal au chargement
+        if (!errorMessage.includes('Utilisateur non connecté')) {
+          console.error('Erreur vérification quota réunion:', errorMessage, error);
+        }
+        // En cas d'erreur, permettre la création (la vérification se fera au moment de la création)
+        setCanCreateMeeting(true);
+      } finally {
+        setCheckingQuota(false);
+      }
+    };
+
+    // Attendre un peu pour que l'utilisateur soit chargé
+    const timeoutId = setTimeout(() => {
+      checkMeetingQuota();
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [user?.id, checkQuota]);
 
   // Initialiser l'organisateur quand l'utilisateur est chargé (une seule fois)
   useEffect(() => {
@@ -138,11 +179,10 @@ export function MeetingList() {
     setCreateLoading(true);
     
     try {
-      // Vérifier les quotas avant création
+      // Vérifier les quotas avant création avec modals
       // Vérifier le quota de réunions
-      const meetingQuota = await checkQuota('meeting_count', 1);
-      if (!meetingQuota.allowed) {
-        alert(`Quota de réunions épuisé (${meetingQuota.usage}/${meetingQuota.limit}). Veuillez upgrader votre plan.`);
+      const canCreateMeeting = await checkQuotaWithModal('meeting', 1);
+      if (!canCreateMeeting) {
         setCreateLoading(false);
         return;
       }
@@ -150,16 +190,18 @@ export function MeetingList() {
       // Vérifier la durée de réunion
       const durationCheck = await checkMeetingDurationLimit(user!.id, 60);
       if (!durationCheck.allowed) {
-        alert(`Durée max : ${durationCheck.max_duration} min pour votre plan. Veuillez upgrader pour des réunions plus longues.`);
-        setCreateLoading(false);
-        return;
+        // Afficher modal pour durée limitée
+        const canProceed = await checkQuotaWithModal('meeting', 1);
+        if (!canProceed) {
+          setCreateLoading(false);
+          return;
+        }
       }
 
       // Vérifier le quota de résumés si activé
       if (enableAiSummary) {
-        const summaryQuota = await checkQuota('summary_count', 1);
-        if (!summaryQuota.allowed) {
-          alert(`Quota de résumés épuisé (${summaryQuota.usage}/${summaryQuota.limit}). Le résumé automatique sera désactivé.`);
+        const canGenerateSummary = await checkQuotaWithModal('summary', 1);
+        if (!canGenerateSummary) {
           setEnableAiSummary(false);
         }
       }
@@ -187,12 +229,59 @@ export function MeetingList() {
 
       console.log('[CREATE] Response status:', response.status);
       
-      const data = await response.json();
+      // Vérifier si la réponse est vide ou invalide
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const text = await response.text();
+          if (!text || text.trim() === '') {
+            throw new Error('Réponse vide');
+          }
+          data = JSON.parse(text);
+        } catch (jsonError) {
+          console.error('[CREATE] Erreur parsing JSON:', jsonError);
+          // Si c'est une erreur 429 ou 403, c'est probablement un quota
+          if (response.status === 429 || response.status === 403) {
+            // Afficher le modal de quota
+            const canProceed = await checkQuotaWithModal('meeting', 1);
+            if (!canProceed) {
+              setCreateLoading(false);
+              return;
+            }
+          }
+          alert(`❌ Erreur lors de la création de la réunion. Veuillez réessayer.`);
+          setCreateLoading(false);
+          return;
+        }
+      } else {
+        // Réponse non-JSON, probablement une erreur
+        if (response.status === 429 || response.status === 403) {
+          const canProceed = await checkQuotaWithModal('meeting', 1);
+          if (!canProceed) {
+            setCreateLoading(false);
+            return;
+          }
+        }
+        alert(`❌ Erreur serveur (${response.status}). Veuillez réessayer.`);
+        setCreateLoading(false);
+        return;
+      }
+
       console.log('[CREATE] Response data:', data);
 
       if (!data.success) {
         console.error('[CREATE] Failed:', data);
+        // Vérifier si c'est une erreur de quota
+        if (data.reason?.includes('quota') || data.reason?.includes('limit') || response.status === 429) {
+          const canProceed = await checkQuotaWithModal('meeting', 1);
+          if (!canProceed) {
+            setCreateLoading(false);
+            return;
+          }
+        }
         alert(`❌ Erreur Daily (${response.status}): ${data.detail || data.reason || 'inconnue'}`);
+        setCreateLoading(false);
         return;
       }
 
@@ -443,13 +532,32 @@ export function MeetingList() {
             </p>
           </div>
           <div className="flex space-x-2 mt-3 md:mt-0">
-            <Link
-              to="/meetings/new"
-              className="flex items-center space-x-2 px-4 py-2 md:px-6 md:py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-md transition-all duration-200 text-sm md:text-base"
-            >
-              <Plus className="w-4 h-4 md:w-5 md:h-5" />
-              <span>Nouvelle Réunion</span>
-            </Link>
+            {checkingQuota ? (
+              <div className="flex items-center space-x-2 px-4 py-2 md:px-6 md:py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm md:text-base">
+                <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+                <span>Vérification...</span>
+              </div>
+            ) : !canCreateMeeting ? (
+              <button
+                onClick={async () => {
+                  // Afficher le modal d'upgrade
+                  await checkQuotaWithModal('meeting', 1);
+                }}
+                className="flex items-center space-x-2 px-4 py-2 md:px-6 md:py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm md:text-base relative group"
+                title="Quota de réunions atteint. Cliquez pour voir les options d'upgrade."
+              >
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                <span>Quota atteint</span>
+              </button>
+            ) : (
+              <Link
+                to="/meetings/new"
+                className="flex items-center space-x-2 px-4 py-2 md:px-6 md:py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-md transition-all duration-200 text-sm md:text-base"
+              >
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                <span>Nouvelle Réunion</span>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -501,6 +609,8 @@ export function MeetingList() {
             }}
             darkMode={darkMode}
             isLoading={createLoading}
+            canCreate={canCreateMeeting}
+            checkingQuota={checkingQuota}
           />
         )}
 
@@ -640,6 +750,9 @@ export function MeetingList() {
 
       {/* 📊 Moniteur de performance */}
       <PerformanceMonitor darkMode={darkMode} />
+      
+      {/* Modal de limite de quota */}
+      {quotaModal}
     </div>
   );
 }

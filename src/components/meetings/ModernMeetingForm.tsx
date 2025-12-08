@@ -3,13 +3,15 @@
  * Design élégant avec animations fluides et sections groupées
  */
 
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Users, Zap, RefreshCw, Sparkles, Mail, AlertCircle, Crown } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
+import { FileText, Users, Zap, RefreshCw, Sparkles, AlertCircle, Crown } from 'lucide-react';
 import { MeetingParticipant } from '../../types/meetings';
 import { ParticipantsFormV2 } from './ParticipantsFormV2';
 import { useQuotaCheck } from '../../hooks/useQuotaCheck';
 import { usePlanLimits } from '../../hooks/usePlanLimits';
+import { useQuotaLimit } from '../../hooks/useQuotaLimit';
 
 export interface ModernMeetingFormProps {
   onSubmit: (data: {
@@ -25,6 +27,8 @@ export interface ModernMeetingFormProps {
   };
   darkMode?: boolean;
   isLoading?: boolean;
+  canCreate?: boolean; // Nouveau: indique si la création est possible (quota)
+  checkingQuota?: boolean; // Nouveau: indique si on vérifie le quota
 }
 
 export function ModernMeetingForm({
@@ -32,7 +36,9 @@ export function ModernMeetingForm({
   onReset,
   organizer,
   darkMode = false,
-  isLoading = false
+  isLoading = false,
+  canCreate = true,
+  checkingQuota = false
 }: ModernMeetingFormProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -46,16 +52,20 @@ export function ModernMeetingForm({
   );
   const [autoSummary, setAutoSummary] = useState(false);
   const [summaryQuotaCheck, setSummaryQuotaCheck] = useState<any>(null);
-  const [checkingQuota, setCheckingQuota] = useState(true);
+  const [checkingSummaryQuota, setCheckingSummaryQuota] = useState(true);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   
   const { check: checkQuota } = useQuotaCheck();
   const { limits } = usePlanLimits();
+  const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
 
   // Vérifier le quota de résumés au chargement
   useEffect(() => {
     const verifySummaryQuota = async () => {
       try {
-        setCheckingQuota(true);
+        setCheckingSummaryQuota(true);
         const result = await checkQuota('summary_count', 1);
         setSummaryQuotaCheck(result);
         // Si le quota est disponible, activer par défaut si le plan le permet
@@ -66,7 +76,7 @@ export function ModernMeetingForm({
         console.error('Erreur vérification quota résumé:', error);
         setSummaryQuotaCheck({ allowed: false });
       } finally {
-        setCheckingQuota(false);
+        setCheckingSummaryQuota(false);
       }
     };
     verifySummaryQuota();
@@ -79,18 +89,10 @@ export function ModernMeetingForm({
       return;
     }
 
-    // Vérifier le quota avant d'activer
-    try {
-      const result = await checkQuota('summary_count', 1);
-      if (result.allowed) {
-        setAutoSummary(true);
-      } else {
-        // Afficher un message d'erreur ou proposer l'upgrade
-        alert(`Quota de résumés épuisé (${result.usage}/${result.limit}). Veuillez upgrader votre plan pour générer plus de résumés.`);
-      }
-    } catch (error) {
-      console.error('Erreur vérification quota:', error);
-      alert('Erreur lors de la vérification du quota. Veuillez réessayer.');
+    // Vérifier le quota avant d'activer avec modal
+    const canGenerate = await checkQuotaWithModal('summary', 1);
+    if (canGenerate) {
+      setAutoSummary(true);
     }
   };
 
@@ -121,7 +123,7 @@ export function ModernMeetingForm({
     onReset?.();
   };
 
-  const canSubmit = title.trim().length > 0 && !isLoading;
+  const canSubmit = title.trim().length > 0 && !isLoading && (canCreate !== false) && (checkingQuota !== true);
   const participantsCount = participants.length;
   const guestsCount = participants.filter(p => p.role !== 'organizer').length;
 
@@ -291,41 +293,56 @@ export function ModernMeetingForm({
             </h3>
           </div>
 
-          <motion.div
-            whileHover={summaryQuotaCheck?.allowed !== false ? { scale: 1.005 } : {}}
-            whileTap={summaryQuotaCheck?.allowed !== false ? { scale: 0.995 } : {}}
-            onClick={summaryQuotaCheck?.allowed !== false ? handleToggleSummary : undefined}
-            className={`
-              rounded-lg p-3 border transition-all duration-200
-              ${summaryQuotaCheck?.allowed === false
-                ? 'opacity-60 cursor-not-allowed'
-                : 'cursor-pointer'
+          <div 
+            className="relative"
+            ref={tooltipRef}
+            onMouseEnter={(e) => {
+              if (summaryQuotaCheck?.allowed === false) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTooltipPosition({
+                  top: rect.top - 10,
+                  left: rect.left + rect.width / 2
+                });
+                setShowTooltip(true);
               }
-              ${autoSummary
-                ? darkMode
-                  ? 'bg-blue-900/20 border-blue-600'
-                  : 'bg-blue-50 border-blue-300'
-                : darkMode
-                  ? 'bg-gray-700/50 border-gray-600'
-                  : 'bg-gray-50 border-gray-300'
-              }
-            `}
+            }}
+            onMouseLeave={() => setShowTooltip(false)}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1">
-                <div className="text-lg">🎥</div>
-                <div className="flex-1">
-                  <div className={`
-                    font-medium text-sm mb-0.5
-                    ${darkMode ? 'text-white' : 'text-gray-900'}
-                  `}>
-                    Générer résumé automatique
-                  </div>
-                  <div className={`
-                    text-xs
-                    ${darkMode ? 'text-gray-400' : 'text-gray-600'}
-                  `}>
-                    {checkingQuota 
+            <motion.div
+              whileHover={summaryQuotaCheck?.allowed !== false ? { scale: 1.005 } : {}}
+              whileTap={summaryQuotaCheck?.allowed !== false ? { scale: 0.995 } : {}}
+              onClick={summaryQuotaCheck?.allowed !== false ? handleToggleSummary : undefined}
+              className={`
+                rounded-lg p-3 border transition-all duration-200
+                ${summaryQuotaCheck?.allowed === false
+                  ? 'opacity-60 cursor-help'
+                  : 'cursor-pointer'
+                }
+                ${autoSummary
+                  ? darkMode
+                    ? 'bg-blue-900/20 border-blue-600'
+                    : 'bg-blue-50 border-blue-300'
+                  : darkMode
+                    ? 'bg-gray-700/50 border-gray-600'
+                    : 'bg-gray-50 border-gray-300'
+                }
+              `}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="text-lg">🎥</div>
+                  <div className="flex-1">
+                    <div className={`
+                      font-medium text-sm mb-0.5
+                      ${darkMode ? 'text-white' : 'text-gray-900'}
+                    `}>
+                      Générer résumé automatique
+                    </div>
+                    <div className={`
+                      text-xs
+                      ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+                    `}>
+                    {checkingSummaryQuota 
                       ? 'Vérification du quota...'
                       : summaryQuotaCheck?.allowed === false
                       ? `Quota épuisé (${summaryQuotaCheck?.usage || 0}/${summaryQuotaCheck?.limit || 0})`
@@ -333,40 +350,102 @@ export function ModernMeetingForm({
                       ? 'Active · Génération IA incluse' 
                       : 'Inactive · Pas de résumé généré'
                     }
-                  </div>
-                  {summaryQuotaCheck?.allowed === false && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <Crown className="w-3 h-3 text-amber-500" />
-                      <span className="text-xs text-amber-600 dark:text-amber-400">
-                        Upgrade requis
-                      </span>
                     </div>
-                  )}
+                    {summaryQuotaCheck?.allowed === false && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <Crown className="w-3 h-3 text-amber-500" />
+                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                          Upgrade requis
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Toggle Switch */}
+                <div className={`
+                  relative w-10 h-5 rounded-full transition-colors duration-200
+                  ${autoSummary
+                    ? 'bg-blue-500'
+                    : darkMode ? 'bg-gray-600' : 'bg-gray-300'
+                  }
+                `}>
+                  <motion.div
+                    className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                    animate={{
+                      x: autoSummary ? 20 : 2
+                    }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 500,
+                      damping: 30
+                    }}
+                  />
                 </div>
               </div>
-              
-              {/* Toggle Switch */}
-              <div className={`
-                relative w-10 h-5 rounded-full transition-colors duration-200
-                ${autoSummary
-                  ? 'bg-blue-500'
-                  : darkMode ? 'bg-gray-600' : 'bg-gray-300'
-                }
-              `}>
-                <motion.div
-                  className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
-                  animate={{
-                    x: autoSummary ? 20 : 2
-                  }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 500,
-                    damping: 30
-                  }}
-                />
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
+            
+            {/* Tooltip pour quota épuisé - Utiliser un portal pour éviter les erreurs DOM */}
+            {summaryQuotaCheck?.allowed === false && showTooltip && typeof document !== 'undefined' && createPortal(
+              <div 
+                className="fixed z-[9999] pointer-events-none"
+                style={{
+                  top: `${tooltipPosition.top}px`,
+                  left: `${tooltipPosition.left}px`,
+                  transform: 'translate(-50%, -100%)',
+                  marginBottom: '8px'
+                }}
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+              >
+                <div className={`
+                  px-4 py-3 rounded-lg shadow-2xl
+                  ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}
+                  w-72
+                `}>
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                      darkMode ? 'text-amber-400' : 'text-amber-600'
+                    }`} />
+                    <div className="flex-1">
+                      <p className={`
+                        text-sm font-semibold mb-1.5
+                        ${darkMode ? 'text-white' : 'text-gray-900'}
+                      `}>
+                        Limite de plan atteinte
+                      </p>
+                      <p className={`
+                        text-xs leading-relaxed mb-2
+                        ${darkMode ? 'text-gray-300' : 'text-gray-600'}
+                      `}>
+                        Vous avez atteint votre quota de résumés automatiques ({summaryQuotaCheck?.usage || 0}/{summaryQuotaCheck?.limit || 0}).
+                        Cette fonctionnalité est disponible uniquement avec un plan supérieur.
+                      </p>
+                      <div className={`flex items-center gap-1.5 pt-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-300'}`}>
+                        <Crown className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                        <span className={`
+                          text-xs font-medium
+                          ${darkMode ? 'text-amber-400' : 'text-amber-600'}
+                        `}>
+                          Passez à un plan supérieur pour débloquer cette fonctionnalité
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Flèche du tooltip */}
+                  <div className={`
+                    absolute top-full left-1/2 -translate-x-1/2 -mt-px
+                    w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px]
+                    ${darkMode 
+                      ? 'border-l-transparent border-r-transparent border-t-gray-800' 
+                      : 'border-l-transparent border-r-transparent border-t-white'
+                    }
+                  `} />
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
         </motion.div>
 
         {/* Actions */}
@@ -415,10 +494,20 @@ export function ModernMeetingForm({
             `}
           >
             <Sparkles className="w-4 h-4" />
-            {isLoading ? 'Création...' : 'Créer la réunion'}
+            {checkingQuota 
+              ? 'Vérification...' 
+              : isLoading 
+                ? 'Création...' 
+                : canCreate === false
+                  ? 'Quota atteint' 
+                  : 'Créer la réunion'
+            }
           </motion.button>
         </motion.div>
       </form>
+      
+      {/* Modal de limite de quota */}
+      {quotaModal}
     </motion.div>
   );
 }

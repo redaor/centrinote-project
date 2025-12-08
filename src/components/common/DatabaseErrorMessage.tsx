@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertCircle, Database, Terminal, RefreshCw } from 'lucide-react';
 
 interface DatabaseErrorMessageProps {
@@ -111,8 +110,8 @@ export function DatabaseErrorMessage({ error, onRetry, darkMode = false }: Datab
             </>
           ) : (
             <>
-              Si le problème persiste, vérifiez votre connexion à Supabase
-              et l'état de votre base de données.
+              Si le problème persiste, contactez le support Centrinote
+              pour obtenir de l'aide.
             </>
           )}
         </div>

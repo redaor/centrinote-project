@@ -3,6 +3,7 @@ import { useApp } from '../contexts/AppContext';
 import { vocabularyService } from '../services/vocabularyService';
 import { VocabularyEntry } from '../types';
 import { logger } from '../utils/logger';
+import { useQuotaLimit } from './useQuotaLimit';
 
 // Flag global pour éviter les chargements multiples simultanés
 let globalLoadingFlag = false;
@@ -11,6 +12,7 @@ let globalInitializedFlag = false;
 export function useVocabulary() {
   const { state, dispatch } = useApp();
   const { user, vocabulary } = state;
+  const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +108,13 @@ export function useVocabulary() {
       };
 
       logger.debug("Données vocabulaire envoyées au service");
+
+      // Vérifier le quota avant d'ajouter
+      const canAdd = await checkQuotaWithModal('vocab', 1);
+      if (!canAdd) {
+        setLoading(false);
+        return null;
+      }
 
       // Ajouter à Supabase
       logger.debug("Appel vocabularyService.addVocabularyEntry");
@@ -209,6 +218,7 @@ export function useVocabulary() {
     loadVocabulary,
     addVocabularyEntry,
     updateVocabularyEntry,
-    deleteVocabularyEntry
+    deleteVocabularyEntry,
+    quotaModal // Exposer le modal pour l'afficher dans les composants
   };
 }

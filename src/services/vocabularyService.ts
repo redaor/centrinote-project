@@ -73,11 +73,22 @@ class VocabularyService {
       if (!entry.userId) {
         throw new Error('User ID requis pour ajouter un mot de vocabulaire');
       }
+      
+      // Validation : vérifier que le mot n'est pas vide
+      if (!trimmedWord || trimmedWord.length === 0) {
+        throw new Error('Le champ "mot" ne peut pas être vide. Veuillez saisir un mot.');
+      }
+      
       const quotaCheck = await checkQuota(entry.userId, 'vocab_words', 1);
       if (!quotaCheck.allowed) {
+        // L'erreur sera gérée par le composant qui appellera useQuotaLimit
         throw new Error(
-          `Limite de vocabulaire atteinte (${quotaCheck.usage}/${quotaCheck.limit} mots). ` +
-          `Veuillez upgrader votre plan pour ajouter plus de mots.`
+          `LIMITE_QUOTA:${JSON.stringify({
+            feature: 'vocab',
+            usage: quotaCheck.usage,
+            limit: quotaCheck.limit,
+            planName: quotaCheck.plan_display_name || 'Free'
+          })}`
         );
       }
       

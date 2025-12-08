@@ -14,6 +14,7 @@ import { ProfileSection } from './sections/ProfileSection';
 import { AppearanceSection } from './sections/AppearanceSection';
 import { NotificationsSection } from './sections/NotificationsSection';
 import { SecuritySection } from './sections/SecuritySection';
+import { QuotaTester } from '../admin/QuotaTester';
 
 export function Settings() {
   const navigate = useNavigate();
@@ -159,6 +160,13 @@ export function Settings() {
             isLoading={isLoading}
             isDark={isDark}
           />
+
+          {/* Testeur de Quotas (Admin uniquement) */}
+          {(user?.email === 'redasahraoui1@gmail.com' || user?.email === 'reda_sahraoui@outlook.fr') && (
+            <div className="mt-8">
+              <QuotaTester testEmail="redasahraoui1@gmail.com" />
+            </div>
+          )}
         </div>
 
         {/* Footer */}
