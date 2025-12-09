@@ -21,7 +21,7 @@ export interface ChatSegment {
 interface UseChatSegmentationReturn {
   segments: ChatSegment[];
   addSegment: (emoji: string, content: string, isAction?: boolean, actionData?: ChatSegment['actionData']) => void;
-  addSegments: (segments: Omit<ChatSegment, 'id' | 'time'>[]) => Promise<void>;
+  addSegments: (segments: Omit<ChatSegment, 'id' | 'time'>[], delayMs?: number) => Promise<void>;
   clearSegments: () => void;
   currentSegment: number;
 }

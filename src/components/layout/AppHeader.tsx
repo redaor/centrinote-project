@@ -402,13 +402,15 @@ export function AppHeader() {
                         {user?.email}
                       </div>
                       <div className={`text-xs px-2 py-1 rounded-full mt-1 inline-block ${
-                        user?.subscription === 'premium'
+                        user?.role === 'admin'
                           ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
-                          : user?.subscription === 'basic'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                          : user?.subscription === 'premium'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                            : user?.subscription === 'basic'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
                       }`}>
-                        Plan {user?.subscription}
+                        {user?.role === 'admin' ? 'Plan Admin' : `Plan ${user?.subscription}`}
                       </div>
                     </div>
                   </div>
@@ -416,14 +418,15 @@ export function AppHeader() {
 
                 {/* Menu items */}
                 <div className="py-2">
-                  {/* Bouton Paramètres */}
+                  {/* Bouton Paramètres - Masqué sur mobile pour optimiser l'espace */}
                   <button
                     id="user-menu-settings"
                     name="settings"
                     type="button"
                     onClick={handleSettingsClick}
                     className={`
-                      w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors
+                      w-full items-center space-x-3 px-4 py-3 text-left transition-colors
+                      hidden md:flex
                       ${darkMode
                         ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
                         : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'

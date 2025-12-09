@@ -6,8 +6,6 @@ export default defineConfig({
   base: '/', // ✅ Utiliser chemin absolu pour éviter les problèmes avec les routes /meeting/*
   plugins: [react()],
   build: {
-    // Supprimer tous les console.* en production
-    dropConsole: true,
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: true, // ✅ Enable sourcemaps for debugging TDZ errors
@@ -38,6 +36,24 @@ export default defineConfig({
         './src/App.tsx',
         './src/components/routing/AppRouter.tsx',
       ],
+    },
+    // Proxy pour les fonctions Netlify en développement
+    // Note: Nécessite que Netlify Dev soit lancé sur le port 8888
+    // Utilisez `netlify dev` au lieu de `npm run dev` pour avoir les fonctions disponibles
+    proxy: {
+      '/.netlify/functions': {
+        target: 'http://localhost:8888',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path, // Garder le chemin tel quel
+        // Gérer les erreurs de connexion
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, res) => {
+            console.warn('⚠️ [Vite Proxy] Erreur de connexion à Netlify Dev:', err.message);
+            console.warn('💡 Astuce: Lancez "netlify dev" dans un autre terminal pour activer les fonctions Netlify');
+          });
+        },
+      },
     },
   },
   optimizeDeps: {

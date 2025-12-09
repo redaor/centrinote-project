@@ -484,6 +484,18 @@ Règles :
 - Si tu utilises une note, indique "Source : Note <titre>"
 - Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
 
+Règles de formatage STRICTES :
+- Utilise des titres hiérarchisés (##, ###) au lieu d'astérisques ** pour les sections
+- Supprime TOUS les astérisques inutiles autour des phrases ou titres
+- N'utilise JAMAIS d'astérisques ** pour mettre en gras - utilise plutôt des titres de section ou du texte normal
+- Si tu dois mettre en évidence un mot ou une phrase, utilise un titre de section (## ou ###) ou simplement du texte normal
+- Ajoute des emojis contextuels en début de section (🧠, 🛠️, ⚙️, 📝, 💡, 🎯, 🔍, 📊, etc.)
+- Encadre les définitions ou points clés dans des blocs d'information avec > 💡
+- Respecte une mise en page aérée avec des sauts de ligne entre les paragraphes
+- Ne dépasse JAMAIS 80 caractères par ligne pour une meilleure lisibilité
+- Utilise des listes à puces (-) ou numérotées (1.) pour structurer l'information
+- INTERDICTION ABSOLUE d'utiliser ** pour le gras - remplace par des titres ou du texte normal
+
 Il est ${now} (heure française).${memoryContext}${languageInstruction}${memoryOnlyInstruction}
 
 Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ces informations pour répondre de manière précise et concise à la question de l'utilisateur.`;
@@ -537,7 +549,10 @@ Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ce
           }
 
           const finalJson = await finalRes.json();
-          finalReply = finalJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+          let rawReply = finalJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+          
+          // Nettoyer les astérisques utilisés pour le gras
+          finalReply = rawReply.replace(/\*\*([^*]+?)\*\*/g, '$1');
           searched = true;
 
           console.log("✅ Réponse avec recherche web générée:", finalReply.slice(0, 100));
@@ -582,6 +597,18 @@ Règles :
 - Si tu utilises la recherche web, indique "Source : Web"
 - Si tu utilises une note, indique "Source : Note <titre>"
 - Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
+
+Règles de formatage STRICTES :
+- Utilise des titres hiérarchisés (##, ###) au lieu d'astérisques ** pour les sections
+- Supprime TOUS les astérisques inutiles autour des phrases ou titres
+- N'utilise JAMAIS d'astérisques ** pour mettre en gras - utilise plutôt des titres de section ou du texte normal
+- Si tu dois mettre en évidence un mot ou une phrase, utilise un titre de section (## ou ###) ou simplement du texte normal
+- Ajoute des emojis contextuels en début de section (🧠, 🛠️, ⚙️, 📝, 💡, 🎯, 🔍, 📊, etc.)
+- Encadre les définitions ou points clés dans des blocs d'information avec > 💡
+- Respecte une mise en page aérée avec des sauts de ligne entre les paragraphes
+- Ne dépasse JAMAIS 80 caractères par ligne pour une meilleure lisibilité
+- Utilise des listes à puces (-) ou numérotées (1.) pour structurer l'information
+- INTERDICTION ABSOLUE d'utiliser ** pour le gras - remplace par des titres ou du texte normal
 
 Il est ${now} (heure française).${memoryContext}${languageInstruction}${memoryOnlyInstruction}`;
         
@@ -629,7 +656,10 @@ Il est ${now} (heure française).${memoryContext}${languageInstruction}${memoryO
 
           if (directRes.ok) {
             const directJson = await directRes.json();
-            finalReply = directJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+            let rawReply = directJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+            
+            // Nettoyer les astérisques utilisés pour le gras
+            finalReply = rawReply.replace(/\*\*([^*]+?)\*\*/g, '$1');
             console.log("✅ Réponse avec notes/vocabulaire générée:", finalReply.slice(0, 100));
           } else {
             // Si erreur, utiliser la réponse du check initial
@@ -685,6 +715,18 @@ Règles :
 - Si tu utilises une note, indique "Source : Note <titre>"
 - Si tu utilises le vocabulaire, indique "Source : Vocabulaire <terme>"
 
+Règles de formatage STRICTES :
+- Utilise des titres hiérarchisés (##, ###) au lieu d'astérisques ** pour les sections
+- Supprime TOUS les astérisques inutiles autour des phrases ou titres
+- N'utilise JAMAIS d'astérisques ** pour mettre en gras - utilise plutôt des titres de section ou du texte normal
+- Si tu dois mettre en évidence un mot ou une phrase, utilise un titre de section (## ou ###) ou simplement du texte normal
+- Ajoute des emojis contextuels en début de section (🧠, 🛠️, ⚙️, 📝, 💡, 🎯, 🔍, 📊, etc.)
+- Encadre les définitions ou points clés dans des blocs d'information avec > 💡
+- Respecte une mise en page aérée avec des sauts de ligne entre les paragraphes
+- Ne dépasse JAMAIS 80 caractères par ligne pour une meilleure lisibilité
+- Utilise des listes à puces (-) ou numérotées (1.) pour structurer l'information
+- INTERDICTION ABSOLUE d'utiliser ** pour le gras - remplace par des titres ou du texte normal
+
 Il est ${now} (heure française).${memoryContext}${languageInstruction}${memoryOnlyInstruction}
 
 L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, amicale et professionnelle en te basant sur le contenu du document.`;
@@ -738,7 +780,10 @@ L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, 
       }
 
       const fileJson = await fileRes.json();
-      finalReply = fileJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+      let rawReply = fileJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+      
+      // Nettoyer les astérisques utilisés pour le gras
+      finalReply = rawReply.replace(/\*\*([^*]+?)\*\*/g, '$1');
 
       console.log("✅ Réponse basée sur document générée:", finalReply.slice(0, 100));
     }

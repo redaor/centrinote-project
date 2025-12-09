@@ -97,24 +97,36 @@ export function Help() {
     },
     {
       id: 'q2',
+      question: '⚠️ Options grisées ?',
+      answer: 'Si une option est grisée ou n\'apparaît pas, cela signifie qu\'elle nécessite un plan supérieur. Mettez à jour votre abonnement dans Paramètres > Plan pour débloquer toutes les fonctionnalités.',
+      category: 'automation'
+    },
+    {
+      id: 'q3',
+      question: '⚠️ Résumé de réunion',
+      answer: 'Pour générer un résumé automatique de réunion, l\'enregistrement est OBLIGATOIRE. Sans enregistrement préalable, la fonctionnalité de résumé ne peut pas être activée.',
+      category: 'reunions'
+    },
+    {
+      id: 'q4',
       question: 'IA & Résumés',
       answer: 'Sélectionnez votre texte, puis cliquez sur l\'icône ✨ "Résumer avec l\'IA". Vous pouvez aussi traduire et améliorer vos textes.',
       category: 'ia'
     },
     {
-      id: 'q3',
+      id: 'q5',
       question: 'Réunions vidéo',
       answer: 'Allez dans l\'onglet "Réunions" et cliquez sur "Nouvelle réunion". Invitez vos collaborateurs et enregistrez vos sessions.',
       category: 'reunions'
     },
     {
-      id: 'q4',
+      id: 'q6',
       question: 'Automatisations',
       answer: 'Rendez-vous dans Paramètres > Automatisations et activez les règles souhaitées. Créez vos propres workflows personnalisés.',
       category: 'automation'
     },
     {
-      id: 'q5',
+      id: 'q7',
       question: 'Partage de notes',
       answer: 'Ouvrez la note, cliquez sur les 3 points, puis "Partager". Générez un lien public ou invitez des collaborateurs spécifiques.',
       category: 'partage'
@@ -124,36 +136,48 @@ export function Help() {
   const faqItems: FAQItem[] = [
     {
       id: '1',
+      question: '⚠️ Pourquoi certaines options sont grisées ou manquantes ?',
+      answer: 'Les options grisées ou non visibles indiquent que votre plan actuel ne les inclut pas. Pour accéder à ces fonctionnalités premium, rendez-vous dans Paramètres > Plan pour mettre à jour votre abonnement. Chaque plan offre des fonctionnalités différentes adaptées à vos besoins.',
+      category: 'automation'
+    },
+    {
+      id: '2',
+      question: '⚠️ Comment activer le résumé automatique des réunions ?',
+      answer: 'Pour générer un résumé automatique de réunion, l\'enregistrement vidéo/audio est INDISPENSABLE. Activez l\'enregistrement AVANT ou PENDANT la réunion. Sans enregistrement, la fonctionnalité de résumé automatique ne peut pas fonctionner car l\'IA a besoin du contenu audio pour générer le résumé.',
+      category: 'reunions'
+    },
+    {
+      id: '3',
       question: t('faq_import_documents_q') || 'Comment importer des documents ?',
       answer: t('faq_import_documents_a') || 'Vous pouvez importer des documents en cliquant sur le bouton "+ Nouvelle Note" puis en sélectionnant "Importer".',
       category: 'importation'
     },
     {
-      id: '2',
+      id: '4',
       question: t('faq_ai_search_q') || 'Comment utiliser la recherche IA ?',
       answer: t('faq_ai_search_a') || 'La recherche IA vous permet de trouver des informations dans vos notes en utilisant le langage naturel.',
       category: 'ia'
     },
     {
-      id: '3',
+      id: '5',
       question: t('faq_collaboration_q') || 'Comment collaborer avec d\'autres utilisateurs ?',
       answer: t('faq_collaboration_a') || 'Vous pouvez partager vos notes et collaborer en temps réel avec d\'autres utilisateurs.',
       category: 'reunions'
     },
     {
-      id: '4',
+      id: '6',
       question: t('faq_flashcards_q') || 'Comment utiliser les flashcards ?',
       answer: t('faq_flashcards_a') || 'Les flashcards vous permettent de réviser efficacement votre vocabulaire.',
       category: 'ia'
     },
     {
-      id: '5',
+      id: '7',
       question: t('faq_subscription_q') || 'Comment gérer mon abonnement ?',
       answer: t('faq_subscription_a') || 'Vous pouvez gérer votre abonnement dans les paramètres de votre compte.',
       category: 'automation'
     },
     {
-      id: '6',
+      id: '8',
       question: t('faq_security_q') || 'Mes données sont-elles sécurisées ?',
       answer: t('faq_security_a') || 'Oui, toutes vos données sont chiffrées et sécurisées selon les standards les plus stricts.',
       category: 'importation'

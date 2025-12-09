@@ -138,14 +138,18 @@ export function GuidePage() {
     {
       id: 'plans',
       icon: <CreditCard className="w-6 h-6" />,
-      title: 'Choisir son forfait (Free / Pro)',
-      intro: 'Découvre ce qui est gratuit et ce qui nécessite un abonnement.',
+      title: 'Choisir son forfait (Free / Starter / Pro / Teams)',
+      intro: 'Découvre les 4 plans disponibles et choisis celui qui correspond à tes besoins.',
       steps: [
-        'Clique sur « 💳 Plan »',
-        'Compare les forfaits',
-        'Clique sur « Passer Pro » → paiement sécurisé'
+        'Clique sur « 💳 Plan » dans le menu',
+        'Compare les 4 forfaits : Free (gratuit), Starter (9,99€ - populaire), Pro (19,99€), Teams (39,99€)',
+        'Free : idéal pour démarrer avec 50 mots vocabulaire et 1 réunion',
+        'Starter ⭐ : le plus populaire avec 150k tokens IA, 10 réunions et 100 mots vocabulaire',
+        'Pro : pour aller plus loin avec 600k tokens IA, 20 réunions et résumés IA illimités',
+        'Teams : pour les équipes avec tokens IA illimités, admin dashboard et support prioritaire',
+        'Clique sur le bouton du plan choisi → paiement sécurisé Stripe'
       ],
-      tip: 'Essaie toutes les fonctionnalités Pro gratuitement pendant 14 jours !'
+      tip: 'Le plan Starter offre le meilleur rapport qualité/prix avec -23% de réduction. Tous les plans payants proposent un essai gratuit et peuvent être annulés à tout moment.'
     },
     {
       id: 'export',
@@ -321,37 +325,85 @@ export function GuidePage() {
             💳 Forfaits disponibles
           </h2>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Free plan */}
             <div className={`p-6 rounded-lg border ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
-              <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Forfait Free
+              <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Free
               </h3>
+              <div className={`text-2xl font-bold mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                Gratuit
+              </div>
               <ul className="space-y-2">
-                {['Notes illimitées', 'Recherche de base', 'Vocabulaire (100 mots max)', 'Partage (2 collaborateurs max)'].map((feature) => (
+                {['Notes illimitées', '50 mots vocabulaire', '1 réunion 45 min + résumé IA', '1 automation', '3 participants max'].map((feature) => (
                   <li key={feature} className={`flex items-center space-x-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     <span className="text-green-500">✅</span>
-                    <span>{feature}</span>
+                    <span className="text-sm">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Starter plan */}
+            <div className={`p-6 rounded-lg border-2 border-indigo-500 bg-gradient-to-br ${darkMode ? 'from-indigo-900/20 to-purple-900/20' : 'from-indigo-50 to-purple-50'} relative`}>
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                <span className="px-4 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold rounded-full shadow-lg whitespace-nowrap">
+                  ⭐ POPULAIRE
+                </span>
+              </div>
+              <h3 className={`text-xl font-bold mb-2 mt-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Starter
+              </h3>
+              <div className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-2xl font-bold">9,99€</span>
+                <span className="text-sm">/mois</span>
+                <div className="text-xs text-orange-600 font-semibold mt-1">Économisez 23%</div>
+              </div>
+              <ul className="space-y-2">
+                {['150k tokens IA', '10 réunions 45 min', '8 participants max', '5 résumés IA', '100 mots vocabulaire', '5 automations'].map((feature) => (
+                  <li key={feature} className={`flex items-center space-x-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span className="text-purple-500">✨</span>
+                    <span className="text-sm">{feature}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
             {/* Pro plan */}
-            <div className={`p-6 rounded-lg border-2 border-blue-500 bg-gradient-to-br ${darkMode ? 'from-blue-900/20 to-purple-900/20' : 'from-blue-50 to-purple-50'}`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Forfait Pro
-                </h3>
-                <span className="px-3 py-1 bg-blue-500 text-white text-sm font-bold rounded-full">
-                  5€/mois
-                </span>
+            <div className={`p-6 rounded-lg border ${darkMode ? 'bg-gray-900 border-purple-700' : 'bg-purple-50 border-purple-200'}`}>
+              <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Pro
+              </h3>
+              <div className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-2xl font-bold">19,99€</span>
+                <span className="text-sm">/mois</span>
+                <div className="text-xs text-orange-600 font-semibold mt-1">Économisez 33%</div>
               </div>
               <ul className="space-y-2">
-                {['AI Search illimitée', 'Automatisations avancées', 'Réunions enregistrées + transcriptions', 'Stockage illimité'].map((feature) => (
+                {['600k tokens IA', '20 réunions 60 min', '15 participants max', 'Résumés IA illimités', '500 mots vocabulaire', 'Automations illimitées'].map((feature) => (
                   <li key={feature} className={`flex items-center space-x-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <span className="text-purple-500">✨</span>
-                    <span>{feature}</span>
+                    <span className="text-blue-500">🚀</span>
+                    <span className="text-sm">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Teams plan */}
+            <div className={`p-6 rounded-lg border ${darkMode ? 'bg-gray-900 border-blue-700' : 'bg-blue-50 border-blue-200'}`}>
+              <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Teams
+              </h3>
+              <div className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-2xl font-bold">39,99€</span>
+                <span className="text-sm">/mois</span>
+                <div className="text-xs text-orange-600 font-semibold mt-1">Économisez 20%</div>
+              </div>
+              <ul className="space-y-2">
+                {['Tokens IA illimités', '60 réunions 60 min', '20 participants', 'Résumés IA illimités', 'Vocabulaire illimité', 'Automations illimitées', 'Admin dashboard', 'Support prioritaire'].map((feature) => (
+                  <li key={feature} className={`flex items-center space-x-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span className="text-yellow-500">👑</span>
+                    <span className="text-sm">{feature}</span>
                   </li>
                 ))}
               </ul>

@@ -48,6 +48,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AIContentHelper } from '../ai/AIContentHelper';
 import { FlashcardMode } from './FlashcardMode';
+import { EmptyVocabularyAlert } from './EmptyVocabularyAlert';
 import { AlphaFilter } from './AlphaFilter';
 import { AlphaFilterVertical } from './AlphaFilterVertical';
 import { useQuotaLimit } from '../../hooks/useQuotaLimit';
@@ -108,6 +109,9 @@ export function NeuroVocabulary() {
   const [contextSentence, setContextSentence] = useState<string>('');
   const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [showAIVocabMenu, setShowAIVocabMenu] = useState(false);
+  const [showEmptyVocabAlert, setShowEmptyVocabAlert] = useState(false);
+  const [emptyField, setEmptyField] = useState<'term' | 'definition'>('term');
+  const [hasAIAccess, setHasAIAccess] = useState(false);
 
   // Refs pour les textareas avec hauteur dynamique
   const definitionTextareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -636,30 +640,18 @@ export function NeuroVocabulary() {
     // Validation des champs requis
     // Validation des champs vides avec suggestion IA
     if (!newWord.term || !newWord.term.trim()) {
-      const hasAIAccess = await checkQuotaWithModal('ai_help', 1);
-      if (hasAIAccess) {
-        const useSuggestion = confirm('Le champ "mot" ne peut pas être vide. Souhaitez-vous que je génère une suggestion avec l\'Aide IA ?');
-        if (useSuggestion) {
-          alert('Fonctionnalité de suggestion IA en cours de développement. Veuillez saisir un mot manuellement.');
-          return;
-        }
-      } else {
-        alert('Le champ "mot" ne peut pas être vide. Veuillez saisir un mot.');
-      }
+      const hasAccess = await checkQuotaWithModal('ai_help', 0); // Check sans incrémenter
+      setHasAIAccess(hasAccess);
+      setEmptyField('term');
+      setShowEmptyVocabAlert(true);
       return;
     }
-    
+
     if (!newWord.definition || !newWord.definition.trim()) {
-      const hasAIAccess = await checkQuotaWithModal('ai_help', 1);
-      if (hasAIAccess) {
-        const useSuggestion = confirm('Le champ "définition" ne peut pas être vide. Souhaitez-vous que je génère une définition avec l\'Aide IA ?');
-        if (useSuggestion) {
-          alert('Fonctionnalité de suggestion IA en cours de développement. Veuillez saisir une définition manuellement.');
-          return;
-        }
-      } else {
-        alert('Le champ "définition" ne peut pas être vide. Veuillez saisir une définition.');
-      }
+      const hasAccess = await checkQuotaWithModal('ai_help', 0); // Check sans incrémenter
+      setHasAIAccess(hasAccess);
+      setEmptyField('definition');
+      setShowEmptyVocabAlert(true);
       return;
     }
 
@@ -760,6 +752,50 @@ export function NeuroVocabulary() {
       triggerReward(`Erreur: ${errorMessage} ❌`, { type: 'error' });
       
       // En cas d'erreur, on garde le formulaire ouvert pour que l'utilisateur puisse réessayer
+    }
+  };
+
+  // Fonction pour générer une définition avec l'IA
+  const handleGenerateDefinitionWithAI = async () => {
+    if (!newWord.term || !newWord.term.trim()) {
+      triggerReward('Veuillez d\'abord saisir un mot ⚠️', { type: 'error' });
+      return;
+    }
+
+    try {
+      setIsLoadingContext(true);
+
+      // Appel à l'API AI pour générer une définition
+      const prompt = `Génère une définition claire et concise du mot suivant en français : "${newWord.term}".
+      La définition doit être pédagogique et facile à comprendre, en 2-3 phrases maximum.`;
+
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: prompt,
+          userId: user?.id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la génération de la définition');
+      }
+
+      const data = await response.json();
+      const generatedDefinition = data.response || data.message || '';
+
+      if (generatedDefinition) {
+        setNewWord(prev => ({ ...prev, definition: generatedDefinition }));
+        triggerReward('Définition générée avec succès ! ✨', { type: 'reward' });
+      } else {
+        throw new Error('Aucune définition générée');
+      }
+    } catch (error) {
+      console.error('Erreur génération définition:', error);
+      triggerReward('Erreur lors de la génération ❌', { type: 'error' });
+    } finally {
+      setIsLoadingContext(false);
     }
   };
 
@@ -1900,17 +1936,18 @@ export function NeuroVocabulary() {
                 <div className="flex gap-4">
                   {/* Filtre alphabétique vertical compact */}
                   {vocabulary.length > 0 && (
-                    <AlphaFilterVertical 
-                      current={selectedLetter} 
+                    <AlphaFilterVertical
+                      current={selectedLetter}
                       onSelect={setSelectedLetter}
                       darkMode={darkMode}
                       wordCounts={letterWordCounts}
                     />
                   )}
 
-                  {/* Liste de vocabulaire - Grille fluide */}
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  <AnimatePresence mode="popLayout">
+                  {/* Liste de vocabulaire - Grille fluide avec scrollbar élégante */}
+                  <div className="vocabulary-scroll-wrapper flex-1">
+                    <div className="vocabulary-scroll flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2">
+                  <AnimatePresence mode="sync" initial={false}>
                     {filteredVocabulary.map((word, index) => {
                     // 4. Couleurs automatiques selon maîtrise
                     const masteryColor = word.mastery >= 80 
@@ -1936,13 +1973,17 @@ export function NeuroVocabulary() {
                       <motion.div
                         key={word.id}
                         id={`vocab-${word.id}`}
-                        layout
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ delay: index * 0.05, duration: 0.2 }}
-                        whileHover={{ y: -2 }}
+                        layout="position"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{
+                          layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
+                          opacity: { duration: 0.2 },
+                          scale: { duration: 0.2 }
+                        }}
                         className={`
+                          vocabulary-card-item
                           relative rounded-lg border shadow-sm overflow-hidden
                           transition-all duration-200 hover:shadow-lg hover:border-blue-300
                           ${darkMode
@@ -2154,6 +2195,7 @@ export function NeuroVocabulary() {
                     );
                     })}
                   </AnimatePresence>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2342,7 +2384,14 @@ export function NeuroVocabulary() {
                           onClick={async () => {
                             setIsLoadingContext(true);
                             try {
-                              const response = await fetch('/.netlify/functions/improve-content', {
+                              // En développement, utiliser l'URL de production si Netlify Dev n'est pas disponible
+                              const isDev = import.meta.env.DEV;
+                              const netlifyUrl = import.meta.env.VITE_APP_URL || 'https://centrinote.fr';
+                              const functionUrl = isDev 
+                                ? `${netlifyUrl}/.netlify/functions/improve-content`
+                                : '/.netlify/functions/improve-content';
+                              
+                              const response = await fetch(functionUrl, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -2632,7 +2681,18 @@ export function NeuroVocabulary() {
           </span>
         </motion.button>
       </div>
-      
+
+      {/* Modal d'alerte pour champs vides */}
+      <EmptyVocabularyAlert
+        isOpen={showEmptyVocabAlert}
+        onClose={() => setShowEmptyVocabAlert(false)}
+        onGenerateWithAI={emptyField === 'definition' ? handleGenerateDefinitionWithAI : undefined}
+        hasAIAccess={hasAIAccess}
+        darkMode={darkMode}
+        emptyField={emptyField}
+        term={newWord.term}
+      />
+
       {/* Modal de limite de quota */}
       {quotaModal}
     </div>

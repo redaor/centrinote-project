@@ -27,6 +27,18 @@ export function useQuotaCheck(): UseQuotaCheckResult {
       throw new Error('Utilisateur non connecté');
     }
 
+    // 🔓 Les administrateurs ont accès illimité à toutes les fonctionnalités
+    if (user.role === 'admin') {
+      return {
+        allowed: true,
+        usage: 0,
+        limit: 'unlimited',
+        percentage: 0,
+        plan_name: 'admin',
+        plan_display_name: 'Administrateur'
+      };
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -39,7 +51,7 @@ export function useQuotaCheck(): UseQuotaCheckResult {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   const increment = useCallback(async (
     feature: string,

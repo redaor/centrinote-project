@@ -33,6 +33,25 @@ export function usePlanLimits() {
       return;
     }
 
+    // 🔓 Les administrateurs ont des limites illimitées
+    if (user.role === 'admin') {
+      setLimits({
+        meeting_max_participants: null, // null = illimité
+        meeting_max_duration_minutes: null,
+        meeting_count_limit: null,
+        meeting_minutes_limit: null,
+        summary_count_limit: null,
+        vocab_words_limit: null,
+        vocab_collections_limit: null,
+        ai_tokens_limit: null,
+        automations_active_limit: null,
+        plan_name: 'admin',
+        plan_display_name: 'Administrateur'
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -60,7 +79,7 @@ export function usePlanLimits() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     loadLimits();

@@ -4,7 +4,7 @@
 
 import { useState, useCallback } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { checkQuota, QuotaCheckResult } from '../services/quotaService';
+import { checkQuota } from '../services/quotaService';
 import { QuotaLimitModal } from '../components/quota/QuotaLimitModal';
 
 export interface UseQuotaLimitResult {
@@ -32,6 +32,11 @@ export function useQuotaLimit(): UseQuotaLimitResult {
   ): Promise<boolean> => {
     if (!user?.id) {
       return false;
+    }
+
+    // 🔓 Les administrateurs ont accès illimité à toutes les fonctionnalités
+    if (user.role === 'admin') {
+      return true;
     }
 
     try {
@@ -106,7 +111,7 @@ export function useQuotaLimit(): UseQuotaLimitResult {
       console.error('Erreur vérification quota:', error);
       return false;
     }
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   const modal = modalData ? (
     <QuotaLimitModal

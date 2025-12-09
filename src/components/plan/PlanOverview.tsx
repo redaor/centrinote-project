@@ -7,6 +7,7 @@ import { CreditCard, Calendar, CheckCircle, AlertCircle, ExternalLink } from 'lu
 import { SubscriptionData } from '../../services/subscriptionService';
 import { loadSubscription, createCustomerPortalSession } from '../../services/subscriptionServiceFallback';
 import { Button } from '../ui/Button';
+import { useApp } from '../../contexts/AppContext';
 
 interface PlanOverviewProps {
   userId: string;
@@ -14,6 +15,8 @@ interface PlanOverviewProps {
 }
 
 export function PlanOverview({ userId, onUpgrade }: PlanOverviewProps) {
+  const { state } = useApp();
+  const { user } = state;
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +96,10 @@ export function PlanOverview({ userId, onUpgrade }: PlanOverviewProps) {
     );
   }
 
-  const currentPlan = subscription ? getPlanName(subscription.price_id) : 'Plan Free';
+  // 🔓 Afficher "Plan Admin" pour les administrateurs
+  const currentPlan = user?.role === 'admin' 
+    ? 'Plan Admin' 
+    : (subscription ? getPlanName(subscription.price_id) : 'Plan Free');
   const statusInfo = subscription ? getPlanStatus(subscription.status) : { text: 'Actif', color: 'text-green-600', icon: CheckCircle };
   const StatusIcon = statusInfo.icon;
 

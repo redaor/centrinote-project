@@ -52,7 +52,8 @@
 
 [dev]
   command = "npm run dev"
-  port = 5173
+  # Port retiré : Netlify Dev détectera automatiquement le port de Vite (5173)
+  # Si vous avez besoin d'un port spécifique, utilisez: port = 8888 (port par défaut de Netlify Dev)
   publish = "dist"
 
 # Exception CSP pour /launch.html (DOIT être AVANT la règle globale)

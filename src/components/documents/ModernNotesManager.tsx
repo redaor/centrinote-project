@@ -163,7 +163,6 @@ export function ModernNotesManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'pinned'>('recent');
-  const [filteredNotes, setFilteredNotes] = useState<Note[]>([]);
   const [quickFilter, setQuickFilter] = useState<'all' | 'pinned' | 'recent'>('all');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
 
@@ -198,6 +197,39 @@ export function ModernNotesManager() {
   // Hooks pour vérifier l'accès à l'Aide IA
   const { check: checkQuota } = useQuotaCheck();
   const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
+
+  // 🚀 PERFORMANCE: Vérifier l'accès à l'Aide IA de manière non-bloquante
+  // Utiliser un délai pour ne pas ralentir le chargement initial
+  useEffect(() => {
+    // Vérifier immédiatement pour les admins
+    if (user?.role === 'admin') {
+      setHasAIAccess(true);
+      setCheckingAIAccess(false);
+      return;
+    }
+
+    if (!user?.id) {
+      setHasAIAccess(false);
+      setCheckingAIAccess(false);
+      return;
+    }
+
+    // Pour les non-admins, vérifier après un court délai (non-bloquant)
+    const timeoutId = setTimeout(async () => {
+      try {
+        setCheckingAIAccess(true);
+        const result = await checkQuota('ai_help_count', 0); // Check without incrementing
+        setHasAIAccess(result.allowed);
+      } catch (err) {
+        console.error('Error checking AI Help quota:', err);
+        setHasAIAccess(false);
+      } finally {
+        setCheckingAIAccess(false);
+      }
+    }, 100); // Délai de 100ms pour ne pas bloquer le rendu initial
+
+    return () => clearTimeout(timeoutId);
+  }, [user?.id, user?.role, checkQuota]);
 
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout>();
   
@@ -303,16 +335,19 @@ export function ModernNotesManager() {
     };
   }, [selectedNote?.id, showAddModal, formData]);
 
-  // Filtrer et trier les notes (optimisé avec useMemo pour éviter les re-calculs)
-  useEffect(() => {
+  // 🚀 PERFORMANCE: Filtrer et trier les notes avec useMemo au lieu de useEffect
+  // Cela évite les re-renders inutiles et améliore drastiquement les performances
+  const filteredNotes = useMemo(() => {
     let processedNotes = [...notes];
 
+    // Filtrage par tag
     if (selectedTagId) {
       processedNotes = processedNotes.filter(note =>
         note.tags?.some(tag => tag.id === selectedTagId)
       );
     }
 
+    // Filtrage rapide
     if (quickFilter === 'pinned') {
       processedNotes = processedNotes.filter(note => note.is_pinned);
     } else if (quickFilter === 'recent') {
@@ -323,6 +358,7 @@ export function ModernNotesManager() {
       });
     }
 
+    // Recherche textuelle
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       processedNotes = processedNotes.filter(note =>
@@ -345,7 +381,7 @@ export function ModernNotesManager() {
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
 
-    setFilteredNotes(processedNotes);
+    return processedNotes;
   }, [notes, searchTerm, selectedTagId, sortBy, quickFilter]);
 
   const handleSelectNote = useCallback((note: Note, options: { edit?: boolean } = {}) => {
@@ -441,6 +477,25 @@ export function ModernNotesManager() {
       return;
     }
 
+    // Si le contenu n'est pas vide, continuer avec la création normale
+    await createNoteWithContent(false);
+  };
+
+  // Fonction pour créer la note (avec ou sans contenu)
+  const createNoteWithContent = async (allowEmpty: boolean = false) => {
+    if (!formData.title.trim()) {
+      setMessage({ type: 'error', text: 'Le titre est obligatoire' });
+      return;
+    }
+
+    const contentValue = formData.content || '';
+    const contentTrimmed = contentValue.trim();
+    
+    // Si le contenu est vide et qu'on n'autorise pas le vide, ne rien faire
+    if (!allowEmpty && contentTrimmed.length === 0) {
+      return;
+    }
+
     try {
       const tagArray = formData.tags
         ? formData.tags.split(',').map(tag => tag.trim())
@@ -448,12 +503,15 @@ export function ModernNotesManager() {
 
       const newNote = await addNote(
         formData.title.trim(),
-        formData.content.trim(),
+        contentTrimmed, // Utiliser contentTrimmed au lieu de formData.content.trim()
         tagArray
       );
 
       if (newNote) {
-        setMessage({ type: 'success', text: 'Note ajoutée avec succès' });
+        setMessage({ type: 'success', text: allowEmpty && contentTrimmed.length === 0 
+          ? 'Note créée. Vous pourrez ajouter le contenu plus tard.' 
+          : 'Note ajoutée avec succès' 
+        });
         setShowAddModal(false);
         resetForm();
         // FIX: Nettoyer le brouillon après sauvegarde réussie
@@ -668,10 +726,12 @@ export function ModernNotesManager() {
                     disabled={!hasAIAccess}
                     onApply={async (improvedContent) => {
                       try {
-                        // Vérifier le quota avant d'appliquer
-                        const canUse = await checkQuotaWithModal('ai_help', 1);
-                        if (!canUse) {
-                          return;
+                        // 🔓 Les administrateurs n'ont pas besoin de vérifier le quota
+                        if (user?.role !== 'admin') {
+                          const canUse = await checkQuotaWithModal('ai_help', 1);
+                          if (!canUse) {
+                            return;
+                          }
                         }
                         handleFormDataChange('content', improvedContent);
                         setHasUnsavedChanges(true);
@@ -2008,16 +2068,34 @@ export function ModernNotesManager() {
         <EmptyNoteAlert
           isOpen={showEmptyNoteAlert}
           onClose={() => setShowEmptyNoteAlert(false)}
+          onCreateEmpty={async () => {
+            // Créer la note avec un contenu vide
+            await createNoteWithContent(true);
+          }}
           onGenerateWithAI={hasAIAccess ? async () => {
-            // Vérifier le quota avant de générer
-            const canUse = await checkQuotaWithModal('ai_help', 1);
-            if (!canUse || !formData.title.trim()) {
+            // 🔓 Les administrateurs n'ont pas besoin de vérifier le quota
+            if (user?.role !== 'admin') {
+              const canUse = await checkQuotaWithModal('ai_help', 1);
+              if (!canUse || !formData.title.trim()) {
+                return;
+              }
+            }
+            if (!formData.title.trim()) {
               return;
             }
 
             try {
               // Générer le contenu depuis le titre via l'API
-              const response = await fetch('/.netlify/functions/improve-content', {
+              // En développement, utiliser l'URL de production si Netlify Dev n'est pas disponible
+              const isDev = import.meta.env.DEV;
+              const netlifyUrl = import.meta.env.VITE_APP_URL || 'https://centrinote.fr';
+              const functionUrl = isDev 
+                ? `${netlifyUrl}/.netlify/functions/improve-content`
+                : '/.netlify/functions/improve-content';
+              
+              console.log('🔗 [improve-content] URL utilisée:', functionUrl);
+              
+              const response = await fetch(functionUrl, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -2031,21 +2109,74 @@ export function ModernNotesManager() {
                 }),
               });
 
+              if (!response.ok) {
+                // Si la fonction Netlify n'est pas disponible (404), afficher un message explicite
+                if (response.status === 404) {
+                  throw new Error('La fonction de génération de contenu n\'est pas disponible en développement local. Veuillez utiliser "netlify dev" au lieu de "npm run dev" pour activer les fonctions Netlify.');
+                }
+                
+                // Essayer de parser le JSON pour obtenir le message d'erreur détaillé
+                let errorMessage = `Erreur serveur (${response.status})`;
+                let errorDetails = null;
+                
+                try {
+                  // Cloner la réponse pour pouvoir la lire plusieurs fois
+                  const responseClone = response.clone();
+                  const errorText = await responseClone.text();
+                  
+                  console.error('🔴 [improve-content] Erreur réponse:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    body: errorText.substring(0, 500)
+                  });
+                  
+                  if (errorText) {
+                    try {
+                      const errorData = JSON.parse(errorText);
+                      errorMessage = errorData.error || errorData.message || errorMessage;
+                      errorDetails = errorData;
+                    } catch (parseError) {
+                      // Si ce n'est pas du JSON, utiliser le texte brut
+                      errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+                      console.warn('⚠️ Réponse d\'erreur n\'est pas du JSON:', errorText.substring(0, 100));
+                    }
+                  }
+                } catch (e) {
+                  // Si la lecture échoue, utiliser le message par défaut
+                  console.error('❌ Erreur lors de la lecture de la réponse:', e);
+                }
+                
+                // Créer un message d'erreur plus informatif
+                const fullErrorMessage = errorDetails 
+                  ? `${errorMessage}${errorDetails.stack ? '\n\n' + errorDetails.stack.substring(0, 200) : ''}`
+                  : errorMessage;
+                
+                throw new Error(fullErrorMessage);
+              }
+
               const data = await response.json();
 
-              if (!response.ok || !data.success) {
+              if (!data.success) {
                 throw new Error(data.error || 'Erreur lors de la génération du contenu');
               }
 
               // Appliquer le contenu généré
-              const generatedContent = data.improved || data.generated || '';
+              let generatedContent = data.improved || data.generated || '';
+              
+              // Nettoyage supplémentaire côté client pour s'assurer qu'il n'y a pas d'astérisques
+              if (generatedContent) {
+                // Supprimer tous les **texte** restants
+                generatedContent = generatedContent.replace(/\*\*([^*]+?)\*\*/g, '$1');
+                // Supprimer spécifiquement **Note: texte**
+                generatedContent = generatedContent.replace(/\*\*Note\s*:\s*([^*]+?)\*\*/gi, 'Note: $1');
+              }
+              
               if (generatedContent) {
                 handleFormDataChange('content', generatedContent);
                 setHasUnsavedChanges(true);
-                setMessage({ 
-                  type: 'success', 
-                  text: 'Contenu généré avec succès. N\'oubliez pas de sauvegarder.' 
-                });
+                // Créer automatiquement la note avec le contenu généré
+                await createNoteWithContent(false);
               }
             } catch (error) {
               console.error('Erreur génération contenu:', error);

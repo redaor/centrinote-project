@@ -24,7 +24,6 @@ import { MeetingList } from '../meetings/MeetingList';
 import { MeetingScheduler } from '../meetings/MeetingScheduler';
 import { MeetingRoom } from '../meetings/MeetingRoom';
 import { MeetingSummary } from '../meetings/MeetingSummary';
-import { AdminFloatingButton } from '../admin/AdminFloatingButton';
 import { NavigationDebugger } from '../debug/NavigationDebugger';
 import { useNavigationGuard } from '../../hooks/useNavigationGuard';
 import { useUserSync } from '../../hooks/useUserSync';
@@ -161,7 +160,7 @@ export function AppLayout() {
     // Gestion des routes admin spéciales
     if (location.pathname.startsWith('/admin')) {
       DEBUG && console.log('✅ [APP-LAYOUT] Route /admin détectée, rendu de SupportMessagesPage');
-      return <SupportMessagesPage key={`admin-support-${Date.now()}`} />;
+      return <SupportMessagesPage key="admin-support" />;
     }
 
     // Gestion des routes meetings spéciales
@@ -177,38 +176,39 @@ export function AppLayout() {
       // ✅ FIX: Si /meetings ou /meetings?xxx, retourner MeetingList
       // Cela gère le cas /meetings?completed=xxx
       DEBUG && console.log('✅ [APP-LAYOUT] Route /meetings détectée, rendu de MeetingList');
-      return <MeetingList key={`meetings-${Date.now()}`} />;
+      return <MeetingList key="meetings" />;
     }
 
     // Utiliser directement le path pour déterminer le composant
     // Cela évite toute désynchronisation avec le state
+    // 🚀 PERFORMANCE: Utiliser des keys stables au lieu de Date.now() pour éviter les re-renders inutiles
     switch (path) {
       case 'dashboard':
       case '':
-        return <NeuroDashboard key={`dashboard-${Date.now()}`} />;
+        return <NeuroDashboard key="dashboard" />;
       case 'notes':
-        return <ModernNotesManager key={`notes-${Date.now()}`} />;
+        return <ModernNotesManager key="notes" />;
       case 'vocabulary':
-        return <NeuroVocabulary key={`vocabulary-${Date.now()}`} />;
+        return <NeuroVocabulary key="vocabulary" />;
       case 'meetings':
-        return <MeetingList key={`meetings-${Date.now()}`} />;
+        return <MeetingList key="meetings" />;
       case 'search':
         return <AISearchPage key="search" />;
       case 'plan':
-        return <PlanPage key={`plan-${Date.now()}`} />;
+        return <PlanPage key="plan" />;
       case 'planning':
-        return <NeuroPlanning key={`planning-${Date.now()}`} />;
+        return <NeuroPlanning key="planning" />;
       case 'settings':
-        return <Settings key={`settings-${Date.now()}`} />;
+        return <Settings key="settings" />;
       case 'help':
-        return <Help key={`help-${Date.now()}`} />;
+        return <Help key="help" />;
       case 'automation':
-        return <AutomationManager key={`automation-${Date.now()}`} />;
+        return <AutomationManager key="automation" />;
       case 'admin/support':
-        return <SupportMessagesPage key={`admin-support-${Date.now()}`} />;
+        return <SupportMessagesPage key="admin-support" />;
       default:
         DEBUG && console.warn('⚠️ [APP-LAYOUT] Route non reconnue:', path);
-        return <NeuroDashboard key={`fallback-${Date.now()}`} />;
+        return <NeuroDashboard key="fallback-dashboard" />;
     }
   };
 
@@ -224,10 +224,7 @@ export function AppLayout() {
             </main>
           </div>
         </div>
-        
-        {/* Bouton Admin Flottant - SEULEMENT pour reda_sahraoui@outlook.fr */}
-        <AdminFloatingButton user={authUser} />
-        
+
         {/* Debugger Navigation (Ctrl+Shift+D pour afficher) */}
         <NavigationDebugger />
       </div>

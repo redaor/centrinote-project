@@ -12,6 +12,7 @@ import { useCentrinoteAI_Edge } from '../../hooks/useCentrinoteAI_Edge';
 import { useApp } from '../../contexts/AppContext';
 import { aiConversationService, type AIMessage } from '../../services/aiConversationService';
 import { chatMemoryService } from '../../services/chatMemoryService';
+import { supabase } from '../../lib/supabase';
 import { AIActionParser, type AIAction } from '../../services/ai/actionParser';
 import { AIActionConfirmModal } from './AIActionConfirmModal';
 import { vocabularyService } from '../../services/vocabularyService';
@@ -41,6 +42,7 @@ interface Message {
     isFileContext?: boolean;
     hasFileContext?: boolean;
     fullText?: string;
+    isSegmented?: boolean;
   };
 }
 
@@ -124,18 +126,24 @@ export function AIChat() {
       userIdRef.current = user.id;
       setIsLoadingMessages(true);
 
+      // Timeout de sécurité pour éviter un chargement infini
+      const loadingTimeout = setTimeout(() => {
+        console.warn('⏱️ [AIChat] Timeout de chargement atteint');
+        setIsLoadingMessages(false);
+      }, 3000); // 3 secondes max
+
       try {
         console.log('📥 [AIChat] Chargement des messages sauvegardés pour:', user.id);
-        
+
         // Récupérer ou créer une session
         const sessionId = await aiConversationService.getOrCreateSession(user.id);
         sessionIdRef.current = sessionId;
-        
+
         console.log('📋 [AIChat] Session ID:', sessionId);
-        
+
         // Charger les messages de la session
         const savedMessages = await aiConversationService.loadLatestSession(user.id);
-        
+
         if (savedMessages.length > 0) {
           console.log('✅ [AIChat] Messages chargés:', savedMessages.length);
           // Convertir les messages sauvegardés au format Message
@@ -156,6 +164,7 @@ export function AIChat() {
         console.error('❌ [AIChat] Erreur lors du chargement des messages:', error);
         // Continuer sans bloquer l'UI
       } finally {
+        clearTimeout(loadingTimeout);
         setIsLoadingMessages(false);
       }
     };
@@ -459,11 +468,103 @@ export function AIChat() {
           return; // Important: sortir ici pour éviter le traitement normal
         }
 
-        // Mode normal sans fichier - Utiliser chat-memory pour la mémoire persistante
+        // Mode normal sans fichier - Utiliser l'orchestrateur Noteo
         // 🎯 NOUVEAU: Analyser le problème AVANT d'envoyer le message
         const problemType = chatSegmentationService.analyzeProblem(message);
-        
-        const memoryResponse = await chatMemoryService.sendMessage(message, user?.id || null);
+
+        console.log('🔄 [AIChat] Appel orchestrateur Noteo...', {
+          messageLength: message.length,
+          userId: user?.id?.substring(0, 8) + '...'
+        });
+
+        let memoryResponse;
+        try {
+          // Appeler l'orchestrateur au lieu de chat-memory
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            throw new Error('Non authentifié');
+          }
+
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+          const response = await fetch(`${supabaseUrl}/functions/v1/noteo-orchestrator`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message,
+              apiKey: import.meta.env.VITE_OPENAI_CHAT_KEY || '',
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Orchestrateur error: ${response.status} - ${errorText}`);
+          }
+
+          const data = await response.json();
+          memoryResponse = {
+            success: true,
+            response: data.reply || '',
+            error: undefined,
+          };
+
+          console.log('📥 [AIChat] Réponse orchestrateur:', {
+            success: memoryResponse.success,
+            hasResponse: !!memoryResponse.response,
+            responseLength: memoryResponse.response?.length || 0,
+          });
+        } catch (error) {
+          console.error('❌ [AIChat] Erreur lors de l\'appel orchestrateur:', error);
+          
+          // Fallback vers l'Edge Function directement
+          console.log('🔄 [AIChat] Fallback vers Edge Function après erreur...');
+          const conversationMessages = [...messages, userMessage]
+            .filter((msg) => msg.content && msg.content.trim().length > 0)
+            .map((msg) => ({
+              role: (msg.type === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+              content: msg.metadata?.isFileContext && msg.metadata?.fullText
+                ? `📄 Contenu du document:\n\n${msg.metadata.fullText}`
+                : msg.content,
+            }));
+          
+          try {
+            const edgeReply = await sendEdgeMessage(conversationMessages);
+            
+            const aiMessage: Message = {
+              id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'ai',
+              content: edgeReply.reply || 'Pas de réponse',
+              timestamp: new Date(),
+              metadata: {
+                isValid: true,
+                securityScore: 1,
+              },
+            };
+            
+            setMessages(prev => [...prev, aiMessage]);
+            
+            // Sauvegarder le message IA
+            if (userIdRef.current && sessionIdRef.current) {
+              aiConversationService.saveMessage(
+                userIdRef.current,
+                sessionIdRef.current,
+                aiMessage
+              ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
+            }
+          } catch (fallbackError) {
+            console.error('❌ [AIChat] Erreur fallback Edge Function:', fallbackError);
+            const errorMessage: Message = {
+              id: `error-${Date.now()}`,
+              type: 'error',
+              content: 'Erreur lors de la communication avec l\'IA. Veuillez réessayer.',
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, errorMessage]);
+          }
+          return;
+        }
 
         if (!memoryResponse.success) {
           // Fallback vers l'ancienne méthode si chat-memory échoue
@@ -561,8 +662,22 @@ export function AIChat() {
         // Préparer la segmentation
         setLastMessageSegmented(true);
 
+        // Fonction pour nettoyer les astérisques de gras
+        const cleanBoldMarkers = (text: string): string => {
+          if (!text) return text;
+          let cleaned = text;
+          // Supprimer les astérisques doubles utilisés pour le gras (**texte**)
+          cleaned = cleaned.replace(/\*\*([^*]+?)\*\*/g, '$1');
+          cleaned = cleaned.replace(/\*\*([^*\n]+?)\*\*/g, '$1');
+          // Nettoyer les sauts de ligne multiples
+          cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+          return cleaned.trim();
+        };
+
         // Traiter la réponse pour détecter si c'est du code ou du texte
         let processedContent = result.suggestion.trim();
+        // Nettoyer les astérisques de gras AVANT tout autre traitement
+        processedContent = cleanBoldMarkers(processedContent);
         let messageType: 'ai' | 'code' = 'ai';
         
         // En mode chat, on veut toujours du texte naturel, pas du code
@@ -652,20 +767,24 @@ export function AIChat() {
           messageType = 'code';
         }
         
-        console.log('✅ [AIChat] Ajout du message AI avec contenu:', processedContent.substring(0, 50), 'type:', messageType);
+        console.log('✅ [AIChat] Ajout du message AI avec contenu:', processedContent.substring(0, 50), 'type:', messageType, 'length:', processedContent.length);
         
         // 🎯 NOUVEAU: Segmenter la réponse si elle est longue
         if (processedContent.length > 200) {
+          console.log('📦 [AIChat] Message long détecté, segmentation en cours...');
           // Segmenter la réponse complète
           const responseSegments = chatSegmentationService.segmentResponse(processedContent, problemType);
+          console.log('📦 [AIChat] Segments générés:', responseSegments.length);
           
           // Effacer les segments précédents et ajouter les nouveaux
           clearSegments();
           
           // Ajouter les segments de réponse progressivement
+          console.log('📦 [AIChat] Ajout des segments progressivement...');
           await addSegments(responseSegments, 1500);
+          console.log('✅ [AIChat] Segments ajoutés avec succès');
           
-          // Créer aussi un message normal pour la sauvegarde (masqué visuellement)
+          // Créer aussi un message normal pour la sauvegarde ET l'affichage
           const newMessage: Message = {
             id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             type: messageType,
@@ -677,6 +796,15 @@ export function AIChat() {
               isSegmented: true,
             },
           };
+          
+          // IMPORTANT: Ajouter aussi le message au state pour qu'il soit visible
+          // même si les segments sont affichés, le message complet doit être dans le state
+          console.log('💬 [AIChat] Ajout du message segmenté au state');
+          setMessages(prev => {
+            const updated = [...prev, newMessage];
+            console.log('🔄 [AIChat] State mis à jour avec message segmenté, total messages:', updated.length);
+            return updated;
+          });
           
           // Sauvegarder le message complet en arrière-plan
           if (userIdRef.current && sessionIdRef.current) {
@@ -690,6 +818,7 @@ export function AIChat() {
           setLastMessageSegmented(false);
         } else {
           // Mode normal : message unique (courtes réponses)
+          console.log('💬 [AIChat] Message court, ajout direct au state');
           const newMessage: Message = {
             id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             type: messageType,
@@ -701,9 +830,10 @@ export function AIChat() {
             },
           };
           
+          console.log('💬 [AIChat] Message créé:', { id: newMessage.id, type: newMessage.type, contentLength: newMessage.content.length });
           setMessages(prev => {
             const updated = [...prev, newMessage];
-            console.log('🔄 [AIChat] State mis à jour, total messages:', updated.length);
+            console.log('🔄 [AIChat] State mis à jour, total messages:', updated.length, 'dernier message:', updated[updated.length - 1]?.id);
             return updated;
           });
           
@@ -826,15 +956,15 @@ export function AIChat() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Header Modernisé avec Contrôles de Fenêtre */}
-      <motion.div 
+      {/* Header Modernisé avec Contrôles de Fenêtre - ULTRA COMPACT */}
+      <motion.div
         className="flex-shrink-0 border-b border-slate-200/80 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl shadow-sm"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
         {/* Titre avec icône et Badge Sécurité */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
           {/* Titre avec icône */}
           <div className="flex items-center gap-2">
             <motion.div
@@ -843,30 +973,30 @@ export function AIChat() {
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-full blur-md opacity-30 animate-pulse" />
-              <div className="relative p-1.5 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full">
-                <Brain className="w-4 h-4 text-white" />
+              <div className="relative p-1 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full">
+                <Brain className="w-3.5 h-3.5 text-white" />
               </div>
             </motion.div>
-            <h1 className="text-base font-bold text-slate-900 dark:text-white">
+            <h1 className="text-sm font-bold text-slate-900 dark:text-white">
               Noteo
             </h1>
           </div>
 
           {/* Badge Sécurité */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-              <Shield className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">100%</span>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+              <Shield className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">100%</span>
             </div>
           </div>
         </div>
 
         {/* Onglets et Indicateur de Statut */}
-        <div className="flex items-center justify-between px-4 pb-3">
+        <div className="flex items-center justify-between px-2 pb-1.5">
           <div className="flex items-center gap-2">
             <motion.button
               onClick={() => setMode('chat')}
-              className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+              className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
                 mode === 'chat'
                   ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'
@@ -874,11 +1004,11 @@ export function AIChat() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <MessageCircle className={`w-4 h-4 ${mode === 'chat' ? 'text-white' : ''}`} />
+              <MessageCircle className={`w-3.5 h-3.5 ${mode === 'chat' ? 'text-white' : ''}`} />
               <span>Conversation</span>
               {mode === 'chat' && (
                 <motion.div
-                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-md"
+                  className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-md"
                   animate={{ opacity: [0.2, 0.4, 0.2] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 />
@@ -887,7 +1017,7 @@ export function AIChat() {
 
             <motion.button
               onClick={() => setMode('analyze')}
-              className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+              className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
                 mode === 'analyze'
                   ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'
@@ -895,11 +1025,11 @@ export function AIChat() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Search className={`w-4 h-4 ${mode === 'analyze' ? 'text-white' : ''}`} />
+              <Search className={`w-3.5 h-3.5 ${mode === 'analyze' ? 'text-white' : ''}`} />
               <span>Analyseur</span>
               {mode === 'analyze' && (
                 <motion.div
-                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-md"
+                  className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-md"
                   animate={{ opacity: [0.2, 0.4, 0.2] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 />
@@ -931,32 +1061,30 @@ export function AIChat() {
         </div>
       </motion.div>
 
-      {/* Zone de Messages Modernisée */}
+      {/* Zone de Messages Modernisée - ULTRA COMPACT */}
       <AnimatePresence>
         {!isMinimized && (
           <motion.div
-            className="flex-1 overflow-y-auto px-4 py-6 space-y-4 bg-gradient-to-b from-transparent to-slate-50/50 dark:to-gray-900/50"
-            style={{ minHeight: '200px' }}
+            className="flex-1 overflow-y-auto px-2 py-2 bg-gradient-to-b from-transparent to-slate-50/50 dark:to-gray-900/50"
+            style={{ minHeight: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {isLoadingMessages && (
+            {isLoadingMessages ? (
               <motion.div
-                className="flex items-center justify-center h-full"
+                className="flex items-center justify-center py-12"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
               >
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
-                  <p className="text-sm text-slate-600 dark:text-gray-400">Chargement de vos conversations...</p>
+                  <p className="text-sm text-slate-600 dark:text-gray-400">Chargement...</p>
                 </div>
               </motion.div>
-            )}
-
-            {!isLoadingMessages && messages.length === 0 && (
+            ) : messages.length === 0 && segments.length === 0 ? (
               <motion.div
-                className="flex items-center justify-center h-full"
+                className="flex items-center justify-center h-full min-h-[300px]"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
@@ -971,7 +1099,7 @@ export function AIChat() {
                   <p className="text-slate-600 dark:text-gray-400">Aucun message pour le moment. Posez votre question ci-dessous !</p>
                 </div>
               </motion.div>
-            )}
+            ) : null}
 
             {/* Afficher les segments de message si disponibles */}
             {segments.length > 0 && (
@@ -993,8 +1121,9 @@ export function AIChat() {
                   return null;
                 }
 
-                // Message AI (afficher seulement si pas segmenté)
-                if (message.type === 'ai' && !message.metadata?.isSegmented) {
+                // Message AI (afficher si pas segmenté OU si les segments sont vides)
+                // Si le message est segmenté mais qu'il n'y a pas de segments actifs, afficher le message complet
+                if (message.type === 'ai' && (!message.metadata?.isSegmented || segments.length === 0)) {
                   // 🎯 NOUVEAU: Détecter si le message doit utiliser le format EnhancedNoteoMessage
                   const messageAnalysis = analyzeMessage(message.content);
                   
@@ -1030,59 +1159,56 @@ export function AIChat() {
                   return (
                     <motion.div
                       key={message.id}
-                      className="flex justify-start gap-3"
-                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      className="flex justify-start gap-2"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      style={{ margin: 0 }}
                     >
                       <motion.div
-                        className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg"
-                        whileHover={{ scale: 1.1, rotate: 5 }}
+                        className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center"
+                        whileHover={{ scale: 1.05 }}
                       >
-                        <Brain className="w-4 h-4 text-white" />
+                        <Brain className="w-3.5 h-3.5 text-white" />
                       </motion.div>
-                      <div className="flex-1 max-w-[70%] md:max-w-[75%]">
+                      <div className="flex-1 max-w-[85%]">
                         <motion.div
-                          className="bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm p-4 shadow-md border border-slate-200 dark:border-gray-700"
+                          className="bg-[#f1f1f1] dark:bg-gray-800/60 rounded-lg border border-slate-200/50 dark:border-gray-700/50 relative"
+                          style={{ padding: '0.5rem 0.7rem', margin: 0 }}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          transition={{ delay: 0.1 }}
+                          transition={{ delay: 0.05 }}
                         >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-slate-500 dark:text-gray-400">
-                              {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <motion.button
-                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors"
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                title="Copier"
-                                onClick={() => navigator.clipboard.writeText(message.content)}
-                              >
-                                <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-gray-400" />
-                              </motion.button>
-                              <motion.button
-                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors"
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                title="Régénérer"
-                              >
-                                <RefreshCw className="w-3.5 h-3.5 text-slate-500 dark:text-gray-400" />
-                              </motion.button>
-                              <motion.button
-                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors"
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                title="J'aime"
-                              >
-                                <ThumbsUp className="w-3.5 h-3.5 text-slate-500 dark:text-gray-400" />
-                              </motion.button>
-                            </div>
-                          </div>
-                          <div className="text-slate-900 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                          <div className="text-slate-900 dark:text-gray-100 whitespace-pre-wrap text-sm" style={{ lineHeight: 1.3, margin: 0 }}>
                             {message.content}
+                          </div>
+                          <div className="flex items-center justify-end gap-1.5 mt-1">
+                            <motion.button
+                              className="p-0.5 rounded transition-all duration-150 opacity-50 hover:opacity-85"
+                              whileHover={{ scale: 1.12 }}
+                              whileTap={{ scale: 0.95 }}
+                              title="Copier"
+                              onClick={() => navigator.clipboard.writeText(message.content)}
+                            >
+                              <Copy className="w-[16px] h-[16px] text-gray-600 dark:text-gray-400" style={{ strokeWidth: 1.8 }} />
+                            </motion.button>
+                            <motion.button
+                              className="p-0.5 rounded transition-all duration-150 opacity-50 hover:opacity-85"
+                              whileHover={{ scale: 1.12 }}
+                              whileTap={{ scale: 0.95 }}
+                              title="Régénérer"
+                            >
+                              <RefreshCw className="w-[16px] h-[16px] text-gray-600 dark:text-gray-400" style={{ strokeWidth: 1.8 }} />
+                            </motion.button>
+                            <motion.button
+                              className="p-0.5 rounded transition-all duration-150 opacity-50 hover:opacity-85"
+                              whileHover={{ scale: 1.12 }}
+                              whileTap={{ scale: 0.95 }}
+                              title="J'aime"
+                            >
+                              <ThumbsUp className="w-[16px] h-[16px] text-blue-600 dark:text-blue-400" style={{ strokeWidth: 1.8 }} />
+                            </motion.button>
                           </div>
                         </motion.div>
                       </div>
@@ -1095,11 +1221,11 @@ export function AIChat() {
                   // Composant interne pour gérer l'état de l'avatar
                   const UserAvatar = () => {
                     const [imgError, setImgError] = useState(false);
-                    
+
                     return (
                       <motion.div
-                        className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center shadow-lg overflow-hidden"
-                        whileHover={{ scale: 1.1 }}
+                        className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center overflow-hidden"
+                        whileHover={{ scale: 1.05 }}
                       >
                         {user?.avatar && !imgError ? (
                           <img
@@ -1109,7 +1235,7 @@ export function AIChat() {
                             onError={() => setImgError(true)}
                           />
                         ) : (
-                          <span className="text-white text-sm">👤</span>
+                          <span className="text-white text-xs">👤</span>
                         )}
                       </motion.div>
                     );
@@ -1118,25 +1244,22 @@ export function AIChat() {
                   return (
                     <motion.div
                       key={message.id}
-                      className="flex justify-end gap-3"
-                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      className="flex justify-end gap-2"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      style={{ margin: 0 }}
                     >
-                      <div className="flex-1 max-w-[70%] md:max-w-[75%] flex justify-end">
+                      <div className="flex-1 max-w-[85%] flex justify-end">
                         <motion.div
-                          className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl rounded-tr-sm p-4 shadow-lg"
+                          className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg"
+                          style={{ padding: '0.5rem 0.7rem', margin: 0 }}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          transition={{ delay: 0.1 }}
+                          transition={{ delay: 0.05 }}
                         >
-                          <div className="flex items-center justify-end mb-2">
-                            <span className="text-xs font-medium text-white/80">
-                              {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                            </span>
-                          </div>
-                          <div className="whitespace-pre-wrap leading-relaxed">
+                          <div className="whitespace-pre-wrap text-sm" style={{ lineHeight: 1.3, margin: 0 }}>
                             {message.content}
                           </div>
                         </motion.div>
@@ -1192,17 +1315,18 @@ export function AIChat() {
 
             {isLoading && (
               <motion.div
-                className="flex justify-start gap-3"
+                className="flex justify-start gap-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
+                style={{ margin: 0 }}
               >
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-                  <Brain className="w-4 h-4 text-white" />
+                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  <Brain className="w-3.5 h-3.5 text-white" />
                 </div>
-                <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm p-4 shadow-md border border-slate-200 dark:border-gray-700">
+                <div className="bg-[#f1f1f1] dark:bg-gray-800/60 rounded-lg border border-slate-200/50 dark:border-gray-700/50" style={{ padding: '0.5rem 0.7rem', margin: 0 }}>
                   <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
-                    <span className="text-sm text-slate-600 dark:text-gray-400">L'IA réfléchit...</span>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm text-slate-600 dark:text-gray-400" style={{ lineHeight: 1.3 }}>L'IA réfléchit...</span>
                   </div>
                 </div>
               </motion.div>
@@ -1213,11 +1337,11 @@ export function AIChat() {
         )}
       </AnimatePresence>
 
-      {/* Zone Input Modernisée */}
+      {/* Zone Input Modernisée - ULTRA COMPACT */}
       <AnimatePresence>
         {!isMinimized && (
           <motion.div
-            className="flex-shrink-0 border-t border-slate-200/80 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-4"
+            className="flex-shrink-0 border-t border-slate-200/80 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-1.5"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 20, opacity: 0 }}
@@ -1316,13 +1440,21 @@ export function AIChat() {
                     onChange={(e) => {
                       setInputValue(e.target.value);
                       e.target.style.height = 'auto';
-                      e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      // Entrée sans Shift = envoyer le message
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend(e as any);
+                      }
+                      // Shift + Entrée = nouvelle ligne (comportement par défaut du textarea)
                     }}
                     placeholder={selectedFile ? "Posez une question sur ce document..." : "Tapez votre message..."}
-                    className="flex-1 px-4 py-3 bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500 resize-none focus:outline-none text-sm leading-relaxed max-h-[120px]"
+                    className="flex-1 px-3 py-2 bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500 resize-none focus:outline-none text-xs leading-relaxed max-h-[100px]"
                     disabled={isLoading || !isReady}
                     rows={1}
-                    style={{ minHeight: '44px' }}
+                    style={{ minHeight: '36px' }}
                     aria-label="Zone de saisie de message"
                   />
                   {/* Bouton de reconnaissance vocale */}

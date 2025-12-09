@@ -12,6 +12,7 @@ import { ParticipantsFormV2 } from './ParticipantsFormV2';
 import { useQuotaCheck } from '../../hooks/useQuotaCheck';
 import { usePlanLimits } from '../../hooks/usePlanLimits';
 import { useQuotaLimit } from '../../hooks/useQuotaLimit';
+import { useApp } from '../../contexts/AppContext';
 
 export interface ModernMeetingFormProps {
   onSubmit: (data: {
@@ -57,6 +58,8 @@ export function ModernMeetingForm({
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   
+  const { state } = useApp();
+  const { user } = state;
   const { check: checkQuota } = useQuotaCheck();
   const { limits } = usePlanLimits();
   const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
@@ -64,6 +67,14 @@ export function ModernMeetingForm({
   // Vérifier le quota de résumés au chargement
   useEffect(() => {
     const verifySummaryQuota = async () => {
+      // 🔓 Les administrateurs ont toujours accès aux résumés
+      if (user?.role === 'admin') {
+        setSummaryQuotaCheck({ allowed: true, usage: 0, limit: 'unlimited', percentage: 0 });
+        setAutoSummary(true);
+        setCheckingSummaryQuota(false);
+        return;
+      }
+      
       try {
         setCheckingSummaryQuota(true);
         const result = await checkQuota('summary_count', 1);
@@ -80,7 +91,7 @@ export function ModernMeetingForm({
       }
     };
     verifySummaryQuota();
-  }, [checkQuota, limits]);
+  }, [checkQuota, limits, user?.role]);
 
   const handleToggleSummary = async () => {
     if (autoSummary) {

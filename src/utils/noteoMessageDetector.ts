@@ -98,14 +98,12 @@ export function analyzeMessage(content: string): MessageAnalysis {
   
   // Utiliser EnhancedNoteoMessage si :
   // 1. Le message contient des étapes numérotées (2+ étapes)
-  // 2. Le type de problème est détecté et n'est pas 'general'
-  // 3. Le message est assez long (> 150 caractères) et contient des mots-clés de problème
-  // 4. OU message long (> 200 caractères) pour forcer le nouveau format (TEST)
+  // 2. Le type de problème est détecté et n'est pas 'general' ET contient des étapes
+  // 3. Le message est assez long (> 150 caractères) et contient des mots-clés de problème avec étapes
   const shouldUseEnhanced =
     (hasSteps && stepCount >= 2) ||
     (problemType !== 'general' && content.length > 150 && hasSteps) ||
-    (hasSteps && stepCount >= 1 && problemType !== 'general') ||
-    (content.length > 200); // FORCER pour tester
+    (hasSteps && stepCount >= 1 && problemType !== 'general');
 
   return {
     shouldUseEnhanced,

@@ -186,7 +186,7 @@ export function Sidebar() {
                   {user.name}
                 </p>
                 <p className={`text-sm lg:text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Plan {user.subscription}
+                  {user.role === 'admin' ? 'Plan Admin' : `Plan ${user.subscription}`}
                 </p>
               </div>
             </div>

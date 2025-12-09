@@ -83,7 +83,16 @@ export function AIContentHelper({
         throw new Error('EMPTY_CONTENT');
       }
 
-      const response = await fetch('/.netlify/functions/improve-content', {
+      // En développement, utiliser l'URL de production si Netlify Dev n'est pas disponible
+      const isDev = import.meta.env.DEV;
+      const netlifyUrl = import.meta.env.VITE_APP_URL || 'https://centrinote.fr';
+      const functionUrl = isDev 
+        ? `${netlifyUrl}/.netlify/functions/improve-content`
+        : '/.netlify/functions/improve-content';
+      
+      console.log('🔗 [AIContentHelper] URL utilisée:', functionUrl);
+
+      const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,9 +105,34 @@ export function AIContentHelper({
         }),
       });
 
+      // Vérifier si la réponse est OK avant de parser le JSON
+      if (!response.ok) {
+        let errorMessage = `Erreur serveur (${response.status})`;
+        try {
+          const errorText = await response.text();
+          console.error('🔴 [AIContentHelper] Erreur réponse:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText.substring(0, 500)
+          });
+          
+          if (errorText) {
+            try {
+              const errorData = JSON.parse(errorText);
+              errorMessage = errorData.error || errorData.message || errorMessage;
+            } catch {
+              errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+            }
+          }
+        } catch (e) {
+          console.error('❌ Erreur lors de la lecture de la réponse:', e);
+        }
+        throw new Error(errorMessage);
+      }
+
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         // Améliorer le message d'erreur si c'est "Contenu requis"
         const errorMessage = data.error || 'Erreur lors de l\'amélioration du contenu';
         if (errorMessage.includes('requis') || errorMessage.includes('required') || errorMessage.includes('vide') || errorMessage.includes('empty')) {
@@ -108,7 +142,11 @@ export function AIContentHelper({
       }
 
       console.log(`[AI-Helper] ✅ Contenu amélioré en ${data.duration_ms}ms`);
-      setImprovedContent(data.improved);
+      // Nettoyer les astérisques restants
+      let cleanedContent = data.improved || '';
+      cleanedContent = cleanedContent.replace(/\*\*([^*]+?)\*\*/g, '$1');
+      cleanedContent = cleanedContent.replace(/\*\*Note\s*:\s*([^*]+?)\*\*/gi, 'Note: $1');
+      setImprovedContent(cleanedContent);
     } catch (err) {
       console.error('[AI-Helper] ❌ Erreur:', err);
       if (err instanceof Error && err.message === 'EMPTY_CONTENT') {
@@ -136,7 +174,16 @@ export function AIContentHelper({
     try {
       console.log(`[AI-Helper] 🎨 Génération de contenu à partir du titre: ${title}`);
 
-      const response = await fetch('/.netlify/functions/improve-content', {
+      // En développement, utiliser l'URL de production si Netlify Dev n'est pas disponible
+      const isDev = import.meta.env.DEV;
+      const netlifyUrl = import.meta.env.VITE_APP_URL || 'https://centrinote.fr';
+      const functionUrl = isDev 
+        ? `${netlifyUrl}/.netlify/functions/improve-content`
+        : '/.netlify/functions/improve-content';
+      
+      console.log('🔗 [AIContentHelper] URL utilisée (génération titre):', functionUrl);
+
+      const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -157,7 +204,11 @@ export function AIContentHelper({
       }
 
       console.log(`[AI-Helper] ✅ Contenu généré en ${data.duration_ms}ms`);
-      setImprovedContent(data.improved || data.generated);
+      // Nettoyer les astérisques restants
+      let cleanedContent = data.improved || data.generated || '';
+      cleanedContent = cleanedContent.replace(/\*\*([^*]+?)\*\*/g, '$1');
+      cleanedContent = cleanedContent.replace(/\*\*Note\s*:\s*([^*]+?)\*\*/gi, 'Note: $1');
+      setImprovedContent(cleanedContent);
     } catch (err) {
       console.error('[AI-Helper] ❌ Erreur:', err);
       setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la génération');
