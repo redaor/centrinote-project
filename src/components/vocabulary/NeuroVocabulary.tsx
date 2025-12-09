@@ -52,6 +52,7 @@ import { EmptyVocabularyAlert } from './EmptyVocabularyAlert';
 import { AlphaFilter } from './AlphaFilter';
 import { AlphaFilterVertical } from './AlphaFilterVertical';
 import { useQuotaLimit } from '../../hooks/useQuotaLimit';
+import { supabase } from '../../lib/supabase';
 
 interface VocabularyStats {
   mastered: number;
@@ -769,21 +770,33 @@ export function NeuroVocabulary() {
       const prompt = `Génère une définition claire et concise du mot suivant en français : "${newWord.term}".
       La définition doit être pédagogique et facile à comprendre, en 2-3 phrases maximum.`;
 
-      const response = await fetch('/api/ai-chat', {
+      // Récupérer le token d'authentification
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      // Utiliser l'URL Supabase Edge Function (compatible local et production)
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const apiUrl = `${supabaseUrl}/functions/v1/ai-chat`;
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({
-          message: prompt,
-          userId: user?.id
+          question: prompt
         })
       });
 
       if (!response.ok) {
-        throw new Error('Erreur lors de la génération de la définition');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Erreur API:', errorData);
+        throw new Error(errorData.error || 'Erreur lors de la génération de la définition');
       }
 
       const data = await response.json();
-      const generatedDefinition = data.response || data.message || '';
+      const generatedDefinition = data.reply || data.response || data.message || '';
 
       if (generatedDefinition) {
         setNewWord(prev => ({ ...prev, definition: generatedDefinition }));

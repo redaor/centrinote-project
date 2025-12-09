@@ -46,7 +46,9 @@
       "Bash(kill:*)",
       "Bash(then grep -r \"sk-proj\\|GOCSPX\\|whsec_\\|BSA\\|9e75426e\" dist/)",
       "Bash(./check-secrets.sh)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(python3:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []
