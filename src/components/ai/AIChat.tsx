@@ -29,6 +29,7 @@ import { SegmentedMessage } from './SegmentedMessage';
 import { NoteoMessageWrapper } from './NoteoMessageWrapper';
 import { analyzeMessage } from '../../utils/noteoMessageDetector';
 import { useQuotaLimit } from '../../hooks/useQuotaLimit';
+import { GhostTextArea } from '../../features/ghost-text';
 
 interface Message {
   id: string;
@@ -485,28 +486,21 @@ export function AIChat() {
             throw new Error('Non authentifié');
           }
 
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-          const response = await fetch(`${supabaseUrl}/functions/v1/noteo-orchestrator`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+          // Appel via Supabase Edge Function (clé API stockée uniquement dans Supabase)
+          const { data: orchestratorData, error: orchestratorError } = await supabase.functions.invoke('noteo-orchestrator', {
+            body: {
               message,
-              apiKey: import.meta.env.VITE_OPENAI_CHAT_KEY || '',
-            }),
+              service: 'chat', // Déterminer le service automatiquement
+            },
           });
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Orchestrateur error: ${response.status} - ${errorText}`);
+          if (orchestratorError) {
+            throw new Error(`Orchestrateur error: ${orchestratorError.message}`);
           }
 
-          const data = await response.json();
           memoryResponse = {
             success: true,
-            response: data.reply || '',
+            response: orchestratorData?.reply || '',
             error: undefined,
           };
 
@@ -1061,62 +1055,63 @@ export function AIChat() {
         </div>
       </motion.div>
 
-      {/* Zone de Messages Modernisée - ULTRA COMPACT */}
+      {/* Zone de Messages Modernisée - Style Notion/Copilot */}
       <AnimatePresence>
         {!isMinimized && (
           <motion.div
-            className="flex-1 overflow-y-auto px-2 py-2 bg-gradient-to-b from-transparent to-slate-50/50 dark:to-gray-900/50"
-            style={{ minHeight: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}
+            className="flex-1 overflow-y-auto px-4 py-4 bg-gradient-to-b from-transparent to-slate-50/50 dark:to-gray-900/50"
+            style={{ minHeight: '150px' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {isLoadingMessages ? (
-              <motion.div
-                className="flex items-center justify-center py-12"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-              >
-                <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
-                  <p className="text-sm text-slate-600 dark:text-gray-400">Chargement...</p>
-                </div>
-              </motion.div>
-            ) : messages.length === 0 && segments.length === 0 ? (
-              <motion.div
-                className="flex items-center justify-center h-full min-h-[300px]"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <div className="text-center">
-                  <motion.div
-                    className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                  >
-                    <Brain className="w-8 h-8 text-white" />
-                  </motion.div>
-                  <p className="text-slate-600 dark:text-gray-400">Aucun message pour le moment. Posez votre question ci-dessous !</p>
-                </div>
-              </motion.div>
-            ) : null}
+            <div className="max-w-4xl mx-auto flex flex-col gap-6 px-4">
+              {isLoadingMessages ? (
+                <motion.div
+                  className="flex items-center justify-center py-12"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+                    <p className="text-sm text-slate-600 dark:text-gray-400">Chargement...</p>
+                  </div>
+                </motion.div>
+              ) : messages.length === 0 && segments.length === 0 ? (
+                <motion.div
+                  className="flex items-center justify-center h-full min-h-[300px]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <div className="text-center">
+                    <motion.div
+                      className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                    >
+                      <Brain className="w-8 h-8 text-white" />
+                    </motion.div>
+                    <p className="text-slate-600 dark:text-gray-400">Aucun message pour le moment. Posez votre question ci-dessous !</p>
+                  </div>
+                </motion.div>
+              ) : null}
 
-            {/* Afficher les segments de message si disponibles */}
-            {segments.length > 0 && (
+              {/* Afficher les segments de message si disponibles */}
+              {segments.length > 0 && (
+                <AnimatePresence>
+                  {segments.map((segment, index) => (
+                    <SegmentedMessage
+                      key={segment.id}
+                      segment={segment}
+                      index={index}
+                      darkMode={darkMode}
+                    />
+                  ))}
+                </AnimatePresence>
+              )}
+
               <AnimatePresence>
-                {segments.map((segment, index) => (
-                  <SegmentedMessage
-                    key={segment.id}
-                    segment={segment}
-                    index={index}
-                    darkMode={darkMode}
-                  />
-                ))}
-              </AnimatePresence>
-            )}
-
-            <AnimatePresence>
-              {messages.map((message, index) => {
+                {messages.map((message, index) => {
                 if (!message.content || message.content.trim().length === 0) {
                   return null;
                 }
@@ -1131,26 +1126,38 @@ export function AIChat() {
                     return (
                       <motion.div
                         key={message.id}
-                        className="w-full mb-4"
-                        initial={{ opacity: 0, y: 20 }}
+                        className="flex justify-center gap-2 w-full"
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.4 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
                       >
-                        <NoteoMessageWrapper
-                          content={message.content}
-                          problemType={messageAnalysis.problemType || 'general'}
-                          userName={user?.name}
-                          darkMode={darkMode}
-                          onSuccess={() => {
-                            console.log('✅ Problème résolu');
-                            // Optionnel : ajouter un message de confirmation
-                          }}
-                          onFailure={() => {
-                            console.log('❌ Problème persiste');
-                            // Optionnel : demander plus d'informations
-                          }}
-                        />
+                        <motion.div
+                          className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center"
+                          whileHover={{ scale: 1.05 }}
+                        >
+                          <Brain className="w-3.5 h-3.5 text-white" />
+                        </motion.div>
+                        <div className="flex justify-center w-full">
+                          <div className="max-w-3xl w-full">
+                            <div className="mb-4">
+                              <NoteoMessageWrapper
+                              content={message.content}
+                              problemType={messageAnalysis.problemType || 'general'}
+                              userName={user?.name}
+                              darkMode={darkMode}
+                              onSuccess={() => {
+                                console.log('✅ Problème résolu');
+                                // Optionnel : ajouter un message de confirmation
+                              }}
+                              onFailure={() => {
+                                console.log('❌ Problème persiste');
+                                // Optionnel : demander plus d'informations
+                              }}
+                            />
+                            </div>
+                          </div>
+                        </div>
                       </motion.div>
                     );
                   }
@@ -1159,58 +1166,61 @@ export function AIChat() {
                   return (
                     <motion.div
                       key={message.id}
-                      className="flex justify-start gap-2"
+                      className="flex justify-center gap-2 w-full"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      style={{ margin: 0 }}
                     >
                       <motion.div
-                        className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center"
+                        className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center"
                         whileHover={{ scale: 1.05 }}
                       >
                         <Brain className="w-3.5 h-3.5 text-white" />
                       </motion.div>
-                      <div className="flex-1 max-w-[85%]">
-                        <motion.div
-                          className="bg-[#f1f1f1] dark:bg-gray-800/60 rounded-lg border border-slate-200/50 dark:border-gray-700/50 relative"
-                          style={{ padding: '0.5rem 0.7rem', margin: 0 }}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
+                      <div className="flex justify-center w-full">
+                        <div className="max-w-3xl w-full">
+                          <motion.div
+                            className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl px-6 py-4 shadow-sm mb-4"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.05 }}
                         >
-                          <div className="text-slate-900 dark:text-gray-100 whitespace-pre-wrap text-sm" style={{ lineHeight: 1.3, margin: 0 }}>
-                            {message.content}
+                          {/* Contenu structuré avec Tailwind Prose */}
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <div className="whitespace-pre-wrap leading-relaxed">
+                              {message.content}
+                            </div>
                           </div>
-                          <div className="flex items-center justify-end gap-1.5 mt-1">
+                          <div className="flex items-center justify-end gap-1.5 mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
                             <motion.button
-                              className="p-0.5 rounded transition-all duration-150 opacity-50 hover:opacity-85"
-                              whileHover={{ scale: 1.12 }}
+                              className="p-1.5 rounded transition-all duration-150 opacity-60 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.95 }}
                               title="Copier"
                               onClick={() => navigator.clipboard.writeText(message.content)}
                             >
-                              <Copy className="w-[16px] h-[16px] text-gray-600 dark:text-gray-400" style={{ strokeWidth: 1.8 }} />
+                              <Copy className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                             </motion.button>
                             <motion.button
-                              className="p-0.5 rounded transition-all duration-150 opacity-50 hover:opacity-85"
-                              whileHover={{ scale: 1.12 }}
+                              className="p-1.5 rounded transition-all duration-150 opacity-60 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.95 }}
                               title="Régénérer"
                             >
-                              <RefreshCw className="w-[16px] h-[16px] text-gray-600 dark:text-gray-400" style={{ strokeWidth: 1.8 }} />
+                              <RefreshCw className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                             </motion.button>
                             <motion.button
-                              className="p-0.5 rounded transition-all duration-150 opacity-50 hover:opacity-85"
-                              whileHover={{ scale: 1.12 }}
+                              className="p-1.5 rounded transition-all duration-150 opacity-60 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.95 }}
                               title="J'aime"
                             >
-                              <ThumbsUp className="w-[16px] h-[16px] text-blue-600 dark:text-blue-400" style={{ strokeWidth: 1.8 }} />
+                              <ThumbsUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                             </motion.button>
                           </div>
                         </motion.div>
+                        </div>
                       </div>
                     </motion.div>
                   );
@@ -1244,27 +1254,28 @@ export function AIChat() {
                   return (
                     <motion.div
                       key={message.id}
-                      className="flex justify-end gap-2"
+                      className="flex justify-center gap-2 w-full"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      style={{ margin: 0 }}
                     >
-                      <div className="flex-1 max-w-[85%] flex justify-end">
-                        <motion.div
-                          className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg"
-                          style={{ padding: '0.5rem 0.7rem', margin: 0 }}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
+                      <div className="flex justify-center w-full">
+                        <div className="max-w-3xl w-full">
+                          <motion.div
+                            className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl px-6 py-4 shadow-sm mb-4"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.05 }}
                         >
-                          <div className="whitespace-pre-wrap text-sm" style={{ lineHeight: 1.3, margin: 0 }}>
-                            {message.content}
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <div className="whitespace-pre-wrap leading-relaxed">
+                              {message.content}
+                            </div>
                           </div>
                         </motion.div>
+                        </div>
                       </div>
-                      <UserAvatar />
                     </motion.div>
                   );
                 }
@@ -1274,18 +1285,20 @@ export function AIChat() {
                   return (
                     <motion.div
                       key={message.id}
-                      className="flex justify-start"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
+                      className="flex justify-center w-full"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
                     >
-                      <div className="max-w-[70%] md:max-w-[75%] bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
-                          <span className="text-sm font-medium text-red-800 dark:text-red-200">Erreur</span>
+                      <div className="max-w-3xl w-full">
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-6 py-4 mb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                            <span className="text-sm font-medium text-red-800 dark:text-red-200">Erreur</span>
+                          </div>
+                          <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap" style={{ lineHeight: 1.6 }}>
+                            {message.content}
+                          </p>
                         </div>
-                        <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">
-                          {message.content}
-                        </p>
                       </div>
                     </motion.div>
                   );
@@ -1296,43 +1309,49 @@ export function AIChat() {
                   return (
                     <motion.div
                       key={message.id}
-                      className="flex justify-start"
-                      initial={{ opacity: 0, y: 20 }}
+                      className="flex justify-center w-full"
+                      initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                     >
-                      <div className="max-w-[85%] bg-slate-900 dark:bg-gray-950 border border-slate-700 dark:border-gray-800 rounded-xl p-4 overflow-x-auto">
-                        <pre className="text-sm text-slate-100 font-mono whitespace-pre-wrap">
+                      <div className="max-w-3xl w-full">
+                        <div className="bg-slate-900 dark:bg-gray-950 border border-slate-700 dark:border-gray-800 rounded-2xl px-6 py-4 overflow-x-auto mb-4">
+                        <pre className="text-sm text-slate-100 font-mono whitespace-pre-wrap" style={{ lineHeight: 1.6 }}>
                           <code>{message.content}</code>
                         </pre>
+                        </div>
                       </div>
                     </motion.div>
                   );
                 }
 
                 return null;
-              })}
-            </AnimatePresence>
+                })}
+              </AnimatePresence>
 
-            {isLoading && (
-              <motion.div
-                className="flex justify-start gap-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                style={{ margin: 0 }}
-              >
-                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                  <Brain className="w-3.5 h-3.5 text-white" />
-                </div>
-                <div className="bg-[#f1f1f1] dark:bg-gray-800/60 rounded-lg border border-slate-200/50 dark:border-gray-700/50" style={{ padding: '0.5rem 0.7rem', margin: 0 }}>
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400" />
-                    <span className="text-sm text-slate-600 dark:text-gray-400" style={{ lineHeight: 1.3 }}>L'IA réfléchit...</span>
+              {isLoading && (
+                <div className="flex justify-center w-full">
+                  <div className="max-w-3xl w-full">
+                    <motion.div
+                      className="flex gap-2 w-full"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                        <Brain className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="bg-[#f1f1f1] dark:bg-gray-800/60 rounded-lg border border-slate-200/50 dark:border-gray-700/50 px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400" />
+                          <span className="text-sm text-slate-600 dark:text-gray-400" style={{ lineHeight: 1.3 }}>L'IA réfléchit...</span>
+                        </div>
+                      </div>
+                    </motion.div>
                   </div>
                 </div>
-              </motion.div>
-            )}
+              )}
 
-            <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1414,74 +1433,95 @@ export function AIChat() {
                 }}
               />
 
-              <motion.div
-                className="flex items-end gap-2 p-2 bg-slate-50 dark:bg-gray-800/50 rounded-2xl border border-slate-200 dark:border-gray-700 focus-within:border-blue-500 dark:focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-200"
-                whileFocus={{ scale: 1.01 }}
-              >
-                {/* Bouton Pièce jointe */}
-                <motion.button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading || !isReady}
-                  className="p-2.5 rounded-xl bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  title="Joindre un fichier"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  aria-label="Joindre un fichier"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </motion.button>
-
-                {/* Zone de saisie */}
-                <div className="flex-1 flex items-center gap-2">
-                  <textarea
-                    id="rechercheIA"
-                    value={inputValue}
-                    onChange={(e) => {
-                      setInputValue(e.target.value);
-                      e.target.style.height = 'auto';
-                      e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
-                    }}
-                    onKeyDown={(e) => {
-                      // Entrée sans Shift = envoyer le message
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend(e as any);
-                      }
-                      // Shift + Entrée = nouvelle ligne (comportement par défaut du textarea)
-                    }}
-                    placeholder={selectedFile ? "Posez une question sur ce document..." : "Tapez votre message..."}
-                    className="flex-1 px-3 py-2 bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500 resize-none focus:outline-none text-xs leading-relaxed max-h-[100px]"
+              {/* Zone de saisie séparée - Style Notion/Copilot */}
+              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex justify-center px-4">
+                <div className="max-w-2xl w-full">
+                  <motion.div
+                    className="flex items-center gap-2 w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-400/20 transition-all duration-200"
+                    whileFocus={{ scale: 1.005 }}
+                    style={{ padding: '0.5rem 0.75rem' }}
+                  >
+                  {/* Bouton Pièce jointe */}
+                  <motion.button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
                     disabled={isLoading || !isReady}
-                    rows={1}
-                    style={{ minHeight: '36px' }}
-                    aria-label="Zone de saisie de message"
-                  />
-                  {/* Bouton de reconnaissance vocale */}
-                  <VoiceRecognition inputId="rechercheIA" submitButtonId="notes" />
-                </div>
+                    className="p-1.5 rounded-lg bg-transparent text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                    title="Joindre un fichier"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    aria-label="Joindre un fichier"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </motion.button>
 
-                {/* Bouton Envoyer */}
-                <motion.button
-                  id="notes"
-                  type="submit"
-                  disabled={isLoading || !isReady || !inputValue.trim()}
-                  className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center ${
-                    isLoading || !isReady || !inputValue.trim()
-                      ? 'bg-slate-200 dark:bg-gray-700 text-slate-400 dark:text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40'
-                  }`}
-                  whileHover={!isLoading && isReady && inputValue.trim() ? { scale: 1.05 } : {}}
-                  whileTap={!isLoading && isReady && inputValue.trim() ? { scale: 0.95 } : {}}
-                  aria-label="Envoyer le message"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Send className="w-5 h-5" />
-                  )}
-                </motion.button>
-              </motion.div>
+                  {/* Zone de saisie avec ghost-text auto-completion */}
+                  <div className="flex-1 flex items-center gap-1.5 relative overflow-hidden">
+                    <GhostTextArea
+                      id="rechercheIA"
+                      value={inputValue}
+                      onChange={setInputValue}
+                      onKeyDown={(e) => {
+                        // Entrée sans Shift = envoyer le message
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend(e as any);
+                        }
+                        // Shift + Entrée = nouvelle ligne (comportement par défaut)
+                      }}
+                      placeholder={selectedFile ? "Posez une question sur ce document..." : "Tapez votre message..."}
+                      className="flex-1 px-2 py-2.5 bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500 resize-none focus:outline-none text-xs leading-normal scrollbar-hide"
+                      disabled={isLoading || !isReady}
+                      rows={1}
+                      style={{
+                        minHeight: '40px',
+                        maxHeight: '200px',
+                        height: 'auto',
+                        lineHeight: '1.4',
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'normal',
+                        resize: 'none',
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        direction: 'ltr',
+                      }}
+                      aria-label="Zone de saisie de message"
+                      context="chat"
+                      userId={user?.id}
+                      enabled={false}
+                      darkMode={darkMode}
+                    />
+                    {/* Bouton de reconnaissance vocale */}
+                    <VoiceRecognition inputId="rechercheIA" submitButtonId="notes" />
+                  </div>
+
+                  {/* Bouton Envoyer */}
+                  <motion.button
+                    id="notes"
+                    type="submit"
+                    disabled={isLoading || !isReady || !inputValue.trim()}
+                    className={`p-1.5 rounded-lg transition-all duration-200 flex items-center justify-center flex-shrink-0 ${
+                      isLoading || !isReady || !inputValue.trim()
+                        ? 'bg-slate-200 dark:bg-gray-700 text-slate-400 dark:text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-400 to-purple-400 text-white shadow-md shadow-blue-400/20 hover:shadow-lg hover:shadow-blue-400/30'
+                    }`}
+                    whileHover={!isLoading && isReady && inputValue.trim() ? { scale: 1.05 } : {}}
+                    whileTap={!isLoading && isReady && inputValue.trim() ? { scale: 0.95 } : {}}
+                    aria-label="Envoyer le message"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </motion.button>
+                </motion.div>
+                </div>
+              </div>
             </form>
           </motion.div>
         )}
