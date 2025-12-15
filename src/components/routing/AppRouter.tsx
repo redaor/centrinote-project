@@ -176,6 +176,22 @@ export function AppRouter() {
         {/* Route de diagnostic Settings + IA - DEV ONLY */}
         <Route path="/debug/settings-ia" element={<SettingsIADiagnostic />} />
         
+        {/* Page de démo Ghost-Text */}
+        <Route 
+          path="/ghost-text-demo" 
+          element={
+            <ProtectedRoute>
+              <AppProvider>
+                <MeetingsProvider>
+                  <LanguageProvider>
+                    <AppLayout />
+                  </LanguageProvider>
+                </MeetingsProvider>
+              </AppProvider>
+            </ProtectedRoute>
+          } 
+        />
+        
         {/* Routes protégées pour les utilisateurs connectés - AVEC PROVIDERS */}
         <Route 
           path="/dashboard" 

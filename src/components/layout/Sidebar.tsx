@@ -25,7 +25,7 @@ const DEBUG = import.meta.env.DEV;
 
 const menuItems = [
   { id: 'dashboard', label: 'dashboard', icon: Home },
-  { id: 'notes', label: 'notes', icon: StickyNote },
+  { id: 'notes', label: 'Notes', icon: StickyNote },
   { id: 'vocabulary', label: 'vocabulary', icon: BookOpen },
   { id: 'meetings', label: 'Réunions', icon: Video },
   { id: 'search', label: 'search', icon: Search },
@@ -162,7 +162,7 @@ export function Sidebar() {
                     <Icon className="w-6 h-6 lg:w-5 lg:h-5 flex-shrink-0" />
                     {!sidebarCollapsed && (
                       <span className="font-medium text-base lg:text-sm">
-                        {item.id === 'automation' || item.id === 'meetings' || item.id === 'admin' ? item.label : t(item.label as any)}
+                        {item.id === 'automation' || item.id === 'meetings' || item.id === 'admin' || item.id === 'notes' ? item.label : t(item.label as any)}
                       </span>
                     )}
                   </button>

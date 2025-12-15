@@ -1,9 +1,10 @@
 // 📋 Liste des réunions Daily.co
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Plus, Calendar, Clock, Users, Video, Play, Trash2, 
-  MoreVertical, Copy, Loader2, Search, Filter, AlertCircle, Mail, FileText, CheckCircle
+import {
+  Plus, Calendar, Clock, Users, Video, Play, Trash2,
+  MoreVertical, Copy, Loader2, Search, Filter, AlertCircle, Mail, FileText, CheckCircle,
+  ArrowDownAZ, ArrowUpZA, X
 } from 'lucide-react';
 import { useMeetings, Meeting } from '../../hooks/useMeetings';
 import { useApp } from '../../contexts/AppContext';
@@ -77,6 +78,8 @@ export function MeetingList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'scheduled' | 'active' | 'completed'>('all');
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc'); // A-Z par défaut
+  const [completedSearchTerm, setCompletedSearchTerm] = useState(''); // Recherche spécifique aux réunions terminées
   
   // États pour le formulaire de création avec participants
   const [formTitle, setFormTitle] = useState('');
@@ -339,7 +342,7 @@ export function MeetingList() {
     }
   };
 
-  // 🚀 PERFORMANCE: Mémoriser le filtrage des réunions
+  // 🚀 PERFORMANCE: Mémoriser le filtrage des réunions (sans tri ni recherche)
   const filteredMeetings = useMemo(() => {
     return meetings.filter(meeting => {
       const matchesSearch = !searchTerm ||
@@ -350,19 +353,48 @@ export function MeetingList() {
     });
   }, [meetings, searchTerm, filterStatus]);
 
-  // Séparer les réunions terminées des autres
+  // Séparer les réunions terminées avec recherche et tri spécifiques
   const completedMeetings = useMemo(() => {
-    return filteredMeetings.filter(meeting => {
+    const completed = filteredMeetings.filter(meeting => {
       const hasRecording = !!meeting.recording_url;
       const hasTranscript = !!meeting.transcript;
       const hasSummary = !!meeting.ai_summary;
-      return meeting.status === 'completed' || 
-             !!meeting.ended_at || 
-             hasRecording || 
-             hasTranscript || 
+      return meeting.status === 'completed' ||
+             !!meeting.ended_at ||
+             hasRecording ||
+             hasTranscript ||
              hasSummary;
     });
-  }, [filteredMeetings]);
+
+    console.log('🔍 [COMPLETED] Réunions terminées avant recherche:', completed.length, completed.map(m => m.title));
+
+    // Appliquer la recherche spécifique aux réunions terminées
+    const searched = completed.filter(meeting => {
+      if (!completedSearchTerm) return true;
+      return meeting.title.toLowerCase().includes(completedSearchTerm.toLowerCase()) ||
+             meeting.description?.toLowerCase().includes(completedSearchTerm.toLowerCase());
+    });
+
+    console.log('🔍 [COMPLETED] Après recherche (term="' + completedSearchTerm + '"):', searched.length, searched.map(m => m.title));
+
+    // Appliquer le tri alphabétique (créer une copie pour éviter la mutation)
+    const sorted = [...searched].sort((a, b) => {
+      const titleA = (a.title || '').toLowerCase();
+      const titleB = (b.title || '').toLowerCase();
+      const comparison = titleA.localeCompare(titleB, 'fr-FR', {
+        sensitivity: 'base',
+        numeric: true
+      });
+      // asc = A-Z (comparison normal), desc = Z-A (comparison inversé)
+      const result = sortOrder === 'asc' ? comparison : -comparison;
+      return result;
+    });
+
+    console.log('🔍 [COMPLETED] Après tri (' + sortOrder + '):', sorted.length, sorted.map(m => m.title));
+    console.log('🔍 [COMPLETED] Premier titre:', sorted[0]?.title, '| Dernier titre:', sorted[sorted.length - 1]?.title);
+
+    return sorted;
+  }, [filteredMeetings, completedSearchTerm, sortOrder]);
 
   const activeMeetings = useMemo(() => {
     return filteredMeetings.filter(meeting => {
@@ -689,35 +721,111 @@ export function MeetingList() {
         {/* Section réunions terminées avec design moderne */}
         {completedMeetings.length > 0 && (
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 📊 Résumés de Réunion
               </h2>
-              <span className={`
-                text-sm px-3 py-1 rounded-full
-                ${darkMode 
-                  ? 'bg-gray-700 text-gray-300' 
-                  : 'bg-gray-100 text-gray-700'
-                }
-              `}>
-                {completedMeetings.length} {completedMeetings.length > 1 ? 'réunions' : 'réunion'}
-              </span>
+
+              {/* Barre de recherche et tri */}
+              <div className="flex items-center gap-2">
+                {/* Champ de recherche */}
+                <div className="relative flex-1 sm:w-64">
+                  <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 z-10 ${
+                    darkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`} />
+                  <input
+                    type="text"
+                    placeholder="Rechercher…"
+                    value={completedSearchTerm}
+                    onChange={(e) => setCompletedSearchTerm(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setCompletedSearchTerm('');
+                      }
+                    }}
+                    className={`
+                      w-full pl-9 pr-8 py-1.5 rounded-lg text-sm border-2
+                      transition-all duration-200
+                      ${darkMode
+                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-blue-500'
+                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-blue-400'
+                      }
+                      focus:outline-none focus:ring-2 focus:ring-blue-500/20
+                    `}
+                  />
+                  {/* Bouton pour vider la recherche */}
+                  <button
+                    onClick={() => setCompletedSearchTerm('')}
+                    className={`
+                      absolute right-1.5 top-1/2 transform -translate-y-1/2 p-0.5 rounded
+                      transition-all z-20
+                      ${completedSearchTerm
+                        ? 'opacity-100 pointer-events-auto hover:bg-gray-100 dark:hover:bg-gray-700'
+                        : 'opacity-0 pointer-events-none'
+                      }
+                    `}
+                    aria-label="Vider la recherche"
+                    tabIndex={completedSearchTerm ? 0 : -1}
+                  >
+                    <X className="w-3 h-3 text-gray-400" />
+                  </button>
+                </div>
+
+                {/* Bouton de tri A-Z / Z-A */}
+                <button
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  className={`
+                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                    transition-all duration-200 whitespace-nowrap
+                    ${darkMode
+                      ? 'bg-gray-800 text-gray-200 hover:bg-gray-700 border-2 border-gray-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-gray-200'
+                    }
+                  `}
+                  aria-label={sortOrder === 'asc' ? 'Trier A-Z' : 'Trier Z-A'}
+                  title={sortOrder === 'asc' ? 'Trier A-Z' : 'Trier Z-A'}
+                >
+                  {sortOrder === 'asc' ? (
+                    <ArrowDownAZ className="w-3.5 h-3.5" />
+                  ) : (
+                    <ArrowUpZA className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline text-[10px]">{sortOrder === 'asc' ? 'A-Z' : 'Z-A'}</span>
+                </button>
+
+                {/* Badge compteur */}
+                <span className={`
+                  text-sm px-3 py-1.5 rounded-lg
+                  ${darkMode
+                    ? 'bg-gray-800 text-gray-300 border-2 border-gray-700'
+                    : 'bg-gray-100 text-gray-700 border-2 border-gray-200'
+                  }
+                `}>
+                  {completedMeetings.length}
+                </span>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {completedMeetings.map((meeting, index) => (
-                <ModernCompletedMeetingCard
-                  key={meeting.id}
-                  meeting={meeting}
-                  darkMode={darkMode}
-                  index={index}
-                  onViewSummary={(meetingId) => navigate(`/meetings/${meetingId}/summary`)}
-                  onDownloadSummary={(meetingId) => {
-                    // TODO: Implémenter le téléchargement
-                    console.log('Télécharger résumé:', meetingId);
-                  }}
-                  onRefresh={refresh}
-                />
-              ))}
+              {completedMeetings.map((meeting, idx) => {
+                if (idx === 0) {
+                  console.log(`🔍 [MAP] Rendering ${completedMeetings.length} cards, sortOrder: ${sortOrder}`);
+                }
+                return (
+                  <div key={meeting.id} className="w-full">
+                    <ModernCompletedMeetingCard
+                      meeting={meeting}
+                      darkMode={darkMode}
+                      index={idx}
+                      onViewSummary={(meetingId) => navigate(`/meetings/${meetingId}/summary`)}
+                      onDownloadSummary={(meetingId) => {
+                        // TODO: Implémenter le téléchargement
+                        console.log('Télécharger résumé:', meetingId);
+                      }}
+                      onRefresh={refresh}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

@@ -29,6 +29,7 @@ import { Modal } from '../ui/Modal';
 import { VocabEditModal } from './VocabEditModal';
 import { Button } from '../ui/Button';
 import { ProgressBar } from '../ui/LoadingStates';
+import { GhostTextArea, GhostInput } from '../../features/ghost-text';
 
 type SortOption = 'alphabetical' | 'category' | 'mastery-asc' | 'mastery-desc' | 'difficulty-asc' | 'difficulty-desc' | 'recent';
 
@@ -896,10 +897,13 @@ export function VocabularyNotebook() {
               <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                 Mot *
               </label>
-              <input
-                type="text"
+              <GhostInput
                 value={formData.word}
-                onChange={(e) => setFormData({...formData, word: e.target.value})}
+                onChange={(value) => setFormData({...formData, word: value})}
+                context="vocab"
+                userId={user?.id}
+                enabled={false}
+                darkMode={darkMode}
                 className={`
                   w-full px-3 py-2 rounded-lg border transition-colors
                   ${darkMode
@@ -916,9 +920,13 @@ export function VocabularyNotebook() {
               <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                 Définition *
               </label>
-              <textarea
+              <GhostTextArea
                 value={formData.definition}
-                onChange={(e) => setFormData({...formData, definition: e.target.value})}
+                onChange={(value) => setFormData({...formData, definition: value})}
+                context="vocab"
+                userId={user?.id}
+                enabled={false}
+                darkMode={darkMode}
                 rows={3}
                 className={`
                   w-full px-3 py-2 rounded-lg border transition-colors resize-none
@@ -965,10 +973,13 @@ export function VocabularyNotebook() {
               <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                 Exemple
               </label>
-              <input
-                type="text"
+              <GhostInput
                 value={formData.example}
-                onChange={(e) => setFormData({...formData, example: e.target.value})}
+                onChange={(value) => setFormData({...formData, example: value})}
+                context="vocab"
+                userId={user?.id}
+                enabled={false}
+                darkMode={darkMode}
                 className={`
                   w-full px-3 py-2 rounded-lg border transition-colors
                   ${darkMode

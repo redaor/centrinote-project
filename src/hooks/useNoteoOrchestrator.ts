@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 
 /**
  * Hook pour utiliser l'orchestrateur Noteo
@@ -22,16 +23,6 @@ export function useNoteoOrchestrator() {
   const [error, setError] = useState<string | null>(null);
   const [lastReply, setLastReply] = useState<string | null>(null);
 
-  // Mapping des services vers les clés d'environnement
-  const getApiKey = useCallback((service: NoteoService): string | undefined => {
-    const keyMap = {
-      search: import.meta.env.VITE_OPENAI_SEARCH_KEY,
-      chat: import.meta.env.VITE_OPENAI_CHAT_KEY,
-      aide: import.meta.env.VITE_OPENAI_AIDE_KEY,
-    };
-    return keyMap[service];
-  }, []);
-
   const sendMessage = useCallback(
     async (
       message: string,
@@ -41,44 +32,26 @@ export function useNoteoOrchestrator() {
       setError(null);
 
       try {
-        const apiKey = getApiKey(options.service);
-        if (!apiKey) {
-          throw new Error(`Clé API manquante pour le service "${options.service}"`);
+        // Appel via Supabase Edge Function (clés API stockées uniquement dans Supabase)
+        const { data, error: invokeError } = await supabase.functions.invoke('noteo-orchestrator', {
+          body: {
+            message,
+            service: options.service,
+          },
+        });
+
+        if (invokeError) {
+          throw new Error(invokeError.message || 'Erreur lors de l\'appel à l\'orchestrateur');
         }
 
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        if (!supabaseUrl) {
-          throw new Error('URL Supabase manquante');
-        }
-
-        const response = await fetch(
-          `${supabaseUrl}/functions/v1/noteo-orchestrator`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({
-              message,
-              apiKey,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
-          throw new Error(errorData.error || `Erreur ${response.status}`);
-        }
-
-        const data = await response.json();
-        setLastReply(data.reply);
+        const reply = data?.reply || '';
+        setLastReply(reply);
 
         if (options.onSuccess) {
-          options.onSuccess(data.reply);
+          options.onSuccess(reply);
         }
 
-        return data;
+        return { reply } as OrchestratorResponse;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
         setError(errorMessage);

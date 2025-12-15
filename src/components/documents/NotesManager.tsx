@@ -25,6 +25,8 @@ import { useNotes } from '../../hooks/useNotes';
 import { useApp } from '../../contexts/AppContext';
 import { Note, Tag } from '../../types';
 import { DatabaseErrorMessage } from '../common/DatabaseErrorMessage';
+import { useTextCorrection } from '../../hooks/useTextCorrection';
+import { SuggestionPanel } from '../ai/SuggestionPanel';
 
 const NotesManager: React.FC = () => {
   const { state } = useApp();
@@ -62,6 +64,17 @@ const NotesManager: React.FC = () => {
     title: '',
     content: '',
     tags: ''
+  });
+
+  // Hooks de correction de texte
+  const titleCorrection = useTextCorrection({
+    enableAutoCorrect: true,
+    enableSuggestions: true,
+  });
+
+  const contentCorrection = useTextCorrection({
+    enableAutoCorrect: true,
+    enableSuggestions: true,
   });
 
   // Refs
@@ -815,40 +828,85 @@ const NotesManager: React.FC = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6">
               <div className="space-y-4">
-                <div>
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Titre *
                   </label>
+                  <SuggestionPanel
+                    suggestions={titleCorrection.suggestions}
+                    onApply={(suggestionId) => {
+                      const newValue = titleCorrection.applySuggestion(suggestionId, formData.title);
+                      setFormData({...formData, title: newValue});
+                      titleCorrection.clearSuggestions();
+                    }}
+                    onDismiss={titleCorrection.clearSuggestions}
+                    onDismissAll={titleCorrection.clearSuggestions}
+                    darkMode={darkMode}
+                    isVisible={titleCorrection.suggestions.length > 0}
+                  />
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                    onChange={(e) => {
+                      const corrected = titleCorrection.applyAutoCorrections(e.target.value);
+                      setFormData({...formData, title: corrected});
+                      titleCorrection.analyzeLater(corrected);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') titleCorrection.clearSuggestions();
+                    }}
                     className={`
                       w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500
-                      ${darkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      ${darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
                       }
                     `}
                     placeholder="Titre de la note"
                   />
                 </div>
-                
-                <div>
+
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Contenu
                   </label>
+                  <SuggestionPanel
+                    suggestions={contentCorrection.suggestions}
+                    onApply={(suggestionId) => {
+                      const newValue = contentCorrection.applySuggestion(suggestionId, formData.content);
+                      setFormData({...formData, content: newValue});
+                      contentCorrection.clearSuggestions();
+                    }}
+                    onDismiss={contentCorrection.clearSuggestions}
+                    onDismissAll={contentCorrection.clearSuggestions}
+                    darkMode={darkMode}
+                    isVisible={contentCorrection.suggestions.length > 0}
+                  />
                   <textarea
                     value={formData.content}
-                    onChange={(e) => setFormData({...formData, content: e.target.value})}
+                    onChange={(e) => {
+                      const corrected = contentCorrection.applyAutoCorrections(e.target.value);
+                      console.log('🔍 Debug Content Correction:', {
+                        original: e.target.value,
+                        corrected: corrected,
+                        suggestionsCount: contentCorrection.suggestions.length,
+                        suggestions: contentCorrection.suggestions,
+                        isAnalyzing: contentCorrection.isAnalyzing,
+                      });
+                      setFormData({...formData, content: corrected});
+                      contentCorrection.analyzeLater(corrected);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') contentCorrection.clearSuggestions();
+                    }}
                     rows={6}
                     className={`
                       w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500
-                      ${darkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      ${darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
                       }
                     `}
@@ -923,40 +981,85 @@ const NotesManager: React.FC = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6">
               <div className="space-y-4">
-                <div>
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Titre *
                   </label>
+                  <SuggestionPanel
+                    suggestions={titleCorrection.suggestions}
+                    onApply={(suggestionId) => {
+                      const newValue = titleCorrection.applySuggestion(suggestionId, formData.title);
+                      setFormData({...formData, title: newValue});
+                      titleCorrection.clearSuggestions();
+                    }}
+                    onDismiss={titleCorrection.clearSuggestions}
+                    onDismissAll={titleCorrection.clearSuggestions}
+                    darkMode={darkMode}
+                    isVisible={titleCorrection.suggestions.length > 0}
+                  />
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                    onChange={(e) => {
+                      const corrected = titleCorrection.applyAutoCorrections(e.target.value);
+                      setFormData({...formData, title: corrected});
+                      titleCorrection.analyzeLater(corrected);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') titleCorrection.clearSuggestions();
+                    }}
                     className={`
                       w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500
-                      ${darkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      ${darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
                       }
                     `}
                     placeholder="Titre de la note"
                   />
                 </div>
-                
-                <div>
+
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Contenu
                   </label>
+                  <SuggestionPanel
+                    suggestions={contentCorrection.suggestions}
+                    onApply={(suggestionId) => {
+                      const newValue = contentCorrection.applySuggestion(suggestionId, formData.content);
+                      setFormData({...formData, content: newValue});
+                      contentCorrection.clearSuggestions();
+                    }}
+                    onDismiss={contentCorrection.clearSuggestions}
+                    onDismissAll={contentCorrection.clearSuggestions}
+                    darkMode={darkMode}
+                    isVisible={contentCorrection.suggestions.length > 0}
+                  />
                   <textarea
                     value={formData.content}
-                    onChange={(e) => setFormData({...formData, content: e.target.value})}
+                    onChange={(e) => {
+                      const corrected = contentCorrection.applyAutoCorrections(e.target.value);
+                      console.log('🔍 Debug Content Correction:', {
+                        original: e.target.value,
+                        corrected: corrected,
+                        suggestionsCount: contentCorrection.suggestions.length,
+                        suggestions: contentCorrection.suggestions,
+                        isAnalyzing: contentCorrection.isAnalyzing,
+                      });
+                      setFormData({...formData, content: corrected});
+                      contentCorrection.analyzeLater(corrected);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') contentCorrection.clearSuggestions();
+                    }}
                     rows={6}
                     className={`
                       w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500
-                      ${darkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      ${darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
                       }
                     `}

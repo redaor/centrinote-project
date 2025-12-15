@@ -3,7 +3,6 @@ import {
   Bell,
   Moon,
   Sun,
-  Search as SearchIcon,
   Menu,
   LogOut,
   User,
@@ -206,7 +205,6 @@ export function AppHeader() {
     return titles[currentView] || 'Centrinote';
   };
 
-  const shouldShowGlobalSearch = currentView !== 'search';
 
   return (
     <>
@@ -244,49 +242,6 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center space-x-2 lg:space-x-4">
-          {/* Recherche globale */}
-          {shouldShowGlobalSearch && (
-            <div className="relative hidden md:block">
-              <SearchIcon className={`
-                absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4
-                ${darkMode ? 'text-gray-400' : 'text-gray-500'}
-              `} />
-              <input
-                id="global-search-input"
-                name="global-search"
-                type="text"
-                placeholder={t('search_placeholder')}
-                className={`
-                  pl-10 pr-4 py-2 w-64 lg:w-80 rounded-lg border transition-colors text-sm
-                  ${darkMode 
-                    ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-blue-500' 
-                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                  }
-                  focus:outline-none focus:ring-2 focus:ring-blue-500/20
-                `}
-                aria-label="Recherche globale"
-              />
-            </div>
-          )}
-
-          {/* Bouton de recherche mobile */}
-          {shouldShowGlobalSearch && (
-            <button
-              id="mobile-search-button"
-              name="mobile-search"
-              className={`
-                md:hidden p-2 rounded-lg transition-colors min-w-[2.5rem] min-h-[2.5rem]
-                ${darkMode
-                  ? 'hover:bg-gray-800 text-gray-400 hover:text-white'
-                  : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-                }
-              `}
-              aria-label="Ouvrir la recherche"
-            >
-              <SearchIcon className="w-5 h-5" />
-            </button>
-          )}
-
           {/* Notifications */}
           <div className="relative">
             <BadgePulse

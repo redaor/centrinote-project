@@ -6,6 +6,8 @@
 import React, { useState } from 'react';
 import { useNoteoSearch, useNoteoChat, useNoteoAide } from '../../hooks/useNoteoOrchestrator';
 import { Search, MessageCircle, HelpCircle, Loader2 } from 'lucide-react';
+import { useTextCorrection } from '../../hooks/useTextCorrection';
+import { SuggestionPanel } from '../ai/SuggestionPanel';
 
 export function OrchestratorExample() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,6 +17,17 @@ export function OrchestratorExample() {
   const search = useNoteoSearch();
   const chat = useNoteoChat();
   const aide = useNoteoAide();
+
+  // Hooks de correction pour chaque champ
+  const chatCorrection = useTextCorrection({
+    enableAutoCorrect: true,
+    enableSuggestions: true,
+  });
+
+  const aideCorrection = useTextCorrection({
+    enableAutoCorrect: true,
+    enableSuggestions: true,
+  });
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,15 +113,36 @@ export function OrchestratorExample() {
           <MessageCircle className="w-5 h-5 text-green-600" />
           <h2 className="text-xl font-semibold">Chat Conversationnel</h2>
         </div>
-        <form onSubmit={handleChat} className="space-y-4">
-          <input
-            type="text"
-            value={chatMessage}
-            onChange={(e) => setChatMessage(e.target.value)}
-            placeholder="Bonjour, comment vas-tu ?"
-            className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
-            disabled={chat.loading}
-          />
+        <form onSubmit={handleChat} className="space-y-4 relative">
+          {/* Panneau de suggestions pour Chat */}
+          <div className="relative">
+            <SuggestionPanel
+              suggestions={chatCorrection.suggestions}
+              onApply={(suggestionId) => {
+                const newValue = chatCorrection.applySuggestion(suggestionId, chatMessage);
+                setChatMessage(newValue);
+                chatCorrection.clearSuggestions();
+              }}
+              onDismiss={chatCorrection.clearSuggestions}
+              onDismissAll={chatCorrection.clearSuggestions}
+              isVisible={chatCorrection.suggestions.length > 0 && !chat.loading}
+            />
+            <input
+              type="text"
+              value={chatMessage}
+              onChange={(e) => {
+                const corrected = chatCorrection.applyAutoCorrections(e.target.value);
+                setChatMessage(corrected);
+                chatCorrection.analyzeLater(corrected);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') chatCorrection.clearSuggestions();
+              }}
+              placeholder="Bonjour, comment vas-tu ?"
+              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+              disabled={chat.loading}
+            />
+          </div>
           <button
             type="submit"
             disabled={chat.loading || !chatMessage.trim()}
@@ -138,15 +172,36 @@ export function OrchestratorExample() {
           <HelpCircle className="w-5 h-5 text-purple-600" />
           <h2 className="text-xl font-semibold">Aide Guidée</h2>
         </div>
-        <form onSubmit={handleAide} className="space-y-4">
-          <input
-            type="text"
-            value={aideQuestion}
-            onChange={(e) => setAideQuestion(e.target.value)}
-            placeholder="Comment créer une nouvelle note ?"
-            className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
-            disabled={aide.loading}
-          />
+        <form onSubmit={handleAide} className="space-y-4 relative">
+          {/* Panneau de suggestions pour Aide */}
+          <div className="relative">
+            <SuggestionPanel
+              suggestions={aideCorrection.suggestions}
+              onApply={(suggestionId) => {
+                const newValue = aideCorrection.applySuggestion(suggestionId, aideQuestion);
+                setAideQuestion(newValue);
+                aideCorrection.clearSuggestions();
+              }}
+              onDismiss={aideCorrection.clearSuggestions}
+              onDismissAll={aideCorrection.clearSuggestions}
+              isVisible={aideCorrection.suggestions.length > 0 && !aide.loading}
+            />
+            <input
+              type="text"
+              value={aideQuestion}
+              onChange={(e) => {
+                const corrected = aideCorrection.applyAutoCorrections(e.target.value);
+                setAideQuestion(corrected);
+                aideCorrection.analyzeLater(corrected);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') aideCorrection.clearSuggestions();
+              }}
+              placeholder="Comment créer une nouvelle note ?"
+              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+              disabled={aide.loading}
+            />
+          </div>
           <button
             type="submit"
             disabled={aide.loading || !aideQuestion.trim()}

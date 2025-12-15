@@ -114,32 +114,29 @@ export function ModernNoteoMessage({
               {/* Message bubble style chat moderne */}
               <div className="flex gap-3 w-full">
                 {/* Avatar Noteo */}
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center shadow-md">
                   <Brain className="w-4 h-4 text-white" />
                 </div>
 
                 {/* Message content */}
                 <div className="flex-1 min-w-0">
                   {/* Message bubble */}
-                  <div className={`
-                    rounded-2xl rounded-tl-sm p-4 shadow-md border
-                    ${darkMode
-                      ? 'bg-gray-800 border-gray-700'
-                      : 'bg-white border-slate-200'
-                    }
-                  `}>
+                  <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-sm p-4 shadow-sm relative pl-5">
+                    <div 
+                      className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+                      style={{
+                        background: 'linear-gradient(to bottom, #60a5fa, #a78bfa)'
+                      }}
+                    />
                     {/* Header avec horodatage moderne */}
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`
-                        text-xs font-medium
-                        ${darkMode ? 'text-gray-400' : 'text-gray-500'}
-                      `}>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                         {segment.time}
                       </span>
                       <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
                       <div className="flex items-center gap-1.5">
                         {segment.isWelcome ? (
-                          <Brain className="w-3.5 h-3.5 text-blue-500" />
+                          <Brain className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                         ) : segment.isSummary ? (
                           <span className="text-sm">📊</span>
                         ) : segment.isIntro ? (
@@ -149,10 +146,7 @@ export function ModernNoteoMessage({
                         ) : (
                           <span className="text-base">{segment.emoji}</span>
                         )}
-                        <span className={`
-                          text-xs font-semibold
-                          ${darkMode ? 'text-blue-400' : 'text-blue-600'}
-                        `}>
+                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
                           {segment.isWelcome
                             ? 'Assistant Centrinote'
                             : segment.isSummary
@@ -165,10 +159,7 @@ export function ModernNoteoMessage({
                     </div>
 
                     {/* Contenu du message */}
-                    <div className={`
-                      text-sm leading-relaxed
-                      ${darkMode ? 'text-gray-100' : 'text-gray-900'}
-                    `}>
+                    <div className="text-sm leading-relaxed text-gray-900 dark:text-gray-100">
                       {/* Si c'est une étape numérotée, afficher le titre en gras */}
                       {isNumericStep && segment.title ? (
                         <>

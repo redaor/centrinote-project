@@ -160,16 +160,9 @@ export function ModernCompletedMeetingCard({
   // Nombre de participants
   const participantsCount = meeting.participants?.length || 0;
 
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{
-        duration: 0.4,
-        delay: index * 0.1,
-        ease: [0.4, 0, 0.2, 1]
-      }}
+    <div
       className={`
         rounded-xl border p-5
         ${darkMode 
@@ -180,9 +173,6 @@ export function ModernCompletedMeetingCard({
         transition-all duration-300
         hover:-translate-y-1
       `}
-      style={{
-        animationDelay: `${index * 0.1}s`
-      }}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
@@ -206,7 +196,7 @@ export function ModernCompletedMeetingCard({
 
       {/* Status Line */}
       <div className="flex items-center justify-between mb-4">
-        <motion.div
+        <div
           className={`
             flex items-center gap-2 px-3 py-1.5 rounded-lg
             border
@@ -216,9 +206,6 @@ export function ModernCompletedMeetingCard({
             borderColor: statusInfo.borderColor,
             color: statusInfo.textColor
           }}
-          initial={{ scale: 0.9 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.1 }}
         >
           <motion.div
             animate={statusInfo.status === 'generating' ? {
@@ -240,7 +227,7 @@ export function ModernCompletedMeetingCard({
                 : statusInfo.label
             }
           </span>
-        </motion.div>
+        </div>
 
         {/* Participants count */}
         {participantsCount > 0 && (
@@ -444,7 +431,7 @@ export function ModernCompletedMeetingCard({
           </motion.button>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 

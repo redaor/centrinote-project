@@ -42,7 +42,7 @@ function MessageBubble({ message, onCopy, onReformulate, onRetry }: MessageBubbl
     }
     
     return (
-      <div className="w-8 h-8 bg-gradient-to-br from-gray-500 to-gray-600 rounded-full flex items-center justify-center text-white">
+      <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center text-white">
         <Bot className="w-4 h-4" />
       </div>
     );
@@ -60,16 +60,23 @@ function MessageBubble({ message, onCopy, onReformulate, onRetry }: MessageBubbl
         <div className={`relative ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
           <div
             className={`
-              px-4 py-3 rounded-2xl max-w-full break-words
+              px-4 py-3 rounded-2xl max-w-full break-words relative
               ${isUser 
                 ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' 
                 : isError
                   ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                  : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm pl-5'
               }
-              shadow-sm
             `}
           >
+            {!isUser && !isError && (
+              <div 
+                className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+                style={{
+                  background: 'linear-gradient(to bottom, #60a5fa, #a78bfa)'
+                }}
+              />
+            )}
             <div className="whitespace-pre-wrap text-sm leading-relaxed">
               {message.content}
             </div>
@@ -165,17 +172,17 @@ export const ChatThread = forwardRef<HTMLDivElement, ChatThreadProps>(
             {isLoading && (
               <div className="flex justify-start mb-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-gray-500 to-gray-600 rounded-full flex items-center justify-center text-white">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center text-white">
                     <Bot className="w-4 h-4" />
                   </div>
-                  <div className="bg-gray-100 dark:bg-gray-700 px-4 py-3 rounded-2xl">
+                  <div className="bg-gradient-to-r from-blue-400 to-purple-400 text-white px-4 py-3 rounded-2xl shadow-md shadow-blue-400/20">
                     <div className="flex items-center gap-1">
                       <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-white/80 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-white/80 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-white/80 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                      <span className="text-xs text-white/90 ml-2">
                         L'IA réfléchit...
                       </span>
                     </div>

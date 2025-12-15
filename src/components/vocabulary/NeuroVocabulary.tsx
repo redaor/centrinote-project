@@ -53,6 +53,7 @@ import { AlphaFilter } from './AlphaFilter';
 import { AlphaFilterVertical } from './AlphaFilterVertical';
 import { useQuotaLimit } from '../../hooks/useQuotaLimit';
 import { supabase } from '../../lib/supabase';
+import { GhostTextArea, GhostInput } from '../../features/ghost-text';
 
 interface VocabularyStats {
   mastered: number;
@@ -613,19 +614,17 @@ export function NeuroVocabulary() {
     setSearchTerm(e.target.value);
   }, []);
 
-  const handleTermChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewWord(prev => ({ ...prev, term: e.target.value }));
+  const handleTermChange = useCallback((value: string) => {
+    setNewWord(prev => ({ ...prev, term: value }));
   }, []);
 
   // ✅ LOGIQUE IDENTIQUE AUX NOTES: Handler simple et direct pour la définition
-  const handleDefinitionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    console.log(`📝 Changement définition:`, value.slice(0, 50) + (value.length > 50 ? '...' : ''));
+  const handleDefinitionChange = useCallback((value: string) => {
     setNewWord(prev => ({ ...prev, definition: value }));
   }, []);
 
-  const handleExampleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewWord(prev => ({ ...prev, example: e.target.value }));
+  const handleExampleChange = useCallback((value: string) => {
+    setNewWord(prev => ({ ...prev, example: value }));
   }, []);
 
   // Handle adding new word with validation
@@ -1308,9 +1307,10 @@ export function NeuroVocabulary() {
             </motion.div>
           </div>
 
-          {/* Badges Section - Compact avec tooltips */}
+          {/* Badges Section + Boutons Quiz/Révision - Compact avec tooltips */}
           <div className="mb-4">
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Badges de performance */}
               {badges.map((badge) => (
                 <div
                   key={badge.id}
@@ -1318,10 +1318,10 @@ export function NeuroVocabulary() {
                   title={`${badge.name}: ${badge.description}${!badge.unlocked ? ` (${Math.round(badge.progress)}%)` : ''}`}
                 >
                   <motion.button
-                    whileHover={{ scale: badge.unlocked ? 1.1 : 1 }}
+                    whileHover={{ scale: badge.unlocked ? 1.05 : 1 }}
                     whileTap={{ scale: 0.95 }}
                     className={`
-                      relative flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all
+                      relative flex items-center gap-1 px-1.5 py-1 rounded-lg transition-all text-xs
                       ${badge.unlocked
                         ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-sm'
                         : darkMode ? 'bg-gray-800 text-gray-500' : 'bg-gray-200 text-gray-400'
@@ -1329,8 +1329,8 @@ export function NeuroVocabulary() {
                     `}
                     aria-label={`${badge.name}: ${badge.description}`}
                   >
-                    <badge.icon className="w-4 h-4" />
-                    <span className="text-xs font-semibold hidden sm:inline">{badge.name}</span>
+                    <badge.icon className="w-3.5 h-3.5" />
+                    <span className="font-semibold hidden sm:inline">{badge.name}</span>
                     {!badge.unlocked && (
                       <span className="text-[10px] font-medium opacity-75">
                         {Math.round(badge.progress)}%
@@ -1353,6 +1353,60 @@ export function NeuroVocabulary() {
                   </div>
                 </div>
               ))}
+
+              {/* Séparateur */}
+              {badges.length > 0 && <div className={`h-6 w-px ${darkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />}
+
+              {/* Bouton Quiz Rapide */}
+              <motion.button
+                onClick={() => {
+                  if (vocabulary.length < 4) {
+                    triggerReward('Ajoutez au moins 4 mots pour le quiz!', { type: 'warning' });
+                  } else {
+                    startQuiz();
+                  }
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`
+                  flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-medium
+                  ${darkMode
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }
+                  shadow-sm
+                `}
+                title="Lancez un quiz rapide de 10 questions"
+              >
+                <Target className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Quiz</span>
+              </motion.button>
+
+              {/* Bouton Mode Révision (Flashcards) */}
+              <motion.button
+                onClick={() => {
+                  if (vocabulary.length === 0) {
+                    triggerReward('Ajoutez des mots pour réviser!', { type: 'warning' });
+                  } else {
+                    setFlashcardVocabulary(vocabulary);
+                    setIsFlashcardMode(true);
+                  }
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`
+                  flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-medium
+                  ${darkMode
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                    : 'bg-purple-500 hover:bg-purple-600 text-white'
+                  }
+                  shadow-sm
+                `}
+                title="Mode révision avec flashcards interactives"
+              >
+                <Brain className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Révision</span>
+              </motion.button>
             </div>
           </div>
         </motion.div>
@@ -1513,13 +1567,15 @@ export function NeuroVocabulary() {
                   <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     Mot ou expression *
                   </label>
-                  <input
+                  <GhostInput
                     id={`term-${termId}`}
-                    name={`term-${termId}`}
-                    type="text"
-                    placeholder="Ex: Apprentissage automatique"
                     value={newWord.term}
                     onChange={handleTermChange}
+                    context="vocab"
+                    userId={user?.id}
+                    enabled={false}
+                    darkMode={darkMode}
+                    placeholder="Ex: Apprentissage automatique"
                     className={`w-full px-4 py-2 rounded-lg ${
                       darkMode
                         ? 'bg-gray-700 text-white border-gray-600'
@@ -1532,13 +1588,15 @@ export function NeuroVocabulary() {
                   <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     Définition *
                   </label>
-                  {/* ✅ LOGIQUE IDENTIQUE AUX NOTES: Même structure et classes CSS */}
-                  <textarea
+                  <GhostTextArea
                     id={`definition-${definitionId}`}
-                    name={`definition-${definitionId}`}
-                    placeholder="Développez vos idées..."
                     value={newWord.definition}
                     onChange={handleDefinitionChange}
+                    context="vocab"
+                    userId={user?.id}
+                    enabled={false}
+                    darkMode={darkMode}
+                    placeholder="Développez vos idées..."
                     rows={6}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none"
                   />
@@ -1551,13 +1609,15 @@ export function NeuroVocabulary() {
                   <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     Exemple (optionnel)
                   </label>
-                  <input
+                  <GhostInput
                     id={`example-${exampleId}`}
-                    name={`example-${exampleId}`}
-                    type="text"
-                    placeholder="Ex: L'apprentissage automatique est utilisé en IA"
                     value={newWord.example}
                     onChange={handleExampleChange}
+                    context="vocab"
+                    userId={user?.id}
+                    enabled={false}
+                    darkMode={darkMode}
+                    placeholder="Ex: L'apprentissage automatique est utilisé en IA"
                     className={`w-full px-4 py-2 rounded-lg ${
                       darkMode
                         ? 'bg-gray-700 text-white border-gray-600'

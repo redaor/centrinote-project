@@ -1,14 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
+// Clés API stockées uniquement dans Supabase (jamais exposées côté client)
 const OPENAI_SEARCH_KEY = Deno.env.get('OPENAI_SEARCH_KEY');
 const OPENAI_CHAT_KEY = Deno.env.get('OPENAI_CHAT_KEY');
 const OPENAI_AIDE_KEY = Deno.env.get('OPENAI_AIDE_KEY');
-
-const KEY_TO_SERVICE: Record<string, string> = {
-  [OPENAI_SEARCH_KEY || '']: 'search',
-  [OPENAI_CHAT_KEY || '']: 'chat',
-  [OPENAI_AIDE_KEY || '']: 'aide',
-};
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   search: 'Tu es un moteur de recherche sémantique pour les notes. Réponds brièvement avec les passages pertinents.',
@@ -29,26 +24,29 @@ serve(async (req) => {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
       },
     });
   }
 
   try {
-    const { message, apiKey } = await req.json();
+    const { message, service: requestedService } = await req.json();
 
-    const service = KEY_TO_SERVICE[apiKey];
-    if (!service) {
-      return new Response(JSON.stringify({ error: 'Clé inconnue' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
-    }
-
+    // Détecter l'intention ou utiliser le service demandé
     const intent = detectIntent(message);
-    if (intent !== service) {
-      return new Response(JSON.stringify({ error: 'Clé non autorisée pour cette intention' }), {
-        status: 403,
+    const service = requestedService || intent;
+
+    // Récupérer la clé API depuis les variables d'environnement Supabase (jamais depuis le body)
+    const keyMap: Record<string, string | undefined> = {
+      search: OPENAI_SEARCH_KEY,
+      chat: OPENAI_CHAT_KEY,
+      aide: OPENAI_AIDE_KEY,
+    };
+
+    const apiKey = keyMap[service];
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: `Clé API manquante pour le service "${service}"` }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       });
     }
@@ -74,6 +72,17 @@ serve(async (req) => {
 
     clearTimeout(timeoutId);
 
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Erreur OpenAI' }));
+      return new Response(
+        JSON.stringify({ error: errorData.error || `Erreur ${response.status}` }),
+        {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        }
+      );
+    }
+
     const data = await response.json();
     const reply = data.choices?.[0]?.message?.content || '';
 
@@ -82,9 +91,13 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Erreur interne' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
+    console.error('[noteo-orchestrator] Error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      }
+    );
   }
 });

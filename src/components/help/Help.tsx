@@ -130,6 +130,12 @@ export function Help() {
       question: 'Partage de notes',
       answer: 'Ouvrez la note, cliquez sur les 3 points, puis "Partager". Générez un lien public ou invitez des collaborateurs spécifiques.',
       category: 'partage'
+    },
+    {
+      id: 'q8',
+      question: '✨ Autocomplétion intelligente',
+      answer: 'L\'autocomplétion intelligente (ghost-text) est active dans toutes les zones de saisie : Notes, Vocabulaire, Recherche IA, Chat IA. Tapez votre texte et voyez apparaître des suggestions transparentes. Appuyez sur Tab pour accepter, Esc pour ignorer.',
+      category: 'ia'
     }
   ];
 
@@ -181,6 +187,12 @@ export function Help() {
       question: t('faq_security_q') || 'Mes données sont-elles sécurisées ?',
       answer: t('faq_security_a') || 'Oui, toutes vos données sont chiffrées et sécurisées selon les standards les plus stricts.',
       category: 'importation'
+    },
+    {
+      id: '9',
+      question: '✨ Comment fonctionne l\'autocomplétion intelligente ?',
+      answer: 'L\'autocomplétion intelligente (ghost-text) est disponible dans toutes les zones de saisie de texte : Notes, Vocabulaire, Recherche IA, Chat IA. Elle propose des suggestions contextuelles basées sur vos mots précédents, le vocabulaire français courant, et l\'IA. Les suggestions apparaissent en texte transparent après votre curseur. Utilisez Tab pour accepter la suggestion, Esc pour l\'ignorer. Les suggestions sont optimisées pour être rapides (< 30ms) et contextuelles.',
+      category: 'ia'
     }
   ];
 

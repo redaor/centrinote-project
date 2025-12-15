@@ -28,6 +28,7 @@ import { NavigationDebugger } from '../debug/NavigationDebugger';
 import { useNavigationGuard } from '../../hooks/useNavigationGuard';
 import { useUserSync } from '../../hooks/useUserSync';
 import { SupportMessagesPage } from '../../pages/admin/SupportMessagesPage';
+import { GhostTextDemoPage } from '../../pages/GhostTextDemoPage';
 
 // Debug flag pour réduire les logs en production
 const DEBUG = import.meta.env.DEV;
@@ -206,6 +207,8 @@ export function AppLayout() {
         return <AutomationManager key="automation" />;
       case 'admin/support':
         return <SupportMessagesPage key="admin-support" />;
+      case 'ghost-text-demo':
+        return <GhostTextDemoPage key="ghost-text-demo" />;
       default:
         DEBUG && console.warn('⚠️ [APP-LAYOUT] Route non reconnue:', path);
         return <NeuroDashboard key="fallback-dashboard" />;

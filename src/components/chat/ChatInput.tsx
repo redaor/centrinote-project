@@ -5,30 +5,25 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, AlertCircle, RotateCcw } from 'lucide-react';
 import { ChatInputProps } from '../../types/chat';
+import { GhostTextArea } from '../../features/ghost-text';
+import { useApp } from '../../contexts/AppContext';
 
-export function ChatInput({ 
-  onSend, 
-  isLoading, 
-  disabled = false, 
-  placeholder = "Tapez votre message..." 
+export function ChatInput({
+  onSend,
+  isLoading,
+  disabled = false,
+  placeholder = "Tapez votre message..."
 }: ChatInputProps) {
+  const { state } = useApp();
+  const { darkMode, user } = state;
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Auto-resize du textarea
-  const adjustTextareaHeight = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
-    }
-  }, []);
-
-  // Gérer le changement de texte
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
+  // Gérer le changement de texte (GhostTextArea passe directement la valeur)
+  const handleChange = useCallback((value: string) => {
+    setMessage(value);
     setError(null); // Clear error on new input
   }, []);
 
@@ -77,11 +72,6 @@ export function ChatInput({
     }
   }, [isLoading, disabled]);
 
-  // Auto-resize quand le message change
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, [message, adjustTextareaHeight]);
-
   const isDisabled = disabled || isLoading || !message.trim();
 
   return (
@@ -110,9 +100,9 @@ export function ChatInput({
       {/* Input form */}
       <form ref={formRef} onSubmit={handleSubmit} className="p-4">
         <div className="flex items-end gap-3">
-          {/* Textarea */}
+          {/* GhostTextArea with auto-completion */}
           <div className="flex-1 relative">
-            <textarea
+            <GhostTextArea
               ref={textareaRef}
               id="chat-message-input"
               name="chatMessage"
@@ -123,6 +113,10 @@ export function ChatInput({
               disabled={disabled || isLoading}
               rows={1}
               aria-label="Message de discussion IA"
+              context="chat"
+              userId={user?.id}
+              enabled={true}
+              darkMode={darkMode}
               className="
                 w-full px-4 py-3 pr-12
                 border border-gray-300 dark:border-gray-600
@@ -136,12 +130,12 @@ export function ChatInput({
                 transition-colors duration-200
                 min-h-[44px] max-h-[120px]
               "
-              style={{ height: '44px' }}
+              style={{ height: '44px', maxHeight: '120px' }}
             />
-            
+
             {/* Character count */}
             {message.length > 0 && (
-              <div className="absolute bottom-1 right-2 text-xs text-gray-400">
+              <div className="absolute bottom-1 right-2 text-xs text-gray-400 pointer-events-none z-40">
                 {message.length}/2000
               </div>
             )}

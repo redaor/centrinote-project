@@ -60,6 +60,7 @@ import { LongRecButton } from './LongRecButton';
 import { EmptyNoteAlert } from './EmptyNoteAlert';
 import { useQuotaCheck } from '../../hooks/useQuotaCheck';
 import { useQuotaLimit } from '../../hooks/useQuotaLimit';
+import { GhostTextArea, GhostInput } from '../../features/ghost-text';
 
 interface FilterChip {
   id: string;
@@ -623,12 +624,15 @@ export function ModernNotesManager() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Titre
               </label>
-              <input
-                type="text"
+              <GhostInput
                 value={formData.title}
-                onChange={(e) => handleFormDataChange('title', e.target.value)}
+                onChange={(newValue) => handleFormDataChange('title', newValue)}
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                 placeholder="Titre de la note"
+                context="notes"
+                userId={user?.id}
+                enabled={false}
+                darkMode={darkMode}
               />
             </div>
 
@@ -748,21 +752,19 @@ export function ModernNotesManager() {
                   />
                 </div>
               </div>
-              {/* 2.1 Textarea auto-grow (max-h-96) */}
-              <textarea
+              {/* 2.1 Textarea avec ghost-text (max-h-96) */}
+              <GhostTextArea
                 ref={contentTextareaRef}
                 value={formData.content}
-                onChange={(e) => {
-                  handleFormDataChange('content', e.target.value);
-                  // Auto-grow
-                  const textarea = e.target;
-                  textarea.style.height = 'auto';
-                  textarea.style.height = `${Math.min(textarea.scrollHeight, 384)}px`; // max-h-96 = 384px
-                }}
+                onChange={(newValue) => handleFormDataChange('content', newValue)}
                 rows={10}
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none overflow-y-auto"
                 style={{ maxHeight: '384px' }}
                 placeholder="Développez vos idées…"
+                context="notes"
+                userId={user?.id}
+                enabled={false}
+                darkMode={darkMode}
               />
             </div>
 
@@ -770,12 +772,15 @@ export function ModernNotesManager() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Tags (séparés par des virgules)
               </label>
-              <input
-                type="text"
+              <GhostInput
                 value={formData.tags}
-                onChange={(e) => handleFormDataChange('tags', e.target.value)}
+                onChange={(newValue) => handleFormDataChange('tags', newValue)}
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                 placeholder="Ex. Projet, Priorité, Réunion…"
+                context="notes"
+                userId={user?.id}
+                enabled={false}
+                darkMode={darkMode}
               />
             </div>
           </div>
@@ -1950,16 +1955,22 @@ export function ModernNotesManager() {
               />
             </div>
             
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Contenu
               </label>
-              <textarea
+
+              {/* Textarea avec ghost-text */}
+              <GhostTextArea
                 value={formData.content}
-                onChange={(e) => handleFormDataChange('content', e.target.value)}
+                onChange={(newValue) => handleFormDataChange('content', newValue)}
                 rows={6}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none"
                 placeholder="Développez vos idées..."
+                context="notes"
+                userId={user?.id}
+                enabled={false}
+                darkMode={darkMode}
               />
             </div>
             
