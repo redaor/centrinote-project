@@ -171,3 +171,7 @@ console.log('[AI] Tentative appel IA pour:', lastWord, '| suggestions locales:',
 
 Puis dans `suggestionEngine.ts`, passez `suggestions.length` à `fetchAISuggestion` pour le log.
 
+
+
+
+

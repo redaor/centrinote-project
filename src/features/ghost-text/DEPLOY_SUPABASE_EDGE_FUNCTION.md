@@ -175,3 +175,7 @@ supabase secrets set OPENAI_API_KEY_GHOST=sk-proj-xxx...
 - Cache côté client (5 minutes) pour réduire les appels
 - Les erreurs sont silencieuses (pas d'impact sur l'UI)
 
+
+
+
+

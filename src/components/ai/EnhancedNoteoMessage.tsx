@@ -43,7 +43,7 @@ const getEmojiIcon = (emoji: string) => {
     '🧭': <Navigation className="w-4 h-4" />,
     '💡': <Lightbulb className="w-4 h-4" />,
   };
-  return emojiMap[emoji] || <span className="text-lg">{emoji}</span>;
+  return emojiMap[emoji] || <span className="text-sm" style={{ lineHeight: '1.45', verticalAlign: 'middle' }}>{emoji}</span>;
 };
 
 export function EnhancedNoteoMessage({
@@ -92,22 +92,22 @@ export function EnhancedNoteoMessage({
       {/* Container Principal */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
         {/* Header avec horodatage */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-b border-gray-200 dark:border-gray-700" style={{ padding: '1rem' }}>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
                 <Lightbulb className="w-5 h-5 text-white" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                <div className="flex items-start gap-2" style={{ lineHeight: '1.45', textAlign: 'left' }}>
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400" style={{ lineHeight: '1.45' }}>
                     {currentTime}
                   </span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white" style={{ lineHeight: '1.45' }}>
                     Noteo
                   </span>
                 </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
+                <p className="text-xs text-gray-600 dark:text-gray-400" style={{ lineHeight: '1.45', textAlign: 'left' }}>
                   Assistant IA Centrinote
                 </p>
               </div>
@@ -116,9 +116,10 @@ export function EnhancedNoteoMessage({
         </div>
 
         {/* Message de bienvenue */}
-        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50">
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50" style={{ padding: '1rem' }}>
           <motion.p
-            className="text-gray-900 dark:text-gray-100 text-sm leading-relaxed"
+            className="text-gray-900 dark:text-gray-100 text-sm"
+            style={{ lineHeight: '1.45', textAlign: 'left' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
@@ -128,7 +129,8 @@ export function EnhancedNoteoMessage({
         </div>
 
         {/* Container des étapes */}
-        <div className="px-6 py-4 space-y-3">
+        <div style={{ padding: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <AnimatePresence>
             {steps.map((step, index) => {
               const isVisible = visibleSteps.includes(index);
@@ -145,9 +147,9 @@ export function EnhancedNoteoMessage({
                     ease: [0.4, 0, 0.2, 1]
                   }}
                 >
-                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-700 dark:to-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow" style={{ padding: '1rem' }}>
                     {/* Header de l'étape */}
-                    <div className="flex items-start gap-3 mb-2">
+                    <div className="flex items-start gap-3" style={{ marginBottom: '1rem' }}>
                       {/* Numéro de l'étape */}
                       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-md">
                         {step.number}
@@ -155,9 +157,9 @@ export function EnhancedNoteoMessage({
                       
                       {/* Titre avec emoji */}
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-lg">{step.emoji}</span>
-                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <div className="flex items-start gap-2" style={{ lineHeight: '1.45', textAlign: 'left', marginBottom: '0.5rem' }}>
+                          <span className="text-sm" style={{ lineHeight: '1.45', verticalAlign: 'middle' }}>{step.emoji}</span>
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white" style={{ lineHeight: '1.45', textAlign: 'left' }}>
                             {step.title}
                           </h3>
                         </div>
@@ -166,16 +168,16 @@ export function EnhancedNoteoMessage({
 
                     {/* Contenu de l'étape */}
                     <div className="ml-11">
-                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-2">
+                      <p className="text-sm text-gray-700 dark:text-gray-300" style={{ lineHeight: '1.45', textAlign: 'left', marginBottom: '0.5rem' }}>
                         {step.content}
                       </p>
                       
                       {/* Astuce si présente */}
                       {step.hint && (
-                        <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border-l-2 border-yellow-400 dark:border-yellow-600">
-                          <div className="flex items-start gap-2">
-                            <Lightbulb className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
-                            <p className="text-xs text-yellow-800 dark:text-yellow-200 italic">
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border-l-2 border-yellow-400 dark:border-yellow-600" style={{ marginTop: '0.75rem', padding: '1rem' }}>
+                          <div className="flex items-start gap-2" style={{ lineHeight: '1.45', textAlign: 'left' }}>
+                            <Lightbulb className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" style={{ marginTop: '0.125rem' }} />
+                            <p className="text-sm text-yellow-800 dark:text-yellow-200 italic" style={{ lineHeight: '1.45', textAlign: 'left' }}>
                               {step.hint}
                             </p>
                           </div>
@@ -187,34 +189,36 @@ export function EnhancedNoteoMessage({
               );
             })}
           </AnimatePresence>
+          </div>
         </div>
 
         {/* Message de suivi */}
         {followUpMessage && (
           <motion.div
             className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700"
+            style={{ padding: '1rem' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: steps.length * stepDelay + 300 }}
           >
-            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+            <p className="text-sm text-gray-700 dark:text-gray-300" style={{ lineHeight: '1.45', textAlign: 'left' }}>
               {followUpMessage}
             </p>
           </motion.div>
         )}
 
         {/* Section de résultat avec boutons */}
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-t border-gray-200 dark:border-gray-700" style={{ padding: '1rem' }}>
+          <div className="flex items-start justify-between" style={{ marginBottom: '1rem' }}>
+            <span className="text-xs font-medium text-gray-600 dark:text-gray-400" style={{ lineHeight: '1.45' }}>
               {currentTime} - 📊 Résultat
             </span>
-            <span className="text-xs text-gray-500 dark:text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-500" style={{ lineHeight: '1.45' }}>
               Est-ce que votre problème est résolu ?
             </span>
           </div>
-          
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-start gap-3">
             <motion.button
               onClick={handleSuccess}
               disabled={userResponse !== null}

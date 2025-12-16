@@ -233,3 +233,7 @@ Si vous rencontrez une erreur spécifique, partagez :
 2. Les logs de la fonction (`supabase functions logs generate-api-key`)
 3. La requête que vous avez envoyée
 
+
+
+
+

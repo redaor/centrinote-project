@@ -9,6 +9,10 @@ import React, { useEffect, useRef } from 'react';
 import { Mic, Square, Plus } from 'lucide-react';
 import { useLongRecording } from '../../hooks/useLongRecording';
 import { Button } from '../ui/Button';
+import { AudioLevelIndicator } from './AudioLevelIndicator';
+
+// Durée d'un chunk en millisecondes (30 minutes)
+const CHUNK_DURATION_MS = 30 * 60 * 1000;
 
 interface LongRecButtonProps {
   noteId: string;
@@ -39,6 +43,7 @@ export function LongRecButton({
     stopRecording,
     transcribedText,
     error,
+    audioStream,
   } = useLongRecording();
 
   // Insérer le texte transcrit à la fin de la note avec horodatage (une seule fois par chunk)
@@ -72,8 +77,9 @@ export function LongRecButton({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Calculer le pourcentage de progression (30 min = 100%)
-  const progressPercent = Math.min((elapsedTime / (30 * 60)) * 100, 100);
+  // Calculer le pourcentage de progression (chunk duration = 100%)
+  const CHUNK_DURATION_SECONDS = CHUNK_DURATION_MS / 1000;
+  const progressPercent = Math.min((elapsedTime / CHUNK_DURATION_SECONDS) * 100, 100);
 
   // Si pas de configuration Supabase, afficher un message d'avertissement
   if (!hasSupabaseConfig) {
@@ -93,7 +99,7 @@ export function LongRecButton({
           onClick={startRecording}
           className="gap-2 focus-visible:ring-2 focus-visible:ring-blue-400"
           disabled={isTranscribing}
-          title="Enregistrer ce cours (30 min par chunk)"
+          title="Enregistrer ce cours"
         >
           <Mic className="w-4 h-4" />
           Enregistrer ce cours
@@ -121,11 +127,19 @@ export function LongRecButton({
             />
           </div>
 
-          {/* Infos : temps écoulé et chunk */}
+          {/* Infos : temps écoulé, chunk et indicateur audio */}
           <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
-            <span>
-              Chunk {currentChunk + 1} • {formatTime(elapsedTime)} / 30:00
-            </span>
+            <div className="flex items-center gap-3">
+              <span>
+                Chunk {currentChunk + 1} • {formatTime(elapsedTime)}
+              </span>
+              {/* Indicateur de niveau audio */}
+              <AudioLevelIndicator 
+                stream={audioStream} 
+                isRecording={isRecording}
+                darkMode={darkMode}
+              />
+            </div>
             {isTranscribing && (
               <span className="text-blue-600 dark:text-blue-400 animate-pulse">
                 Transcription en cours...

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { AIChat } from '../components/ai/AIChat';
+import { AIChat } from '../features/ai-chat';
 
 export function AISearchPage() {
   return (

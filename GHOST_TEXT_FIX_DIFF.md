@@ -51,3 +51,7 @@
 [GHOST] { lastWord: 'faut', suggestionWord: 'faut', ghostPart: '' }
 ```
 
+
+
+
+

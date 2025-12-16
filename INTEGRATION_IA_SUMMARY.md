@@ -95,3 +95,7 @@ OPENAI_AUTO_COMPLETION=sk-xxx
 - L'ancienne logique locale reste **active en premier**
 - L'IA est uniquement un **fallback silencieux**
 
+
+
+
+

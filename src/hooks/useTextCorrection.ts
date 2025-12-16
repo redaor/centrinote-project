@@ -380,7 +380,7 @@ export function useTextCorrection(options: CorrectionOptions = {}) {
           text: userPrompt,
           model: 'gpt-3.5-turbo',
           systemPrompt,
-        },
+            },
       });
 
       if (error) {

@@ -176,3 +176,7 @@ serve(async (req) => {
 
 **Action principale** : Vérifier que le token est bien protégé et n'est pas commité dans Git.
 
+
+
+
+

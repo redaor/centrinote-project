@@ -249,3 +249,7 @@ Le hook `useCentrinoteAI` utilise `CentrinoteAI` qui utilise `AIEngine` qui fait
 
 **✅ MIGRATION DES 3 FICHIERS CRITIQUES TERMINÉE - PRÊT POUR PRODUCTION**
 
+
+
+
+

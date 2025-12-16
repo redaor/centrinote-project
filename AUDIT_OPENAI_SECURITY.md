@@ -176,3 +176,7 @@ netlify env:unset VITE_OPENAI_AUTO_COMPLETION
 
 **Après migrations :** Toutes les clés seront dans Supabase uniquement, aucune exposition côté client.
 
+
+
+
+

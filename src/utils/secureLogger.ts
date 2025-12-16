@@ -74,7 +74,7 @@ export function anonymizeEmail(email: string): string {
  * sk-proj-abc123... => sk-proj-***
  */
 export function anonymizeToken(token: string): string {
-  if (!token || typeof email typeof token !== 'string') return '';
+  if (!token || typeof token !== 'string') return '';
 
   if (token.startsWith('sk-')) {
     return token.substring(0, 7) + '***';

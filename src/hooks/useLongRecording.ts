@@ -1,8 +1,9 @@
 /**
  * Hook pour enregistrement audio long (cours)
- * - Enregistrement par chunks de 30 min
- * - Transcription via OpenAI API
+ * - Enregistrement par chunks automatiques
+ * - Transcription via OpenAI Whisper API
  * - Format webm mono 48 kHz
+ * - Indicateur de niveau audio en temps réel
  */
 
 import { useState, useRef, useCallback } from 'react';
@@ -17,6 +18,7 @@ interface UseLongRecordingReturn {
   stopRecording: () => void;
   transcribedText: string | null;
   error: string | null;
+  audioStream: MediaStream | null; // Stream audio pour l'indicateur de niveau
 }
 
 const CHUNK_DURATION_MS = 30 * 60 * 1000; // 30 minutes en millisecondes
@@ -30,6 +32,7 @@ export function useLongRecording(): UseLongRecordingReturn {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [transcribedText, setTranscribedText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -62,7 +65,7 @@ export function useLongRecording(): UseLongRecordingReturn {
     }
   }, []);
 
-  // Transcrire audio via Edge Function Supabase (utilise OPENAI_API_KEY depuis Supabase)
+  // Transcrire audio via Edge Function Supabase (utilise OPENAI_TRANSCRIPTION_AUDIO_KEY depuis Supabase)
   const transcribeAudio = useCallback(async (audioBlob: Blob): Promise<string> => {
     // Récupérer la session Supabase pour l'authentification
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -193,6 +196,7 @@ export function useLongRecording(): UseLongRecordingReturn {
       // Demander permission micro
       const stream = await requestMicrophonePermission();
       streamRef.current = stream;
+      setAudioStream(stream); // Exposer le stream pour l'indicateur
 
       // Créer MediaRecorder avec configuration webm mono 48 kHz
       const options: MediaRecorderOptions = {
@@ -311,7 +315,7 @@ export function useLongRecording(): UseLongRecordingReturn {
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         setElapsedTime(elapsed);
 
-        // Vérifier si on a atteint 30 min (arrêter automatiquement le chunk)
+        // Vérifier si on a atteint la durée du chunk (arrêter automatiquement le chunk)
         if (elapsed >= CHUNK_DURATION_MS / 1000) {
           if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
             mediaRecorderRef.current.stop();
@@ -340,6 +344,7 @@ export function useLongRecording(): UseLongRecordingReturn {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
+      setAudioStream(null); // Nettoyer le stream
     }
 
     if (intervalRef.current) {
@@ -360,5 +365,6 @@ export function useLongRecording(): UseLongRecordingReturn {
     stopRecording,
     transcribedText,
     error,
+    audioStream,
   };
 }

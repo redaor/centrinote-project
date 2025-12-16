@@ -9,22 +9,16 @@
  * import { AIChat } from '@/features/ai-chat';
  */
 
-// Re-export du composant principal (temporaire, sera remplacé par AIChatContainer)
-export { AIChat } from '../../components/ai/AIChat';
+// Export principal : AIChat pointe maintenant vers le nouveau container refactoré
+export { default as AIChat } from './AIChatContainer';
 
-// Placeholder pour les futures exports
-// export { AIChatContainer } from './components/AIChatContainer';
-// export { MessageBubbleAI } from './components/MessageBubbleAI';
-// export { MessageBubbleUser } from './components/MessageBubbleUser';
-// export { InputBar } from './components/InputBar';
-// export { ChatHeader } from './components/ChatHeader';
-// export { MessagesContainer } from './components/MessagesContainer';
-// export { FileUploadZone } from './components/FileUploadZone';
-// export { VoiceInputButton } from './components/VoiceInputButton';
+// Exports des composants présentationnels
+export { ChatHeader } from './components/ChatHeader';
+export { MessagesContainer } from './components/MessagesContainer';
+export { InputBar } from './components/InputBar';
+export { MessageBubbleAI } from './components/MessageBubbleAI';
+export { MessageBubbleUser } from './components/MessageBubbleUser';
 
-// Hooks
-// export { useMessageActions } from './hooks/useMessageActions';
-// export { useMessageProcessor } from './hooks/useMessageProcessor';
-
-// Types (si nécessaire)
-// export type { Message, ChatMode } from './types';
+// Hooks métier
+export { useMessageActions } from './hooks/useMessageActions';
+export { useMessageProcessor } from './hooks/useMessageProcessor';

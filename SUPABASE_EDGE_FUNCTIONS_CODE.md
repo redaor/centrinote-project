@@ -330,3 +330,7 @@ supabase secrets set OPENAI_AIDE_KEY=sk-proj-xxx...
 3. ✅ Tous les appels passent par `supabase.functions.invoke()`
 4. ✅ Timeout et gestion d'erreurs implémentés
 
+
+
+
+

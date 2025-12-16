@@ -122,3 +122,7 @@ curl -X POST https://VOTRE_PROJECT_REF.supabase.co/functions/v1/text-correction 
 
 **✅ Une fois déployé, les fonctions seront disponibles dans Supabase !**
 
+
+
+
+

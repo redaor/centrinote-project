@@ -141,3 +141,7 @@ Si vous voulez migrer vers une Edge Function :
 
 **Note :** Pour l'instant, l'appel direct fonctionne et est acceptable pour un fallback non-critique.
 
+
+
+
+

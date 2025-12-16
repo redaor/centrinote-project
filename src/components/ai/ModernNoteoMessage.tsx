@@ -121,7 +121,7 @@ export function ModernNoteoMessage({
                 {/* Message content */}
                 <div className="flex-1 min-w-0">
                   {/* Message bubble */}
-                  <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-sm p-4 shadow-sm relative pl-5">
+                  <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-sm shadow-sm relative" style={{ padding: '1rem', paddingLeft: '1.25rem' }}>
                     <div 
                       className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
                       style={{
@@ -129,24 +129,22 @@ export function ModernNoteoMessage({
                       }}
                     />
                     {/* Header avec horodatage moderne */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    <div className="flex items-start gap-2" style={{ lineHeight: '1.45', textAlign: 'left', marginBottom: '1rem' }}>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400" style={{ lineHeight: '1.45' }}>
                         {segment.time}
                       </span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-                      <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-400 dark:text-gray-500" style={{ lineHeight: '1.45' }}>-</span>
+                      <div className="flex items-start gap-2" style={{ lineHeight: '1.45' }}>
                         {segment.isWelcome ? (
-                          <Brain className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+                          <Brain className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" style={{ marginTop: '0.125rem' }} />
                         ) : segment.isSummary ? (
-                          <span className="text-sm">📊</span>
+                          <span className="text-sm" style={{ lineHeight: '1.45', verticalAlign: 'middle' }}>📊</span>
                         ) : segment.isIntro ? (
-                          <span className="text-sm">📚</span>
-                        ) : isNumericStep ? (
-                          <span className="text-base">{segment.emoji}</span>
+                          <span className="text-sm" style={{ lineHeight: '1.45', verticalAlign: 'middle' }}>📚</span>
                         ) : (
-                          <span className="text-base">{segment.emoji}</span>
+                          <span className="text-sm" style={{ lineHeight: '1.45', verticalAlign: 'middle' }}>{segment.emoji}</span>
                         )}
-                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400" style={{ lineHeight: '1.45', textAlign: 'left' }}>
                           {segment.isWelcome
                             ? 'Assistant Centrinote'
                             : segment.isSummary
@@ -159,19 +157,19 @@ export function ModernNoteoMessage({
                     </div>
 
                     {/* Contenu du message */}
-                    <div className="text-sm leading-relaxed text-gray-900 dark:text-gray-100">
+                    <div className="text-sm text-gray-900 dark:text-gray-100" style={{ lineHeight: '1.45', textAlign: 'left' }}>
                       {/* Si c'est une étape numérotée, afficher le titre en gras */}
                       {isNumericStep && segment.title ? (
                         <>
-                          <div className="font-semibold mb-1">
-                            {segment.emoji} {segment.title}
+                          <div className="font-semibold" style={{ lineHeight: '1.45', textAlign: 'left', marginBottom: '0.5rem' }}>
+                            <span className="text-sm" style={{ lineHeight: '1.45', verticalAlign: 'middle' }}>{segment.emoji}</span> {segment.title}
                           </div>
-                          <div className="whitespace-pre-wrap">
+                          <div className="whitespace-pre-wrap" style={{ lineHeight: '1.45', textAlign: 'left' }}>
                             {segment.content}
                           </div>
                         </>
                       ) : (
-                        <div className="whitespace-pre-wrap">
+                        <div className="whitespace-pre-wrap" style={{ lineHeight: '1.45', textAlign: 'left' }}>
                           {segment.content}
                         </div>
                       )}
@@ -191,29 +189,30 @@ export function ModernNoteoMessage({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: segmentDelay * segments.length + 300 }}
           className={`
-            rounded-xl p-4 shadow-sm border
-            ${darkMode 
-              ? 'bg-gray-800 border-gray-700' 
+            rounded-xl shadow-sm border
+            ${darkMode
+              ? 'bg-gray-800 border-gray-700'
               : 'bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200'
             }
           `}
+          style={{ padding: '1rem' }}
         >
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-start justify-between" style={{ marginBottom: '1rem' }}>
             <span className={`
               text-xs font-medium
               ${darkMode ? 'text-gray-400' : 'text-gray-600'}
-            `}>
+            `} style={{ lineHeight: '1.45' }}>
               {formatTime(new Date())} - 📊 Résultat
             </span>
             <span className={`
               text-xs
               ${darkMode ? 'text-gray-400' : 'text-gray-600'}
-            `}>
+            `} style={{ lineHeight: '1.45' }}>
               Est-ce que votre problème est résolu ?
             </span>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <motion.button
               onClick={handleSuccess}
               disabled={userResponse !== null}

@@ -235,9 +235,6 @@ export function AppHeader() {
             <h1 className={`text-xl lg:text-2xl font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
               {getViewTitle()}
             </h1>
-            <p className={`text-sm lg:text-sm hidden sm:block ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              {t('welcome')}, {user?.name}
-            </p>
           </div>
         </div>
 

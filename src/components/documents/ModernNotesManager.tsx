@@ -1254,7 +1254,7 @@ export function ModernNotesManager() {
   // Handler pour les changements de form avec logging
   const handleFormDataChange = (field: 'title' | 'content' | 'tags', value: string) => {
     console.log(`📝 Changement ${field}:`, value.slice(0, 50) + (value.length > 50 ? '...' : ''));
-    setFormData(prev => ({ ...prev, [field]: value }));
+      setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const resetForm = () => {
@@ -1962,11 +1962,11 @@ export function ModernNotesManager() {
 
               {/* Textarea avec ghost-text */}
               <GhostTextArea
-                value={formData.content}
+                  value={formData.content}
                 onChange={(newValue) => handleFormDataChange('content', newValue)}
-                rows={6}
+                  rows={6}
                 className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white resize-none"
-                placeholder="Développez vos idées..."
+                  placeholder="Développez vos idées..."
                 context="notes"
                 userId={user?.id}
                 enabled={false}

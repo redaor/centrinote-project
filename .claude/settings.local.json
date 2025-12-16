@@ -48,7 +48,8 @@
       "Bash(./check-secrets.sh)",
       "Bash(tree:*)",
       "Bash(python3:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npm run lint:*)"
     ],
     "deny": [],
     "ask": []

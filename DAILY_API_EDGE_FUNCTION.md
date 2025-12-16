@@ -346,3 +346,7 @@ const BRAVE_KEY = Deno.env.get("BRAVE_API_KEY"); // ✅ Clé côté serveur uniq
 
 **NON, pas besoin d'Edge Function pour Brave Search** car elle est déjà sécurisée dans `ai-chat`.
 
+
+
+
+

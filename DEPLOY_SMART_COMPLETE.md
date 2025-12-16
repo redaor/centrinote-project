@@ -193,3 +193,7 @@ curl -X POST \
 - [ ] Secret configuré : `supabase secrets set OPENAI_API_KEY_GHOST=sk-xxx`
 - [ ] Testé dans l'application
 
+
+
+
+

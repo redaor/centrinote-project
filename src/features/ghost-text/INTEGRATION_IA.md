@@ -91,3 +91,7 @@ interface ImportMetaEnv {
 - Pour la production, envisager un proxy backend qui cache les requêtes
 - Le timeout de 800ms limite l'exposition en cas de problème réseau
 
+
+
+
+

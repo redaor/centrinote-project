@@ -122,3 +122,7 @@ Le système ghost-text est maintenant le **seul système actif** dans `ModernNot
 - ✅ Esc ignore la suggestion
 - ✅ Plus de popup externe
 
+
+
+
+

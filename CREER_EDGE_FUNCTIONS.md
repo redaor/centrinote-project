@@ -311,3 +311,7 @@ supabase secrets set OPENAI_API_KEY_GHOST=sk-proj-xxx...
 
 **✅ Une fois terminé, toutes les clés OpenAI seront sécurisées dans Supabase uniquement !**
 
+
+
+
+
