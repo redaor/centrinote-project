@@ -3,7 +3,7 @@
  * Permet de simuler différents états de quota pour tester les limites
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../AuthProvider';
 import { getUserQuotas, getUserPlan } from '../../services/quotaService';
@@ -30,9 +30,9 @@ export function QuotaTester({ testEmail = 'redasahraoui1@gmail.com' }: QuotaTest
     if (isAuthorized) {
       loadCurrentState();
     }
-  }, [isAuthorized]);
+  }, [isAuthorized, loadCurrentState]);
 
-  const loadCurrentState = async () => {
+  const loadCurrentState = useCallback(async () => {
     try {
       setLoading(true);
       // Récupérer l'ID utilisateur via RPC ou directement depuis auth
@@ -79,7 +79,7 @@ export function QuotaTester({ testEmail = 'redasahraoui1@gmail.com' }: QuotaTest
     } finally {
       setLoading(false);
     }
-  };
+  }, [testEmail]);
 
   const applyTestScenario = async (scenario: 'free' | 'starter' | 'pro' | 'teams' | 'reset') => {
     if (!isAuthorized) {
