@@ -1244,8 +1244,8 @@ export function ModernNotesManager() {
 
   // Cleanup refs au démontage
   useEffect(() => {
+    const timeoutId = autoSaveTimeoutRef.current;
     return () => {
-      const timeoutId = autoSaveTimeoutRef.current;
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

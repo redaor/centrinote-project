@@ -119,7 +119,7 @@ export function NeuroPlanning() {
     };
 
     loadTasks();
-  }, [selectedDate, user?.id]);
+  }, [selectedDate, user?.id, updateCognitiveLoad]);
 
   // Calculate optimal time slots based on user behavior
   const getOptimalTimeSlots = (): TimeSlot[] => {

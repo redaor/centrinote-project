@@ -60,7 +60,7 @@ export function MeetingProgress({
     } else {
       setAnimatedPercentage(percentage);
     }
-  }, [percentage, status]);
+  }, [percentage, status, animatedPercentage]);
 
   // Compte à rebours ETA
   useEffect(() => {

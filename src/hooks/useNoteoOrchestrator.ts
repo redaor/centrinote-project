@@ -66,7 +66,7 @@ export function useNoteoOrchestrator() {
         setLoading(false);
       }
     },
-    [getApiKey]
+    []
   );
 
   const clearError = useCallback(() => {

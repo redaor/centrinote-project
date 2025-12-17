@@ -18,14 +18,15 @@ export function useFileDownload() {
     return () => {
       mountedRef.current = false;
       // Nettoyer tous les liens actifs
-      activeLinksRef.current.forEach(link => {
+      const activeLinks = activeLinksRef.current;
+      activeLinks.forEach(link => {
         try {
           link.remove();
         } catch (e) {
           // Ignorer si déjà supprimé
         }
       });
-      activeLinksRef.current.clear();
+      activeLinks.clear();
     };
   }, []);
 

@@ -176,7 +176,7 @@ export function useNotes() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, notes]);
 
   // Mettre à jour une note
   const updateNote = useCallback(async (
@@ -223,7 +223,7 @@ export function useNotes() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, notes]);
 
   // Supprimer une note
   const deleteNote = useCallback(async (noteId: string): Promise<boolean> => {
@@ -254,7 +254,7 @@ export function useNotes() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, notes]);
 
   // Épingler/désépingler une note
   const togglePinNote = useCallback(async (noteId: string, isPinned: boolean): Promise<boolean> => {

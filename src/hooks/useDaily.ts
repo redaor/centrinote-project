@@ -429,7 +429,7 @@ export function useDaily(
     } finally {
       initializingRef.current = false;
     }
-  }, [containerRef]);
+  }, [containerRef, setupEventHandlers]);
 
   // Cleanup function - IDEMPOTENT ET SAFE
   useEffect(() => {
@@ -845,7 +845,7 @@ export function useDaily(
       const iframeCount = document.querySelectorAll('iframe[src*="daily.co"]').length;
       console.log(`[DAILY] Diagnostic final: ${iframeCount} Daily iframe(s) dans le DOM`);
     }
-  }, [ensureFrame, user, validatedParticipants]);
+  }, [ensureFrame, user]);
 
   async function leaveRoom() {
     try {

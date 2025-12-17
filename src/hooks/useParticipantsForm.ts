@@ -115,7 +115,7 @@ export function useParticipantsForm(
     ));
     
     console.log('👥 [PARTICIPANTS] Added participant:', newParticipant.id);
-  }, [participants.length, showToast]);
+  }, [participants.length, showToast, MAX_PARTICIPANTS]);
 
   const removeParticipant = useCallback((id: string) => {
     const participant = participants.find(p => p.id === id);
@@ -197,7 +197,7 @@ export function useParticipantsForm(
     
     console.log('👥 [PARTICIPANTS] Bulk import:', { added: toAdd.length, ignored });
     return { added: toAdd.length, ignored };
-  }, [participants.length, showToast]);
+  }, [participants.length, showToast, MAX_PARTICIPANTS]);
 
   // Validation
   const validation = useMemo(() => {
@@ -271,7 +271,7 @@ export function useParticipantsForm(
       canAddMore: MAX_PARTICIPANTS === null || total < MAX_PARTICIPANTS,
       availableSlots
     };
-  }, [participants]);
+  }, [participants, MAX_PARTICIPANTS]);
 
   // Progress pour gamification
   const progress = useMemo(() => {
