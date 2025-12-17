@@ -1,5 +1,5 @@
 // 🔍 Composant pour déboguer les données de réunion
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../AuthProvider';
 import { Database, RefreshCw, Send } from 'lucide-react';
@@ -10,7 +10,7 @@ export function MeetingDataDebugger() {
   const [loading, setLoading] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
   
-  const fetchMeetings = async () => {
+  const fetchMeetings = useCallback(async () => {
     if (!user) return;
     
     setLoading(true);
@@ -33,7 +33,7 @@ export function MeetingDataDebugger() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
   
   const sendTestWebhook = async (meeting: any) => {
     if (!meeting) return;
@@ -84,7 +84,7 @@ export function MeetingDataDebugger() {
   
   useEffect(() => {
     fetchMeetings();
-  }, [user]);
+  }, [user, fetchMeetings]);
   
   return (
     <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">

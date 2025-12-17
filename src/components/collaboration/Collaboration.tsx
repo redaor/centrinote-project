@@ -188,10 +188,10 @@ export function Collaboration() {
     return () => {
       mounted = false;
     };
-  }, []); // 🔧 CORRECTION: Retiré checkN8nWebhookStatus des dépendances pour éviter la boucle infinie
+  }, [checkN8nWebhookStatus, loadRecordingMetrics]); // 🔧 Ajout de checkN8nWebhookStatus et loadRecordingMetrics
 
   // 📈 Charger les métriques d'enregistrement
-  const loadRecordingMetrics = async () => {
+  const loadRecordingMetrics = useCallback(async () => {
     try {
       // Simuler des métriques (en production, viendrait d'une API dédiée)
       const mockMetrics: RecordingMetrics = {
@@ -234,7 +234,7 @@ export function Collaboration() {
     } catch (error) {
       console.error('❌ Erreur chargement métriques:', error);
     }
-  };
+  }, [allGeneratedReports]);
 
   // 🎬 Gérer les changements d'état d'enregistrement
   const handleRecordingStateChange = (meetingId: string, isRecording: boolean) => {

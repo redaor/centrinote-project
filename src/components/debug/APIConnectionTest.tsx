@@ -1,7 +1,7 @@
 /**
  * Composant de test pour vérifier la connexion API
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiClient } from '../../services/apiClient';
 
 interface TestResult {
@@ -16,11 +16,11 @@ export const APIConnectionTest: React.FC = () => {
   const [results, setResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
-  const tests = [
+  const tests = useMemo(() => [
     { endpoint: '/health', label: 'Health Check', method: 'healthCheck' },
     { endpoint: '/healthz', label: 'Alternative Health', method: 'healthz' },
     { endpoint: '/auth/me', label: 'Auth Status', method: 'getAuthStatus' },
-  ];
+  ], []);
 
   const runTest = async (test: any): Promise<TestResult> => {
     const startTime = Date.now();
@@ -47,7 +47,7 @@ export const APIConnectionTest: React.FC = () => {
     }
   };
 
-  const runAllTests = async () => {
+  const runAllTests = useCallback(async () => {
     setIsRunning(true);
     setResults([]);
 
@@ -67,12 +67,12 @@ export const APIConnectionTest: React.FC = () => {
     }
 
     setIsRunning(false);
-  };
+  }, [tests]);
 
   useEffect(() => {
     // Auto-run tests on component mount
     runAllTests();
-  }, []);
+  }, [runAllTests]);
 
   const getStatusIcon = (status: TestResult['status']) => {
     switch (status) {
