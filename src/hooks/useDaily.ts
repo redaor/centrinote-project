@@ -647,7 +647,6 @@ export function useDaily(
 
       recordingIdRef.current = null;
     });
-  }, [state.roomUrl, user]);
 
     // Erreurs
     registerHandler('error', (event: any) => {
@@ -678,7 +677,7 @@ export function useDaily(
         updateState({ isScreenSharing: false });
       }
     });
-  }
+  }, [state.roomUrl, user]);
 
   async function createAndJoin(roomName?: string) {
     updateState({ isLoading: true, error: null });
@@ -1045,3 +1044,4 @@ export function useDaily(
     kickParticipant,
     destroy
   };
+}

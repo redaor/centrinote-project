@@ -5,6 +5,11 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: '/', // ✅ Utiliser chemin absolu pour éviter les problèmes avec les routes /meeting/*
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': '/src',
+    },
+  },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

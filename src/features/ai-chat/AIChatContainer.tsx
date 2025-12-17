@@ -458,7 +458,7 @@ export default function AIChatContainer() {
             ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
           }
 
-          handleRemoveFile();
+          handleFileRemove();
 
           console.log('✅ [AIChatContainer] Message avec fichier traité');
           return;
@@ -677,6 +677,7 @@ export default function AIChatContainer() {
     addSegments,
     checkQuotaWithModal,
     detectAIActions,
+    handleFileRemove,
   ]);
 
   // ═══════════════════════════════════════════════════════════════
@@ -830,7 +831,7 @@ export default function AIChatContainer() {
             isReady={isReady}
             darkMode={darkMode}
             selectedFile={selectedFile}
-            onRemoveFile={handleRemoveFile}
+            onRemoveFile={handleFileRemove}
             onQuickAction={handleQuickAction}
             fileInputRef={fileInputRef}
             user={user}

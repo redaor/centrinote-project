@@ -11,6 +11,27 @@ const SYSTEM_PROMPTS: Record<string, string> = {
   aide: 'Tu es un guide pas-à-pas. Explique simplement et structuré.',
 };
 
+// Liste des origines autorisées (localhost + production)
+const allowedOrigins = new Set([
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://centrinote.fr",
+  "https://www.centrinote.fr"
+]);
+
+// Fonction pour construire les headers CORS
+function buildCorsHeaders(origin: string | null): HeadersInit {
+  const allowedOrigin = origin && allowedOrigins.has(origin) ? origin : "*";
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Credentials": "true",
+    "Content-Type": "application/json",
+    "Vary": "Origin"
+  };
+}
+
 function detectIntent(message: string): string {
   const lowerMsg = message.toLowerCase();
   if (/cherche|trouve|recherche/.test(lowerMsg)) return 'search';
@@ -19,13 +40,13 @@ function detectIntent(message: string): string {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const corsHeaders = buildCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
-      },
+      status: 204,
+      headers: corsHeaders,
     });
   }
 
@@ -47,7 +68,7 @@ serve(async (req) => {
     if (!apiKey) {
       return new Response(JSON.stringify({ error: `Clé API manquante pour le service "${service}"` }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: corsHeaders,
       });
     }
 
@@ -78,7 +99,7 @@ serve(async (req) => {
         JSON.stringify({ error: errorData.error || `Erreur ${response.status}` }),
         {
           status: response.status,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          headers: corsHeaders,
         }
       );
     }
@@ -88,7 +109,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ reply }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: corsHeaders,
     });
   } catch (error) {
     console.error('[noteo-orchestrator] Error:', error);
@@ -96,7 +117,7 @@ serve(async (req) => {
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: corsHeaders,
       }
     );
   }

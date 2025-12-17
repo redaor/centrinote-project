@@ -119,7 +119,7 @@ export function useCentrinoteAI(options: UseCentrinoteAIOptions = {}): UseCentri
       }
       initialized.current = false; // Réinitialiser pour permettre une nouvelle initialisation
     };
-  }, [connectWebSocketInternal, options.autoConnect, options.enableWebSocket]);
+  }, [options.autoConnect, options.enableWebSocket]);
 
   const generateFunction = useCallback(async (options: {
     description: string;

@@ -164,12 +164,28 @@ export function ModernNoteoMessage({
                           <div className="font-semibold" style={{ lineHeight: '1.45', textAlign: 'left', marginBottom: '0.5rem' }}>
                             <span className="text-sm" style={{ lineHeight: '1.45', verticalAlign: 'middle' }}>{segment.emoji}</span> {segment.title}
                           </div>
-                          <div className="whitespace-pre-wrap" style={{ lineHeight: '1.45', textAlign: 'left' }}>
+                          <div
+                            className="whitespace-pre-wrap"
+                            style={{
+                              lineHeight: '1.6',
+                              textAlign: 'left',
+                              wordBreak: 'break-word',
+                              overflowWrap: 'break-word'
+                            }}
+                          >
                             {segment.content}
                           </div>
                         </>
                       ) : (
-                        <div className="whitespace-pre-wrap" style={{ lineHeight: '1.45', textAlign: 'left' }}>
+                        <div
+                          className="whitespace-pre-wrap"
+                          style={{
+                            lineHeight: '1.6',
+                            textAlign: 'left',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word'
+                          }}
+                        >
                           {segment.content}
                         </div>
                       )}

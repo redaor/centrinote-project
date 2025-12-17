@@ -97,10 +97,16 @@ export function MessageBubbleAI({
             transition={{ delay: 0.05 }}
           >
             {/* Contenu structuré avec Tailwind Prose */}
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <div className="whitespace-pre-wrap" style={{ lineHeight: '1.45' }}>
-                {message.content}
-              </div>
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-li:my-1"
+              style={{
+                lineHeight: '1.6',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                whiteSpace: 'pre-wrap'
+              }}
+            >
+              {message.content}
             </div>
 
             {/* Barre d'actions */}
