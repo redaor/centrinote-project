@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Download, Code, Copy, RefreshCw, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 interface DebuggerProps {
@@ -23,7 +23,7 @@ export function AutomationDebugger({ automationId, darkMode, onClose }: Debugger
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -94,7 +94,7 @@ export function AutomationDebugger({ automationId, darkMode, onClose }: Debugger
     } finally {
       setLoading(false);
     }
-  };
+  }, [automationId]);
 
   const exportLogs = () => {
     try {
@@ -128,7 +128,7 @@ export function AutomationDebugger({ automationId, darkMode, onClose }: Debugger
   // Charger les logs au montage
   useEffect(() => {
     fetchLogs();
-  }, [automationId]);
+  }, [automationId, fetchLogs]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black bg-opacity-50">
