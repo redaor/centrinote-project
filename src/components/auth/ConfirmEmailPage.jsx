@@ -1,7 +1,7 @@
 // 📧 Page de confirmation email robuste avec fallback OTP manuel
 // ================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import authService from '../../services/authService';
 
@@ -24,7 +24,7 @@ const ConfirmEmailPage = () => {
 
   useEffect(() => {
     handleAutoConfirmation();
-  }, []);
+  }, [handleAutoConfirmation]);
 
   // Timer pour le countdown des renvois d'email
   useEffect(() => {
@@ -39,7 +39,7 @@ const ConfirmEmailPage = () => {
   // 2. CONFIRMATION AUTOMATIQUE (MAGIC LINK)
   // ==========================================
 
-  const handleAutoConfirmation = async () => {
+  const handleAutoConfirmation = useCallback(async () => {
     try {
       console.log('🔍 Début confirmation automatique');
       console.log('🔗 URL complète:', window.location.href);
@@ -99,7 +99,7 @@ const ConfirmEmailPage = () => {
       setStatus('error');
       setMessage('Erreur inattendue lors de la confirmation');
     }
-  };
+  }, [location, navigate]);
 
   // ==========================================
   // 3. CONFIRMATION MANUELLE AVEC CODE OTP

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Save, Info, AlertCircle } from 'lucide-react';
 
 interface AutomationFormProps {
@@ -35,10 +35,10 @@ export function AutomationForm({
       const standardizedPayload = createStandardizedPayload(currentAutomation);
       setJsonPreview(JSON.stringify(standardizedPayload, null, 2));
     }
-  }, [currentAutomation]);
+  }, [currentAutomation, createStandardizedPayload]);
 
   // Créer un payload JSON standardisé pour n8n
-  const createStandardizedPayload = (automation: any) => {
+  const createStandardizedPayload = useCallback((automation: any) => {
     // Trouver le type d'automatisation sélectionné
     const selectedType = automationTypes.find(type => type.id === automation.action_type);
     
@@ -58,7 +58,7 @@ export function AutomationForm({
     }
     
     return basePayload;
-  };
+  }, [automationTypes]);
 
   // Valider le formulaire
   const validateForm = () => {
