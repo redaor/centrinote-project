@@ -72,51 +72,40 @@ export function MessageBubbleAI({
   return (
     <motion.div
       key={message.id}
-      className="flex justify-center gap-2 w-full"
+      className="flex justify-center gap-2.5 w-full"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      {/* Avatar Brain */}
+      {/* Avatar Brain - Plus grand et plus visible */}
       <motion.div
-        className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center"
-        whileHover={{ scale: 1.05 }}
+        className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shadow-sm"
+        whileHover={{ scale: 1.1 }}
+        transition={{ type: "spring", stiffness: 400, damping: 17 }}
       >
-        <Brain className="w-3.5 h-3.5 text-white" />
+        <Brain className="w-4 h-4 text-white" />
       </motion.div>
 
-      {/* Bulle de message */}
+      {/* Bulle de message - Design moderne et aéré */}
       <div className="flex justify-center w-full">
         <div className="max-w-3xl w-full">
           <motion.div
-            className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl shadow-sm"
-            style={{ padding: '1rem', marginBottom: '1rem' }}
+            className="bg-slate-50/80 dark:bg-gray-800/60 text-gray-900 dark:text-gray-100 rounded-xl shadow-md shadow-slate-200/50 dark:shadow-gray-900/30 border border-slate-100/80 dark:border-gray-700/30 backdrop-blur-sm px-4 py-3.5 mb-4"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
+            transition={{ delay: 0.05, ease: "easeOut" }}
           >
-            {/* Contenu structuré avec Tailwind Prose */}
-            <div
-              className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-li:my-1"
-              style={{
-                lineHeight: '1.6',
-                wordBreak: 'break-word',
-                overflowWrap: 'break-word',
-                whiteSpace: 'pre-wrap'
-              }}
-            >
+            {/* Contenu structuré avec Tailwind Prose - Spacing amélioré */}
+            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-3 prose-p:leading-relaxed prose-ul:my-3 prose-li:my-1.5 prose-li:leading-relaxed leading-relaxed break-words whitespace-pre-wrap">
               {message.content}
             </div>
 
-            {/* Barre d'actions */}
-            <div
-              className="flex items-center justify-end gap-1.5 border-t border-gray-100 dark:border-gray-700"
-              style={{ marginTop: '0.75rem', paddingTop: '0.5rem' }}
-            >
+            {/* Barre d'actions - Plus visible et élégante */}
+            <div className="flex items-center justify-end gap-1.5 border-t border-slate-200/60 dark:border-gray-700/40 mt-3 pt-2.5">
               {/* Bouton Copier */}
               <motion.button
-                className="p-1.5 rounded transition-all duration-150 opacity-60 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="p-2 rounded-lg transition-all duration-200 ease-out opacity-75 hover:opacity-100 hover:bg-slate-200/60 dark:hover:bg-gray-700/60"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
                 title="Copier"
@@ -127,7 +116,7 @@ export function MessageBubbleAI({
 
               {/* Bouton Régénérer */}
               <motion.button
-                className="p-1.5 rounded transition-all duration-150 opacity-60 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="p-2 rounded-lg transition-all duration-200 ease-out opacity-75 hover:opacity-100 hover:bg-slate-200/60 dark:hover:bg-gray-700/60"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
                 title="Régénérer"
@@ -138,7 +127,7 @@ export function MessageBubbleAI({
 
               {/* Bouton J'aime */}
               <motion.button
-                className="p-1.5 rounded transition-all duration-150 opacity-60 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="p-2 rounded-lg transition-all duration-200 ease-out opacity-75 hover:opacity-100 hover:bg-slate-200/60 dark:hover:bg-gray-700/60"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
                 title="J'aime"

@@ -98,25 +98,27 @@ export function MessageBubbleUser({
   return (
     <motion.div
       key={message.id}
-      className="flex justify-center gap-2 w-full"
+      className="flex justify-center gap-2.5 w-full"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      {/* Bulle de message */}
+      {/* Bulle de message - Gradient vibrant avec glow effect */}
       <div className="flex justify-center w-full">
         <div className="max-w-3xl w-full">
           <motion.div
-            className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl shadow-sm"
-            style={{ padding: '1rem', marginBottom: '1rem' }}
+            className="relative bg-gradient-to-r from-blue-500 via-blue-600 to-purple-600 text-white rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-blue-500/30 px-4 py-3.5 mb-4"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
+            transition={{ delay: 0.05, ease: "easeOut" }}
           >
-            {/* Contenu du message */}
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <div className="whitespace-pre-wrap" style={{ lineHeight: '1.45' }}>
+            {/* Glow effect subtil */}
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400/20 to-purple-400/20 blur-xl -z-10" />
+
+            {/* Contenu du message - Typography cohérente */}
+            <div className="prose prose-sm prose-invert max-w-none">
+              <div className="whitespace-pre-wrap leading-relaxed break-words">
                 {message.content}
               </div>
             </div>

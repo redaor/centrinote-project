@@ -247,28 +247,17 @@ export function MessagesContainer({
                   className="flex justify-center w-full"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   <div className="max-w-3xl w-full">
-                    <div
-                      className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl"
-                      style={{ padding: '1rem', marginBottom: '1rem' }}
-                    >
-                      <div className="flex items-start gap-2" style={{ marginBottom: '0.5rem' }}>
-                        <AlertCircle
-                          className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0"
-                          style={{ marginTop: '0.125rem' }}
-                        />
-                        <span
-                          className="text-sm font-medium text-red-800 dark:text-red-200"
-                          style={{ lineHeight: '1.45' }}
-                        >
+                    <div className="bg-red-50/80 dark:bg-red-900/20 border border-red-200/80 dark:border-red-800/60 rounded-xl shadow-md shadow-red-200/30 dark:shadow-red-900/20 backdrop-blur-sm px-4 py-3.5 mb-4">
+                      <div className="flex items-start gap-2 mb-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                        <span className="text-sm font-medium text-red-800 dark:text-red-200 leading-relaxed">
                           Erreur
                         </span>
                       </div>
-                      <p
-                        className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap"
-                        style={{ lineHeight: '1.45', textAlign: 'left' }}
-                      >
+                      <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap leading-relaxed text-left break-words">
                         {message.content}
                       </p>
                     </div>
@@ -285,16 +274,11 @@ export function MessagesContainer({
                   className="flex justify-center w-full"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   <div className="max-w-3xl w-full">
-                    <div
-                      className="bg-slate-900 dark:bg-gray-950 border border-slate-700 dark:border-gray-800 rounded-2xl overflow-x-auto"
-                      style={{ padding: '1rem', marginBottom: '1rem' }}
-                    >
-                      <pre
-                        className="text-sm text-slate-100 font-mono whitespace-pre-wrap"
-                        style={{ lineHeight: '1.45' }}
-                      >
+                    <div className="bg-slate-900 dark:bg-gray-950 border border-slate-700/80 dark:border-gray-800/60 rounded-xl shadow-md shadow-slate-900/30 overflow-x-auto px-4 py-3.5 mb-4">
+                      <pre className="text-sm text-slate-100 font-mono whitespace-pre-wrap leading-relaxed">
                         <code>{message.content}</code>
                       </pre>
                     </div>
@@ -307,31 +291,25 @@ export function MessagesContainer({
           })}
         </AnimatePresence>
 
-        {/* Indicateur de chargement */}
+        {/* Indicateur de chargement - Style moderne cohérent */}
         {isLoading && (
           <div className="flex justify-center w-full">
             <div className="max-w-3xl w-full">
               <motion.div
-                className="flex gap-2 w-full"
+                className="flex gap-2.5 w-full"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
               >
-                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                  <Brain className="w-3.5 h-3.5 text-white" />
+                {/* Avatar Brain animé */}
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shadow-sm">
+                  <Brain className="w-4 h-4 text-white" />
                 </div>
-                <div
-                  className="bg-[#f1f1f1] dark:bg-gray-800/60 rounded-lg border border-slate-200/50 dark:border-gray-700/50"
-                  style={{ padding: '1rem' }}
-                >
+                {/* Bulle de chargement */}
+                <div className="bg-slate-50/80 dark:bg-gray-800/60 rounded-xl border border-slate-100/80 dark:border-gray-700/30 shadow-md shadow-slate-200/50 dark:shadow-gray-900/30 backdrop-blur-sm px-4 py-3.5">
                   <div className="flex items-start gap-2">
-                    <Loader2
-                      className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400 flex-shrink-0"
-                      style={{ marginTop: '0.125rem' }}
-                    />
-                    <span
-                      className="text-sm text-slate-600 dark:text-gray-400"
-                      style={{ lineHeight: '1.45' }}
-                    >
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed">
                       L'IA réfléchit...
                     </span>
                   </div>
