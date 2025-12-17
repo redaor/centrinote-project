@@ -135,7 +135,7 @@ export function useChat(): UseChatReturn {
     typingTimeoutRef.current = setTimeout(() => {
       stopTyping();
     }, 3000);
-  }, [currentUser]);
+  }, [currentUser, stopTyping]);
 
   const stopTyping = useCallback(() => {
     if (!currentUser) return;

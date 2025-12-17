@@ -52,7 +52,7 @@ export function PlanPage() {
         });
       }
     }
-  }, [location.search, state.user]);
+  }, [location.search, state.user, state]);
   const { user } = state;
   const [showPlans, setShowPlans] = useState(false);
   const [loading, setLoading] = useState(false);

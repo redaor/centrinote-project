@@ -175,7 +175,7 @@ export function useConsoleInterceptor(
         disable();
       }
     };
-  }, [autoEnable]); // Volontairement pas de dépendances sur enable/disable pour éviter boucle
+  }, [autoEnable, autoConfig, disable, enable]);
 
   // Polling pour mettre à jour les stats (optionnel, toutes les 2 secondes)
   useEffect(() => {
@@ -214,7 +214,7 @@ export function useAutoBlockErrors(config: Partial<ConsoleInterceptorConfig>) {
     return () => {
       disableConsoleInterception();
     };
-  }, []); // Pas de dépendances pour éviter réactivation
+  }, [config]);
 }
 
 /**

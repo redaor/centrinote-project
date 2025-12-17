@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, Flag, Loader, Check } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
@@ -24,14 +24,7 @@ export function ForumPostDetailPage() {
   const [likesCount, setLikesCount] = useState(0);
   const [isLiking, setIsLiking] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      loadPost();
-      loadReplies();
-    }
-  }, [id, user?.id]);
-
-  const loadPost = async () => {
+  const loadPost = useCallback(async () => {
     if (!id) return;
 
     try {
@@ -47,9 +40,9 @@ export function ForumPostDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, user?.id]);
 
-  const loadReplies = async () => {
+  const loadReplies = useCallback(async () => {
     if (!id) return;
 
     try {
@@ -58,7 +51,14 @@ export function ForumPostDetailPage() {
     } catch (error) {
       console.error('Error loading replies:', error);
     }
-  };
+  }, [id, user?.id]);
+
+  useEffect(() => {
+    if (id) {
+      loadPost();
+      loadReplies();
+    }
+  }, [id, user?.id, loadPost, loadReplies]);
 
   const handleLike = async () => {
     if (!user || !post || isLiking) return;

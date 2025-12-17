@@ -33,7 +33,7 @@ const ConfirmEmailPage = () => {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     }
     return () => clearTimeout(timer);
-  }, [countdown]);
+  }, [countdown, verifyToken]);
 
   // ==========================================
   // 2. CONFIRMATION AUTOMATIQUE (MAGIC LINK)
@@ -105,6 +105,20 @@ const ConfirmEmailPage = () => {
   // 3. CONFIRMATION MANUELLE AVEC CODE OTP
   // ==========================================
 
+  const verifyToken = useCallback(async (email, otpCode) => {
+    if (!email.trim() || !otpCode.trim() || otpCode.length !== 6) {
+      return { error: { message: 'Email et code OTP requis' } };
+    }
+
+    try {
+      const result = await authService.confirmEmailWithOTP(email, otpCode);
+      return result;
+    } catch (err) {
+      console.error('❌ Erreur vérification token:', err);
+      return { error: { message: 'Erreur lors de la vérification du code' } };
+    }
+  }, []);
+
   const handleManualConfirmation = async (e) => {
     e.preventDefault();
 
@@ -123,7 +137,7 @@ const ConfirmEmailPage = () => {
     setMessage('Vérification en cours...');
 
     try {
-      const result = await authService.confirmEmailWithOTP(email, otpCode);
+      const result = await verifyToken(email, otpCode);
 
       if (result.error) {
         console.error('❌ Erreur OTP manuel:', result.error);

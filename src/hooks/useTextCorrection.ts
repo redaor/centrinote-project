@@ -3,7 +3,7 @@
  * Utilise l'API de correction orthographique et grammaticale
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 
 export interface Suggestion {
@@ -118,7 +118,7 @@ export function useTextCorrection(options: CorrectionOptions = {}) {
   }, []);
 
   // Dictionnaire de corrections courantes (français)
-  const commonCorrections: Record<string, string> = {
+  const commonCorrections = useMemo<Record<string, string>>(() => ({
     // Erreurs de frappe courantes
     'bienvenu': 'bienvenue',
     'dévelopement': 'développement',
@@ -145,7 +145,7 @@ export function useTextCorrection(options: CorrectionOptions = {}) {
     'pr': 'pour',
     'dc': 'donc',
     'ts': 'tous',
-  };
+  }), []);
 
   /**
    * Analyse le texte et détecte les erreurs de frappe
@@ -272,7 +272,7 @@ export function useTextCorrection(options: CorrectionOptions = {}) {
       console.error('Erreur lors de la récupération des mots utilisateur:', error);
       return new Set();
     }
-  }, [userId]);
+  }, [userId, CACHE_DURATION]);
 
   /**
    * Génère des suggestions de complétion basées sur :
@@ -408,7 +408,7 @@ export function useTextCorrection(options: CorrectionOptions = {}) {
       console.error('Erreur lors de la génération de reformulations IA:', error);
       return [];
     }
-  }, [enableReformulations, aiAvailable, aiApiKey]);
+  }, [enableReformulations, aiAvailable]);
 
   /**
    * Applique automatiquement les corrections de haute confiance

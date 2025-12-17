@@ -54,10 +54,10 @@ export function ParticipantsFormV2({
   };
 
   // Validation email
-  const isValidEmail = (email: string): boolean => {
+  const isValidEmail = useCallback((email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
-  };
+  }, []);
 
   // Parser l'input intelligent
   const parseSmartInput = useCallback((input: string): { name: string; email: string } | null => {
@@ -237,7 +237,7 @@ export function ParticipantsFormV2({
     } else {
       setInputError('');
     }
-  }, [inputValue, parseSmartInput]);
+  }, [inputValue, parseSmartInput, isValidEmail]);
 
   return (
     <div className="space-y-4">

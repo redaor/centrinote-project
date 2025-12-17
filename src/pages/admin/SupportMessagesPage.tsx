@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Mail, Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, XCircle, AlertTriangle } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
@@ -47,12 +47,7 @@ export function SupportMessagesPage() {
     }
   }, [isAdmin, loading, navigate]);
 
-  // Charger les messages
-  useEffect(() => {
-    loadMessages();
-  }, []);
-
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -135,7 +130,7 @@ export function SupportMessagesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, isAdmin]);
 
   const updateStatus = async (id: string, newStatus: 'nouveau' | 'en_cours' | 'resolu') => {
     try {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { AlertTriangle, Crown, TrendingUp, Zap } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { getUserQuotas, getUserPlan, getPlanPrice, getPromoPercentage, getPromoDaysRemaining } from '../../services/quotaService';
@@ -22,12 +22,7 @@ export function QuotaBar() {
   const [loading, setLoading] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    loadData();
-  }, [user?.id, loadData]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user?.id) return;
 
     try {
@@ -50,7 +45,12 @@ export function QuotaBar() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    loadData();
+  }, [user?.id, loadData]);
 
   const getColorClass = (percentage: number) => {
     if (percentage >= 90) return 'bg-red-500';

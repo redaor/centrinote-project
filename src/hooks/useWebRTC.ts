@@ -242,7 +242,7 @@ export function useWebRTC(): UseWebRTCReturn {
       console.log('Pas de stream local, demande d\'autorisation');
       await requestPermissions();
     }
-  }, [localStream, permissionStatus, requestPermissions]);
+  }, [localStream, permissionStatus, requestPermissions, isVideoEnabled]);
 
   const toggleAudio = useCallback(async () => {
     console.log('toggleAudio - État actuel:', { 
@@ -272,7 +272,7 @@ export function useWebRTC(): UseWebRTCReturn {
       console.log('Pas de stream local, demande d\'autorisation');
       await requestPermissions();
     }
-  }, [localStream, permissionStatus, requestPermissions]);
+  }, [localStream, permissionStatus, requestPermissions, isAudioEnabled]);
 
   // Gestion de la présence avec stabilisation
   const updateParticipantPresence = useCallback((participantId: string) => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader, Mail } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -15,9 +15,9 @@ export default function VerifyEmailPage() {
     // Supabase gère automatiquement la vérification du token via le hash de l'URL
     // On écoute juste les changements d'état d'authentification
     verifyEmailFromHash();
-  }, [location]);
+  }, [location, verifyEmailFromHash]);
 
-  const verifyEmailFromHash = async () => {
+  const verifyEmailFromHash = useCallback(async () => {
     try {
       console.log('🔍 Début de la vérification email...');
 
@@ -123,7 +123,7 @@ export default function VerifyEmailPage() {
       setStatus('error');
       setMessage('Erreur de réseau. Veuillez réessayer.');
     }
-  };
+  }, [location, navigate]);
 
   const getStatusIcon = () => {
     switch (status) {

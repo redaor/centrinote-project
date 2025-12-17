@@ -3,7 +3,7 @@
  * Route: /confirm-email?token=...
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -27,9 +27,9 @@ export default function ConfirmEmailPage() {
     }
 
     verifyToken(token);
-  }, [searchParams]);
+  }, [searchParams, verifyToken]);
 
-  const verifyToken = async (token: string) => {
+  const verifyToken = useCallback(async (token: string) => {
     try {
       console.log('🔍 Vérification du token de confirmation...');
 
@@ -68,7 +68,7 @@ export default function ConfirmEmailPage() {
           : 'Une erreur est survenue lors de la vérification'
       );
     }
-  };
+  }, [navigate]);
 
   const getIcon = () => {
     switch (status) {

@@ -32,7 +32,7 @@
  * DATE: 2025-01-20
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Settings,
@@ -104,7 +104,7 @@ export default function SettingsIADiagnostic() {
   // Appliquer les toggles
   useEffect(() => {
     applyToggles();
-  }, [killOverlays, raiseSettingsZ]);
+  }, [killOverlays, raiseSettingsZ, applyToggles]);
 
   // Mutation Observer
   useEffect(() => {
@@ -148,7 +148,7 @@ export default function SettingsIADiagnostic() {
   }, []);
 
   // Appliquer les toggles aux éléments DOM
-  function applyToggles() {
+  const applyToggles = useCallback(() => {
     const settingsRoot = document.querySelector('[data-diagnostic-settings]');
     const overlays = document.querySelectorAll('[data-diagnostic-overlay]');
 
@@ -173,7 +173,7 @@ export default function SettingsIADiagnostic() {
       (settingsRoot as HTMLElement).style.zIndex = '';
       (settingsRoot as HTMLElement).style.isolation = '';
     }
-  }
+  }, [killOverlays, raiseSettingsZ]);
 
   // Hit-test à une position
   function runHitTest(x: number = 200, y: number = 300) {

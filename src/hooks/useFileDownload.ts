@@ -14,11 +14,11 @@ export function useFileDownload() {
   // Cleanup au démontage
   useEffect(() => {
     mountedRef.current = true;
+    const activeLinks = activeLinksRef.current;
     
     return () => {
       mountedRef.current = false;
       // Nettoyer tous les liens actifs
-      const activeLinks = activeLinksRef.current;
       activeLinks.forEach(link => {
         try {
           link.remove();

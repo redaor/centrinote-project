@@ -34,15 +34,14 @@ export function ParticipantsForm({
     return emailRegex.test(email);
   };
 
-  // Vérifier les doublons (insensible à la casse)
-  const hasDuplicateEmail = (email: string, currentIndex: number): boolean => {
-    return participants.some((p, index) => 
-      index !== currentIndex && p.email.toLowerCase() === email.toLowerCase()
-    );
-  };
-
   // Validation complète
   const validateParticipants = useCallback((newParticipants: MeetingParticipant[]): ValidationError[] => {
+    const hasDuplicateEmail = (email: string, currentIndex: number): boolean => {
+      return participants.some((p, index) => 
+        index !== currentIndex && p.email.toLowerCase() === email.toLowerCase()
+      );
+    };
+
     const newErrors: ValidationError[] = [];
 
     newParticipants.forEach((participant, index) => {
@@ -78,7 +77,7 @@ export function ParticipantsForm({
     });
 
     return newErrors;
-  }, [participants, organizer]);
+  }, [participants]);
 
   // Mettre à jour un participant (par ID stable)
   const updateParticipant = (id: string, field: 'name' | 'email', value: string) => {

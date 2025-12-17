@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthProvider';
 import { supabase } from '../../lib/supabase';
@@ -17,11 +17,7 @@ export function EmailVerificationGuard({ children }: EmailVerificationGuardProps
   const [isVerified, setIsVerified] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(true);
 
-  useEffect(() => {
-    checkEmailVerification();
-  }, [user, checkEmailVerification]);
-
-  const checkEmailVerification = async () => {
+  const checkEmailVerification = useCallback(async () => {
     if (!user) {
       setChecking(false);
       return;
@@ -54,7 +50,11 @@ export function EmailVerificationGuard({ children }: EmailVerificationGuardProps
     } finally {
       setChecking(false);
     }
-  };
+  }, [user, navigate]);
+
+  useEffect(() => {
+    checkEmailVerification();
+  }, [user, checkEmailVerification]);
 
   // Show loading state while checking
   if (checking) {

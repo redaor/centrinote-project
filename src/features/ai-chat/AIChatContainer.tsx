@@ -672,12 +672,9 @@ export default function AIChatContainer() {
     messages,
     sendEdgeMessage,
     askWithFile,
-    handleRemoveFile,
     processMessage,
     clearSegments,
     addSegments,
-    vocabulary,
-    state.notes,
     checkQuotaWithModal,
     detectAIActions,
   ]);

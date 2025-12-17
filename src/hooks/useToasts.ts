@@ -38,7 +38,7 @@ export function useToasts(): ToastState {
     }
 
     console.log('🍞 [TOAST] Showing:', toast);
-  }, []);
+  }, [removeToast]);
 
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));

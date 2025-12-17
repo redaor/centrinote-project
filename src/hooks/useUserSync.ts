@@ -286,7 +286,7 @@ export function useUserSync() {
       DEBUG && console.log('[useUserSync] Stopping profile polling');
       clearInterval(intervalId);
     };
-  }, [state.user?.id, state.user?.name, state.user?.avatar, loadUserProfile]);
+  }, [state.user?.id, state.user?.name, state.user?.avatar, state.user, loadUserProfile]);
 
   return {
     loadUserProfile,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, Plus, Loader, ArrowLeft } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
@@ -20,11 +20,7 @@ export function ForumPage() {
   const [newPostBody, setNewPostBody] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
-    loadPosts();
-  }, [user?.id]);
-
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     try {
       setLoading(true);
       const data = await forumService.getPosts(user?.id);
@@ -34,7 +30,11 @@ export function ForumPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [user?.id, loadPosts]);
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();

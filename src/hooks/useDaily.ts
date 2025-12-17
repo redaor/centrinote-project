@@ -482,7 +482,7 @@ export function useDaily(
     setState(prev => ({ ...prev, ...updates }));
   }
 
-  function setupEventHandlers(callFrame: DailyCall) {
+  const setupEventHandlers = useCallback((callFrame: DailyCall) => {
     // Helper to register event handler and track it for cleanup
     const registerHandler = (event: DailyEvent, handler: any) => {
       callFrame.on(event, handler);
@@ -647,6 +647,7 @@ export function useDaily(
 
       recordingIdRef.current = null;
     });
+  }, [state.roomUrl, user]);
 
     // Erreurs
     registerHandler('error', (event: any) => {
@@ -1044,4 +1045,3 @@ export function useDaily(
     kickParticipant,
     destroy
   };
-}
