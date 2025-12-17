@@ -237,7 +237,7 @@ export function MeetingRoom() {
 
     // Initialiser Daily uniquement sur demande utilisateur
     handleInitializeDaily(meeting.room_url, true);
-  }, [meeting?.room_url, containerRef.current, userRequestedJoin]);
+  }, [meeting?.room_url, meeting?.title, meeting?.participants?.length, containerRef.current, userRequestedJoin, handleInitializeDaily]);
   
   // Wrapper functions qui utilisent les helpers hissés
   const handleInitializeDaily = async (roomUrl: string, userInitiated = false) => {
@@ -346,7 +346,7 @@ export function MeetingRoom() {
           });
       }
     }
-  }, [id, meetings, meetingsLoading]); // ✅ Retirer dailyHook des dépendances
+  }, [id, meetings, meetingsLoading, handleFetchMeetingDirectly, updateMeeting]); // ✅ Retirer dailyHook des dépendances
 
   // Gérer la déconnexion
   const handleLeave = async () => {
