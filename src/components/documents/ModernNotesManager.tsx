@@ -176,11 +176,11 @@ export function ModernNotesManager() {
   // États de sauvegarde critiques
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const emptyFormState = {
+  const emptyFormState = useMemo(() => ({
     title: '',
     content: '',
     tags: ''
-  };
+  }), []);
 
   const [originalFormData, setOriginalFormData] = useState(emptyFormState);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -409,7 +409,7 @@ export function ModernNotesManager() {
     setHasUnsavedChanges(false);
     setFormData({ ...emptyFormState });
     setOriginalFormData({ ...emptyFormState });
-  }, []);
+  }, [emptyFormState]);
 
   const handleBackToList = useCallback(() => {
     if (isEditing) {
@@ -436,7 +436,7 @@ export function ModernNotesManager() {
       setFormData({ ...emptyFormState });
       setOriginalFormData({ ...emptyFormState });
     }
-  }, [filteredNotes, selectedNote]);
+  }, [filteredNotes, selectedNote, emptyFormState]);
 
   // Gestion CRUD
   const handleAddNote = async () => {
@@ -1115,7 +1115,7 @@ export function ModernNotesManager() {
     }
   };
 
-  const handleTogglePin = async (note: Note) => {
+  const handleTogglePin = useCallback(async (note: Note) => {
     try {
       const success = await togglePinNote(note.id, !note.is_pinned);
       if (success) {
@@ -1132,7 +1132,7 @@ export function ModernNotesManager() {
     } catch (error) {
       setMessage({ type: 'error', text: 'Erreur lors de l\'épinglage' });
     }
-  };
+  }, [togglePinNote, selectedNote]);
 
   // Détection des changements (avec memoization pour éviter les boucles)
   useEffect(() => {
@@ -1245,8 +1245,9 @@ export function ModernNotesManager() {
   // Cleanup refs au démontage
   useEffect(() => {
     return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
+      const timeoutId = autoSaveTimeoutRef.current;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
   }, []);

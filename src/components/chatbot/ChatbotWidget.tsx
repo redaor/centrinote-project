@@ -3,7 +3,7 @@
  * Intégré dans la section Contact pour aider les utilisateurs
  */
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Send, X, Minimize2, Maximize2, Mail, MessageCircle, CheckCircle, AlertCircle, Lightbulb, Search } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -45,7 +45,7 @@ function OptimizedModernMessage({
   // Mettre en cache le parsing pour éviter de le refaire à chaque rendu
   const segments = useMemo(() => {
     return modernNoteoService.parseTextToSegments(message.content, userName);
-  }, [message.content, message.id, userName]); // Re-parser uniquement si le contenu change
+  }, [message.content, userName]); // Re-parser uniquement si le contenu change
 
   return (
     <ModernNoteoMessage
@@ -357,17 +357,17 @@ export function ChatbotWidget({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     // Scroll instantané pour éviter les animations lentes
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  };
+  }, []);
 
   useEffect(() => {
     // Utiliser requestAnimationFrame pour un scroll fluide sans bloquer le rendu
     requestAnimationFrame(() => {
       scrollToBottom();
     });
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
   // Écouter l'événement personnalisé pour ouvrir le chatbot
   useEffect(() => {

@@ -151,7 +151,7 @@ export function AppLayout() {
       DEBUG && console.warn('⚠️ [APP-LAYOUT] Invalid route:', path, '→ Redirect to dashboard');
       navigate('/dashboard', { replace: true });
     }
-  }, [location.pathname, dispatch, navigate]); // Dépendances fixes sans currentView
+  }, [location.pathname, dispatch, navigate, currentView]);
 
   const renderContent = () => {
     const path = location.pathname.slice(1); // Enlever le '/' initial

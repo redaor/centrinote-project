@@ -33,7 +33,7 @@ export function ChatInput({
       e.preventDefault();
       handleSubmit();
     }
-  }, [message, isLoading, disabled]);
+  }, [handleSubmit]);
 
   // Soumettre le message
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {

@@ -1,5 +1,5 @@
 // 📊 Moniteur de performance en temps réel
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, Clock, Database, Wifi } from 'lucide-react';
 
 interface PerformanceMetrics {
@@ -56,7 +56,7 @@ export function PerformanceMonitor({ darkMode = false, onMetricsChange }: Perfor
 
     const timer = setInterval(updateMetrics, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [metrics, onMetricsChange]);
 
   // Écouter les logs de performance personnalisés
   useEffect(() => {

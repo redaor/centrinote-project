@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock,
@@ -455,9 +455,9 @@ export function SimpleAutomationDashboard() {
     console.log('🌍 Fuseau horaire détecté pour l\'affichage des logs:', detectedTimezone);
     
     loadAutomations();
-  }, [user?.id]);
+  }, [user?.id, loadAutomations]);
 
-  const loadAutomations = async () => {
+  const loadAutomations = useCallback(async () => {
     if (!user?.id) {
       setLoading(false);
       return;
@@ -528,7 +528,7 @@ export function SimpleAutomationDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   const toggleAutomation = async (id: string) => {
     const automation = automations.find(a => a.id === id);

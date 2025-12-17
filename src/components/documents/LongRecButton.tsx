@@ -68,7 +68,7 @@ export function LongRecButton({
       lastProcessedChunkRef.current = currentChunk; // Marquer ce chunk comme traité
       console.log(`✅ Texte transcrit inséré dans la note ${noteId} (chunk ${currentChunk})`);
     }
-  }, [transcribedText, currentChunk, noteId, onContentAppend]); // Retirer noteContent des dépendances
+  }, [transcribedText, currentChunk, noteId, onContentAppend, noteContent]);
 
   // Formater le temps écoulé (MM:SS)
   const formatTime = (seconds: number): string => {
