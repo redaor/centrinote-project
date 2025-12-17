@@ -25,7 +25,7 @@ export function QuotaBar() {
   useEffect(() => {
     if (!user?.id) return;
     loadData();
-  }, [user?.id]);
+  }, [user?.id, loadData]);
 
   const loadData = async () => {
     if (!user?.id) return;

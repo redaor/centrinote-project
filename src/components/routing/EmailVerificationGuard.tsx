@@ -19,7 +19,7 @@ export function EmailVerificationGuard({ children }: EmailVerificationGuardProps
 
   useEffect(() => {
     checkEmailVerification();
-  }, [user]);
+  }, [user, checkEmailVerification]);
 
   const checkEmailVerification = async () => {
     if (!user) {

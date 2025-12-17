@@ -83,7 +83,7 @@ export function AppRouter() {
       logger.debug('Utilisateur connecté détecté, fermeture du formulaire');
       setShowAuthForm(false);
     }
-  }, [user, loading]);
+  }, [user, loading, showAuthForm]);
 
   // Fonction pour gérer l'affichage du formulaire d'authentification
   const handleGetStarted = () => {

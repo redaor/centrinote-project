@@ -2,7 +2,7 @@
  * 📋 Composant PlanOverview - Affichage du plan actuel
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CreditCard, Calendar, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { SubscriptionData } from '../../services/subscriptionService';
 import { loadSubscription, createCustomerPortalSession } from '../../services/subscriptionServiceFallback';
@@ -23,9 +23,9 @@ export function PlanOverview({ userId, onUpgrade }: PlanOverviewProps) {
 
   useEffect(() => {
     loadUserSubscription();
-  }, [userId]);
+  },[userId, loadUserSubscription]);
 
-  const loadUserSubscription = async () => {
+  const loadUserSubscription = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -42,7 +42,7 @@ export function PlanOverview({ userId, onUpgrade }: PlanOverviewProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   const handleManageBilling = async () => {
     try {

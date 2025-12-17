@@ -48,7 +48,7 @@ export function ToastProvider({ children, darkMode = false }: ToastProviderProps
         hideToast(id);
       }, newToast.duration);
     }
-  }, []);
+  }, [hideToast]);
 
   const hideToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));

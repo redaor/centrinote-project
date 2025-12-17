@@ -181,7 +181,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (shouldBeDark !== state.darkMode) {
       dispatch({ type: 'TOGGLE_DARK_MODE' });
     }
-  }, []);
+  }, [state.darkMode, dispatch]);
 
   // ✅ SYNCHRONISATION : Écouter les changements du thème (cross-tab ET same-tab)
   useEffect(() => {

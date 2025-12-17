@@ -1,5 +1,5 @@
 // 👥 Composant amélioré pour gérer les participants d'une réunion
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Plus, X, User, UserPlus, Upload, Clipboard, 
   AlertCircle, Check, Mail, Users, Crown
@@ -60,7 +60,7 @@ export function ParticipantsFormV2({
   };
 
   // Parser l'input intelligent
-  const parseSmartInput = (input: string): { name: string; email: string } | null => {
+  const parseSmartInput = useCallback((input: string): { name: string; email: string } | null => {
     const trimmed = input.trim();
     if (!trimmed) return null;
 
@@ -91,7 +91,7 @@ export function ParticipantsFormV2({
 
     // Format: nom seul (invalide pour notre cas)
     return null;
-  };
+  }, [isValidEmail]);
 
   // Vérifier les doublons
   const isDuplicate = (email: string): boolean => {
@@ -237,7 +237,7 @@ export function ParticipantsFormV2({
     } else {
       setInputError('');
     }
-  }, [inputValue]);
+  }, [inputValue, parseSmartInput]);
 
   return (
     <div className="space-y-4">

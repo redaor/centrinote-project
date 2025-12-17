@@ -1,5 +1,5 @@
 // 👥 Composant pour gérer les participants d'une réunion
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, X, User, Mail, AlertCircle, Upload } from 'lucide-react';
 import { MeetingParticipant } from '../../types/meetings';
 import { EmailField } from '../ui/EmailField';
@@ -42,7 +42,7 @@ export function ParticipantsForm({
   };
 
   // Validation complète
-  const validateParticipants = (newParticipants: MeetingParticipant[]): ValidationError[] => {
+  const validateParticipants = useCallback((newParticipants: MeetingParticipant[]): ValidationError[] => {
     const newErrors: ValidationError[] = [];
 
     newParticipants.forEach((participant, index) => {
@@ -78,7 +78,7 @@ export function ParticipantsForm({
     });
 
     return newErrors;
-  };
+  }, [participants, organizer]);
 
   // Mettre à jour un participant (par ID stable)
   const updateParticipant = (id: string, field: 'name' | 'email', value: string) => {
@@ -172,7 +172,7 @@ export function ParticipantsForm({
   useEffect(() => {
     const newErrors = validateParticipants(participants);
     setErrors(newErrors);
-  }, []);
+  }, [participants, validateParticipants]);;
 
   // Debug logs
   console.log('[PARTICIPANTS] Current state:', { 

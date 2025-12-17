@@ -19,7 +19,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     if (storedLanguage && storedLanguage !== language) {
       dispatch({ type: 'SET_LANGUAGE', payload: storedLanguage });
     }
-  }, []);
+  }, [dispatch, language, storedLanguage]);
 
   // Synchroniser avec localStorage quand la langue change
   useEffect(() => {

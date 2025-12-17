@@ -1,5 +1,5 @@
 // 🎥 Composant salle de réunion Daily.co
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Mic, MicOff, Video, VideoOff, Monitor, Phone, 
@@ -237,16 +237,17 @@ export function MeetingRoom() {
 
     // Initialiser Daily uniquement sur demande utilisateur
     handleInitializeDaily(meeting.room_url, true);
-  }, [meeting?.room_url, meeting?.title, meeting?.participants?.length, containerRef.current, userRequestedJoin, handleInitializeDaily]);
+  },[meeting?.room_url, meeting?.title, meeting?.participants?.length, 
+  userRequestedJoin, handleInitializeDaily]);
   
   // Wrapper functions qui utilisent les helpers hissés
-  const handleInitializeDaily = async (roomUrl: string, userInitiated = false) => {
+  const handleInitializeDaily = useCallback(async (roomUrl: string, userInitiated = false) => {
     return initializeDaily(roomUrl, dailyHook, containerRef, userInitiated);
-  };
+  }, [dailyHook]);
   
-  const handleFetchMeetingDirectly = async (meetingId: string) => {
+  const handleFetchMeetingDirectly = useCallback(async (meetingId: string) => {
     return fetchMeetingDirectly(meetingId, navigate, setMeeting, dailyHook, containerRef);
-  };
+  }, [navigate, setMeeting, dailyHook]);
   
   const handleTestDirectAccess = () => {
     console.log('🧪 [TEST] Accès direct déclenché manuellement');
@@ -346,7 +347,8 @@ export function MeetingRoom() {
           });
       }
     }
-  }, [id, meetings, meetingsLoading, handleFetchMeetingDirectly, updateMeeting]); // ✅ Retirer dailyHook des dépendances
+  }, [id, meetings, meetingsLoading, handleFetchMeetingDirectly, 
+  handleInitializeDaily, updateMeeting]);  // ✅ Retirer dailyHook des dépendances
 
   // Gérer la déconnexion
   const handleLeave = async () => {
