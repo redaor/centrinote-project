@@ -45,8 +45,6 @@ interface ChatHeaderProps {
   isReady: boolean;
   /** Statistiques du contexte */
   contextStats: ContextStats;
-  /** Mode sombre activé */
-  darkMode: boolean;
 }
 
 /**
@@ -57,110 +55,60 @@ export function ChatHeader({
   onModeChange,
   isReady,
   contextStats,
-  darkMode,
 }: ChatHeaderProps) {
   return (
     <motion.div
-      className="flex-shrink-0 border-b border-slate-200/80 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl shadow-sm"
+      className="flex-shrink-0 bg-white dark:bg-gray-900 px-6 py-4"
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Titre avec icône et Badge Sécurité */}
-      <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
-        {/* Titre avec icône */}
-        <div className="flex items-center gap-2">
-          <motion.div
-            className="relative"
-            whileHover={{ scale: 1.1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 10 }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-full blur-md opacity-30 animate-pulse" />
-            <div className="relative p-1 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full">
-              <Brain className="w-3.5 h-3.5 text-white" />
-            </div>
-          </motion.div>
-          <h1 className="text-sm font-bold text-slate-900 dark:text-white">
+      {/* Header principal : Logo + Titre + Statut discret */}
+      <div className="flex items-center justify-between">
+        {/* Logo + Titre Noteo */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+            <Brain className="w-4 h-4 text-white" />
+          </div>
+          <h1 className="text-base font-semibold text-gray-900 dark:text-white">
             Noteo
           </h1>
         </div>
 
-        {/* Badge Sécurité */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-            <Shield className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">100%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Onglets et Indicateur de Statut */}
-      <div className="flex items-center justify-between px-2 pb-1.5">
-        <div className="flex items-center gap-2">
+        {/* Onglets discrets à droite */}
+        <div className="flex items-center gap-1.5">
           {/* Onglet Conversation */}
-          <motion.button
+          <button
             onClick={() => onModeChange('chat')}
-            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
               mode === 'chat'
-                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30'
-                : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
             }`}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
           >
-            <MessageCircle className={`w-3.5 h-3.5 ${mode === 'chat' ? 'text-white' : ''}`} />
-            <span>Conversation</span>
-            {mode === 'chat' && (
-              <motion.div
-                className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-md"
-                animate={{ opacity: [0.2, 0.4, 0.2] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-            )}
-          </motion.button>
+            <MessageCircle className="w-3 h-3" />
+            <span>Chat</span>
+          </button>
 
           {/* Onglet Analyseur */}
-          <motion.button
+          <button
             onClick={() => onModeChange('analyze')}
-            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
               mode === 'analyze'
-                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30'
-                : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700'
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
             }`}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
           >
-            <Search className={`w-3.5 h-3.5 ${mode === 'analyze' ? 'text-white' : ''}`} />
-            <span>Analyseur</span>
-            {mode === 'analyze' && (
-              <motion.div
-                className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-md"
-                animate={{ opacity: [0.2, 0.4, 0.2] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-            )}
-          </motion.button>
-        </div>
+            <Search className="w-3 h-3" />
+            <span>Analyser</span>
+          </button>
 
-        {/* Indicateur de Statut */}
-        <div className="flex items-center gap-2">
-          <motion.div
-            className={`w-2 h-2 rounded-full ${
-              isReady ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}
-            animate={{
-              scale: isReady ? [1, 1.2, 1] : [1, 1.3, 1],
-              opacity: isReady ? [1, 0.8, 1] : [1, 0.6, 1]
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-          <span className="text-xs font-medium text-slate-600 dark:text-gray-400">
-            {isReady ? 'Prêt' : 'Initialisation...'}
-          </span>
-          {contextStats.totalEntries > 0 && (
-            <span className="text-xs text-slate-500 dark:text-gray-500">
-              • {contextStats.totalEntries} éléments
-            </span>
+          {/* Indicateur de statut discret */}
+          {isReady && (
+            <div className="ml-2 flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">Prêt</span>
+            </div>
           )}
         </div>
       </div>

@@ -27,6 +27,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useCentrinoteAI } from '../../hooks/useCentrinoteAI';
 import { useCentrinoteAI_Edge } from '../../hooks/useCentrinoteAI_Edge';
 import { useApp } from '../../contexts/AppContext';
+import { useTheme } from '../../hooks/useTheme';
 import { aiConversationService, type AIMessage } from '../../services/aiConversationService';
 import { supabase } from '../../lib/supabase';
 import { AIActionConfirmModal } from '../../components/ai/AIActionConfirmModal';
@@ -72,7 +73,8 @@ export default function AIChatContainer() {
   // Contexte et hooks globaux
   // ═══════════════════════════════════════════════════════════════
   const { state } = useApp();
-  const { darkMode, user } = state;
+  const { user } = state;
+  const { isDarkMode } = useTheme(); // ✅ Utiliser useTheme comme source unique de vérité
   const location = useLocation();
   const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
 
@@ -256,30 +258,21 @@ export default function AIChatContainer() {
           welcomeMessageShown.current = true;
 
           clearSegments();
-          const welcomeSegments = [
-            {
-              emoji: '🤖',
-              content: `Bonjour${user?.name ? ` ${user.name}` : ''} ! Je suis Noteo, votre assistant IA.`,
-            },
-            {
-              emoji: '💡',
-              content: 'Je peux vous aider à répondre à vos questions, analyser votre code, ou vous guider dans l\'utilisation de Centrinote.',
-            },
-            {
-              emoji: '✨',
-              content: 'Comment puis-je vous aider aujourd\'hui ?',
-            },
-          ];
+          
+          // Créer un seul message de bienvenue avec les 3 parties dans une seule bulle
+          const welcomeContent = `🤖 Bonjour${user?.name ? ` ${user.name}` : ''} ! Je suis Noteo, votre assistant IA.
 
-          await addSegments(welcomeSegments, 2000);
+💡 Je peux vous aider à répondre à vos questions, analyser votre code, ou vous guider dans l'utilisation de Centrinote.
+
+✨ Comment puis-je vous aider aujourd'hui ?`;
 
           const welcomeMessage: Message = {
             id: `welcome-${Date.now()}`,
             type: 'ai',
-            content: `Bonjour${user?.name ? ` ${user.name}` : ''} ! Je suis Noteo, votre assistant IA. Je peux vous aider à répondre à vos questions ou analyser votre code existant.`,
+            content: welcomeContent,
             timestamp: new Date(),
             metadata: {
-              isSegmented: true,
+              isSegmented: false,
             },
           };
 
@@ -483,20 +476,36 @@ export default function AIChatContainer() {
             },
           });
 
+          console.log('🔍 [AIChatContainer] Debug orchestrateur:', {
+            hasData: !!orchestratorData,
+            hasError: !!orchestratorError,
+            errorMessage: orchestratorError?.message,
+            dataType: typeof orchestratorData,
+            dataKeys: orchestratorData ? Object.keys(orchestratorData) : [],
+            reply: orchestratorData?.reply,
+            error: orchestratorData?.error,
+          });
+
           if (orchestratorError) {
             throw new Error(`Orchestrateur error: ${orchestratorError.message}`);
+          }
+
+          // Vérifier si l'orchestrateur a retourné une erreur dans le body
+          if (orchestratorData?.error) {
+            throw new Error(`Orchestrateur error: ${orchestratorData.error}`);
           }
 
           memoryResponse = {
             success: true,
             response: orchestratorData?.reply || '',
-            error: undefined,
+            error: orchestratorData?.error,
           };
 
           console.log('📥 [AIChatContainer] Réponse orchestrateur:', {
             success: memoryResponse.success,
             hasResponse: !!memoryResponse.response,
             responseLength: memoryResponse.response?.length || 0,
+            responsePreview: memoryResponse.response?.substring(0, 100),
           });
         } catch (error) {
           console.error('❌ [AIChatContainer] Erreur lors de l\'appel orchestrateur:', error);
@@ -786,7 +795,7 @@ export default function AIChatContainer() {
 
   return (
     <motion.div
-      className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-white to-blue-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800"
+      className="flex flex-col h-full bg-white dark:bg-gray-900"
       style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -798,7 +807,6 @@ export default function AIChatContainer() {
         onModeChange={setMode}
         isReady={isReady}
         contextStats={contextStats}
-        darkMode={darkMode}
       />
 
       {/* Zone de Messages */}
@@ -809,7 +817,6 @@ export default function AIChatContainer() {
             segments={segments}
             isLoadingMessages={isLoadingMessages}
             isLoading={isLoading}
-            darkMode={darkMode}
             user={user}
             messagesEndRef={messagesEndRef}
             onCopyMessage={handleCopyMessage}
@@ -829,7 +836,6 @@ export default function AIChatContainer() {
             onFileSelect={handleFileSelect}
             isLoading={isLoading}
             isReady={isReady}
-            darkMode={darkMode}
             selectedFile={selectedFile}
             onRemoveFile={handleFileRemove}
             onQuickAction={handleQuickAction}
@@ -846,7 +852,6 @@ export default function AIChatContainer() {
         onConfirm={handleConfirmAction}
         onCancel={handleCancelAction}
         isLoading={isApplyingAction}
-        darkMode={darkMode}
       />
 
       {/* Modal de limite de quota */}

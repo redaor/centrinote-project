@@ -1,0 +1,30 @@
+# robots.txt pour Centrinote
+# Autorise tous les robots d'indexation
+
+User-agent: *
+Allow: /
+
+# Pages spécifiques à ne pas indexer
+Disallow: /auth/
+Disallow: /verify-email
+Disallow: /confirm-email
+Disallow: /email-sent
+Disallow: /welcome
+Disallow: /auth/reset-mot-de-passe
+Disallow: /auth/confirm
+Disallow: /debug/
+Disallow: /ghost-text-demo
+
+# Autorise explicitement les pages importantes
+Allow: /
+Allow: /launch
+Allow: /privacy-policy
+Allow: /terms-of-service
+Allow: /legal-mentions
+Allow: /faq
+Allow: /support
+Allow: /forum
+Allow: /guide
+
+# Sitemap
+Sitemap: https://centrinote.fr/sitemap.xml

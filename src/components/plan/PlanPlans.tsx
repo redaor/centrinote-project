@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Check, Zap, Crown, Star, Sparkles } from 'lucide-react';
+import { Check, Zap, Crown, Star, Sparkles, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { PLANS } from '../../config/planPrices';
 import { getPriceIdAuto, isPromoActiveSync } from '../../config/stripePrices';
@@ -18,11 +18,13 @@ interface PlanPlansProps {
 
 export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = false }: PlanPlansProps) {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSelectPlan = async (planKey: string) => {
     if (planKey === currentPlanId) return;
     
     setSelectedPlan(planKey);
+    setError(null); // Réinitialiser l'erreur
     
     // Pour le plan gratuit
     if (planKey === 'free') {
@@ -36,7 +38,8 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
         // Récupérer le token JWT
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          console.error('❌ Pas de session utilisateur');
+          setError('Une erreur est survenue. Veuillez vous reconnecter.');
+          console.error('❌ [TECHNICAL] Pas de session utilisateur');
           return;
         }
 
@@ -50,10 +53,19 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
         if (result.success && result.url) {
           window.location.href = result.url;
         } else {
-          console.error('❌ Erreur checkout:', result.error);
+          // Message générique pour l'utilisateur
+          setError('Impossible de procéder au paiement pour le moment. Veuillez réessayer plus tard.');
+          // Détails techniques dans la console uniquement
+          console.error('❌ [TECHNICAL] Erreur checkout:', result.error);
         }
       } catch (error) {
-        console.error('❌ Error getting price ID:', error);
+        // Message générique pour l'utilisateur
+        setError('Une erreur est survenue lors de la sélection du plan. Veuillez réessayer.');
+        // Détails techniques dans la console uniquement
+        console.error('❌ [TECHNICAL] Error getting price ID:', error);
+        if (error instanceof Error) {
+          console.error('❌ [TECHNICAL] Error details:', error.message);
+        }
       }
     }
   };
@@ -95,6 +107,18 @@ export function PlanPlans({ currentPlanId = 'free', onSelectPlan, loading = fals
           Sélectionnez le plan qui correspond le mieux à vos besoins
         </p>
       </div>
+
+      {/* Affichage des erreurs - Message générique uniquement */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {PLANS.map((plan) => {

@@ -72,71 +72,51 @@ export function MessageBubbleAI({
   return (
     <motion.div
       key={message.id}
-      className="flex justify-center gap-2.5 w-full"
+      className="w-full mb-8"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      {/* Avatar Brain - Plus grand et plus visible */}
-      <motion.div
-        className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shadow-sm"
-        whileHover={{ scale: 1.1 }}
-        transition={{ type: "spring", stiffness: 400, damping: 17 }}
-      >
-        <Brain className="w-4 h-4 text-white" />
-      </motion.div>
+      <div className="flex items-start gap-4">
+        {/* Avatar Brain - Minimaliste */}
+        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+          <Brain className="w-4 h-4 text-white" />
+        </div>
 
-      {/* Bulle de message - Design moderne et aéré */}
-      <div className="flex justify-center w-full">
-        <div className="max-w-3xl w-full">
-          <motion.div
-            className="bg-slate-50/80 dark:bg-gray-800/60 text-gray-900 dark:text-gray-100 rounded-xl shadow-md shadow-slate-200/50 dark:shadow-gray-900/30 border border-slate-100/80 dark:border-gray-700/30 backdrop-blur-sm px-4 py-3.5 mb-4"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05, ease: "easeOut" }}
-          >
-            {/* Contenu structuré avec Tailwind Prose - Spacing amélioré */}
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-3 prose-p:leading-relaxed prose-ul:my-3 prose-li:my-1.5 prose-li:leading-relaxed leading-relaxed break-words whitespace-pre-wrap">
-              {message.content}
-            </div>
+        {/* Contenu du message - Texte fluide type Kimi */}
+        <div className="flex-1 min-w-0">
+          {/* Texte naturel sans bordure */}
+          <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-3 prose-p:leading-relaxed prose-ul:my-3 prose-ul:list-outside prose-ul:pl-5 prose-li:my-1.5 prose-li:leading-relaxed prose-li:pl-0 prose-ol:my-3 prose-ol:list-outside prose-ol:pl-5 leading-relaxed break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+            {message.content}
+          </div>
 
-            {/* Barre d'actions - Plus visible et élégante */}
-            <div className="flex items-center justify-end gap-1.5 border-t border-slate-200/60 dark:border-gray-700/40 mt-3 pt-2.5">
-              {/* Bouton Copier */}
-              <motion.button
-                className="p-2 rounded-lg transition-all duration-200 ease-out opacity-75 hover:opacity-100 hover:bg-slate-200/60 dark:hover:bg-gray-700/60"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                title="Copier"
-                onClick={onCopy}
-              >
-                <Copy className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              </motion.button>
+          {/* Barre d'actions - Ultra discrète */}
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              className="p-1 opacity-30 hover:opacity-100 transition-opacity"
+              title="Copier"
+              onClick={onCopy}
+            >
+              <Copy className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+            </button>
 
-              {/* Bouton Régénérer */}
-              <motion.button
-                className="p-2 rounded-lg transition-all duration-200 ease-out opacity-75 hover:opacity-100 hover:bg-slate-200/60 dark:hover:bg-gray-700/60"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                title="Régénérer"
-                onClick={onRegenerate}
-              >
-                <RefreshCw className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              </motion.button>
+            <button
+              className="p-1 opacity-30 hover:opacity-100 transition-opacity"
+              title="Régénérer"
+              onClick={onRegenerate}
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+            </button>
 
-              {/* Bouton J'aime */}
-              <motion.button
-                className="p-2 rounded-lg transition-all duration-200 ease-out opacity-75 hover:opacity-100 hover:bg-slate-200/60 dark:hover:bg-gray-700/60"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                title="J'aime"
-                onClick={onLike}
-              >
-                <ThumbsUp className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              </motion.button>
-            </div>
-          </motion.div>
+            <button
+              className="p-1 opacity-30 hover:opacity-100 transition-opacity"
+              title="J'aime"
+              onClick={onLike}
+            >
+              <ThumbsUp className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>

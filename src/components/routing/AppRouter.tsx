@@ -6,6 +6,7 @@ import { MeetingsProvider } from '../../hooks/useMeetings';
 
 // 🔬 DEBUG: Page de diagnostic Settings + IA
 import SettingsIADiagnostic from '../../debug/SettingsIA-Diagnostic';
+import { DarkModeDiagnostic } from '../debug/DarkModeDiagnostic';
 
 // Composant pour tracer les changements de location
 function RouterLocationDebug() {

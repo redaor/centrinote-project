@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
-import { useTheme } from '../../hooks/useTheme';
+import { useThemeSync } from '../../hooks/useThemeSync';
 import { useSettings } from '../../hooks/settings/useSettings';
 import { useTranslation } from '../../hooks/useTranslation';
 import { ConfirmModal } from '../settings/modals/ConfirmModal';
@@ -44,8 +44,8 @@ const formatTime = (dateString: string) => {
 
 export function AppHeader() {
   const { state, dispatch } = useApp();
-  const { darkMode, currentView, user } = state;
-  const { toggleTheme } = useTheme();
+  const { currentView, user } = state;
+  const { isDarkMode, setTheme } = useThemeSync(); // ✅ Utiliser useThemeSync pour synchronisation
   const { updateAppearance, logout } = useSettings(user?.id);
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -97,12 +97,13 @@ export function AppHeader() {
     };
   }, [showUserMenu]);
 
-  // ✅ Utiliser toggleTheme de useTheme + sauvegarder en BDD (non-bloquant)
+  // ✅ Utiliser setTheme de useTheme + sauvegarder en BDD (non-bloquant)
   const handleToggleDarkMode = () => {
-    toggleTheme(); // Applique immédiatement le thème
+    // Calculer le nouveau thème depuis isDarkMode (source de vérité)
+    const newTheme = isDarkMode ? 'light' : 'dark';
 
-    // Calculer le nouveau thème après le toggle
-    const newTheme = darkMode ? 'light' : 'dark';
+    // Appliquer immédiatement le thème
+    setTheme(newTheme);
 
     // ⚡ Sauvegarder en BDD en arrière-plan (fire-and-forget)
     // Ne pas bloquer l'UI avec await
@@ -208,31 +209,21 @@ export function AppHeader() {
 
   return (
     <>
-      <header className={`
-        ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}
-        border-b px-4 lg:px-6 py-3 lg:py-4 flex items-center justify-between
-        sticky top-0 z-30
-      `}>
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-3 lg:py-4 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center space-x-3 lg:space-x-0 min-w-0 flex-1">
           {/* Bouton menu mobile */}
           <button
             id="mobile-menu-toggle"
             name="mobile-menu"
             onClick={toggleSidebar}
-            className={`
-              lg:hidden p-2 rounded-lg transition-colors min-w-[2.5rem] min-h-[2.5rem]
-              ${darkMode
-                ? 'hover:bg-gray-800 text-gray-400 hover:text-white'
-                : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-              }
-            `}
+            className="lg:hidden p-2 rounded-lg transition-colors min-w-[2.5rem] min-h-[2.5rem] hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
             aria-label="Ouvrir le menu"
           >
             <Menu className="w-6 h-6" />
           </button>
 
           <div className="min-w-0 flex-1">
-            <h1 className={`text-xl lg:text-2xl font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            <h1 className="text-xl lg:text-2xl font-bold truncate text-gray-900 dark:text-white">
               {getViewTitle()}
             </h1>
           </div>
@@ -243,7 +234,7 @@ export function AppHeader() {
           <div className="relative">
             <BadgePulse
               count={unreadCount}
-              darkMode={darkMode}
+              darkMode={isDarkMode}
               onClick={() => {
                 logger.debug('Badge notifications cliqué', { unreadCount, totalCount: notifications.length });
                 setShowNotifications(!showNotifications);
@@ -251,7 +242,7 @@ export function AppHeader() {
             />
             <NotificationPanel
               isOpen={showNotifications}
-              darkMode={darkMode}
+              darkMode={isDarkMode}
               onClose={() => setShowNotifications(false)}
               onDelete={(id) => deleteNotification(id)}
               onMarkAsRead={(id) => markAsRead(id)}
@@ -273,14 +264,14 @@ export function AppHeader() {
             onClick={handleToggleDarkMode}
             className={`
               p-2 rounded-lg transition-colors min-w-[2.5rem] min-h-[2.5rem]
-              ${darkMode
+              ${isDarkMode
                 ? 'hover:bg-gray-800 text-gray-400 hover:text-white'
                 : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
               }
             `}
-            aria-label={darkMode ? 'Activer le mode clair' : 'Activer le mode sombre'}
+            aria-label={isDarkMode ? 'Activer le mode clair' : 'Activer le mode sombre'}
           >
-            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
 
           {/* User Menu */}
@@ -295,13 +286,7 @@ export function AppHeader() {
                 logger.debug('Toggle user menu');
                 setShowUserMenu(!showUserMenu);
               }}
-              className={`
-                flex items-center space-x-2 p-2 rounded-lg transition-colors
-                ${darkMode
-                  ? 'hover:bg-gray-800 text-gray-400 hover:text-white'
-                  : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-                }
-              `}
+              className="flex items-center space-x-2 p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               aria-label="Ouvrir le menu utilisateur"
               aria-expanded={showUserMenu}
               aria-haspopup="true"
@@ -326,10 +311,7 @@ export function AppHeader() {
 
             {/* Dropdown Menu */}
             {showUserMenu && (
-              <div className={`
-                absolute right-0 mt-2 w-64 rounded-xl shadow-lg border z-50
-                ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-              `}>
+              <div className="absolute right-0 mt-2 w-64 rounded-xl shadow-lg border z-50 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                 {/* Header du menu */}
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center space-x-3">
@@ -347,10 +329,10 @@ export function AppHeader() {
                       )}
                     </div>
                     <div>
-                      <div className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      <div className="font-semibold text-gray-900 dark:text-white">
                         {user?.name}
                       </div>
-                      <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
                         {user?.email}
                       </div>
                       <div className={`text-xs px-2 py-1 rounded-full mt-1 inline-block ${
@@ -376,14 +358,7 @@ export function AppHeader() {
                     name="settings"
                     type="button"
                     onClick={handleSettingsClick}
-                    className={`
-                      w-full items-center space-x-3 px-4 py-3 text-left transition-colors
-                      hidden md:flex
-                      ${darkMode
-                        ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                      }
-                    `}
+                    className="w-full items-center space-x-3 px-4 py-3 text-left transition-colors hidden md:flex text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
                     aria-label="Ouvrir les paramètres"
                   >
                     <Settings className="w-5 h-5" />
@@ -396,13 +371,7 @@ export function AppHeader() {
                     name="help"
                     type="button"
                     onClick={handleHelpClick}
-                    className={`
-                      w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors
-                      ${darkMode
-                        ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                      }
-                    `}
+                    className="w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
                     aria-label="Ouvrir l'aide et le support"
                   >
                     <HelpCircle className="w-5 h-5" />
@@ -416,13 +385,7 @@ export function AppHeader() {
                       name="admin"
                       type="button"
                       onClick={handleAdminClick}
-                      className={`
-                        w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors
-                        ${darkMode
-                          ? 'text-purple-400 hover:bg-purple-900/20 hover:text-purple-300'
-                          : 'text-purple-600 hover:bg-purple-50 hover:text-purple-700'
-                        }
-                      `}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-700 dark:hover:text-purple-300"
                       aria-label="Ouvrir le panneau d'administration"
                     >
                       <Shield className="w-5 h-5" />
@@ -444,9 +407,7 @@ export function AppHeader() {
                       w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors
                       ${isLoggingOut
                         ? 'opacity-50 cursor-not-allowed'
-                        : darkMode
-                          ? 'text-red-400 hover:bg-red-900/20 hover:text-red-300'
-                          : 'text-red-600 hover:bg-red-50 hover:text-red-700'
+                        : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300'
                       }
                     `}
                     aria-label="Se déconnecter du compte"
@@ -472,7 +433,7 @@ export function AppHeader() {
         cancelText="Annuler"
         type="info"
         isLoading={isLoggingOut}
-        isDark={darkMode}
+        isDark={isDarkMode}
       />
     </>
   );

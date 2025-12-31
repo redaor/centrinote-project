@@ -26,12 +26,6 @@ export function QuotaTester({ testEmail = 'redasahraoui1@gmail.com' }: QuotaTest
   // Vérifier si l'utilisateur est autorisé (admin ou email de test)
   const isAuthorized = user?.email === testEmail || user?.email === 'reda_sahraoui@outlook.fr';
 
-  useEffect(() => {
-    if (isAuthorized) {
-      loadCurrentState();
-    }
-  }, [isAuthorized, loadCurrentState]);
-
   const loadCurrentState = useCallback(async () => {
     try {
       setLoading(true);
@@ -80,6 +74,12 @@ export function QuotaTester({ testEmail = 'redasahraoui1@gmail.com' }: QuotaTest
       setLoading(false);
     }
   }, [testEmail]);
+
+  useEffect(() => {
+    if (isAuthorized) {
+      loadCurrentState();
+    }
+  }, [isAuthorized, loadCurrentState]);
 
   const applyTestScenario = async (scenario: 'free' | 'starter' | 'pro' | 'teams' | 'reset') => {
     if (!isAuthorized) {

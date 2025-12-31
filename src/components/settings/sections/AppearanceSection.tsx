@@ -8,7 +8,7 @@ import { Palette } from 'lucide-react';
 import { SettingsCard } from '../ui/SettingsCard';
 import { AppearanceSettings } from '../../../types/settings.types';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { useTheme } from '../../../hooks/useTheme';
+import { useThemeSync } from '../../../hooks/useThemeSync';
 import { useTextSize } from '../../../hooks/useTextSize';
 import { useTranslation } from '../../../hooks/useTranslation';
 
@@ -23,7 +23,7 @@ export function AppearanceSection({
   onUpdate,
   isDark = false
 }: AppearanceSectionProps) {
-  const { setTheme } = useTheme(); // ✅ Utiliser useTheme pour la synchronisation
+  const { theme, setTheme } = useThemeSync(); // ✅ Utiliser useThemeSync pour synchronisation garantie
   const { textSize, setTextSize } = useTextSize(); // ✅ Lire et modifier via useTextSize pour la synchronisation
   const { language, setLanguage } = useLanguage(); // ✅ Lire ET modifier la langue
   const { t } = useTranslation(); // ✅ Utiliser les traductions
@@ -129,7 +129,7 @@ export function AppearanceSection({
           <select
             id="theme-select"
             name="theme"
-            value={appearance.theme}
+            value={theme} // ✅ Utiliser theme de useThemeSync (source de vérité)
             onChange={handleThemeChange}
             className={`
               w-full px-4 py-3 rounded-lg border

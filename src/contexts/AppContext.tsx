@@ -165,7 +165,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ✅ SYNCHRONISATION : Initialiser depuis le thème de useTheme (source unique de vérité)
   useEffect(() => {
-    const storedTheme = localStorage.getItem('centrinote-theme');
+    // Lire le localStorage avec JSON.parse (comme useLocalStorage le fait)
+    let storedTheme: string | null = null;
+    try {
+      const raw = localStorage.getItem('centrinote-theme');
+      if (raw) {
+        try {
+          storedTheme = JSON.parse(raw);
+        } catch {
+          // Si ce n'est pas du JSON, utiliser directement (compatibilité)
+          storedTheme = raw;
+        }
+      }
+    } catch (error) {
+      console.error('[AppContext] Erreur lecture localStorage:', error);
+    }
 
     // Déterminer si on doit être en mode sombre
     let shouldBeDark = false;
@@ -198,7 +212,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Handler pour l'événement 'storage' (cross-tab uniquement)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'centrinote-theme' && e.newValue) {
-        const shouldBeDark = calculateDarkMode(e.newValue);
+        // Parser la valeur JSON
+        let themeValue: string;
+        try {
+          themeValue = JSON.parse(e.newValue);
+        } catch {
+          themeValue = e.newValue; // Fallback si ce n'est pas du JSON
+        }
+        const shouldBeDark = calculateDarkMode(themeValue);
 
         if (shouldBeDark !== state.darkMode) {
           dispatch({ type: 'TOGGLE_DARK_MODE' });

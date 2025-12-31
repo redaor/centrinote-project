@@ -78,8 +78,6 @@ interface MessagesContainerProps {
   isLoadingMessages: boolean;
   /** État de chargement d'une nouvelle réponse */
   isLoading: boolean;
-  /** Mode sombre activé */
-  darkMode: boolean;
   /** Utilisateur courant */
   user: User | null;
   /** Ref pour auto-scroll vers le dernier message */
@@ -100,7 +98,6 @@ export function MessagesContainer({
   segments,
   isLoadingMessages,
   isLoading,
-  darkMode,
   user,
   messagesEndRef,
   onCopyMessage,
@@ -109,13 +106,13 @@ export function MessagesContainer({
 }: MessagesContainerProps) {
   return (
     <motion.div
-      className="flex-1 overflow-y-auto px-4 py-4 bg-gradient-to-b from-transparent to-slate-50/50 dark:to-gray-900/50"
+      className="flex-1 overflow-y-auto"
       style={{ minHeight: '150px' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <div className="max-w-4xl mx-auto flex flex-col gap-6 px-4">
+      <div className="max-w-4xl mx-auto px-8 py-12 flex flex-col">
         {/* État de chargement */}
         {isLoadingMessages ? (
           <motion.div
@@ -158,7 +155,6 @@ export function MessagesContainer({
                 key={segment.id}
                 segment={segment}
                 index={index}
-                darkMode={darkMode}
               />
             ))}
           </AnimatePresence>
@@ -199,7 +195,6 @@ export function MessagesContainer({
                             content={message.content}
                             problemType={messageAnalysis.problemType || 'general'}
                             userName={user?.name}
-                            darkMode={darkMode}
                             onSuccess={() => {
                               console.log('✅ Problème résolu');
                             }}
@@ -219,7 +214,6 @@ export function MessagesContainer({
                 <MessageBubbleAI
                   key={message.id}
                   message={message}
-                  darkMode={darkMode}
                   onCopy={() => onCopyMessage(message.content)}
                   onRegenerate={() => onRegenerateMessage(message.id)}
                   onLike={() => onLikeMessage(message.id)}
@@ -233,7 +227,6 @@ export function MessagesContainer({
                 <MessageBubbleUser
                   key={message.id}
                   message={message}
-                  darkMode={darkMode}
                   user={user}
                 />
               );
@@ -244,20 +237,17 @@ export function MessagesContainer({
               return (
                 <motion.div
                   key={message.id}
-                  className="flex justify-center w-full"
+                  className="w-full mb-8"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                 >
-                  <div className="max-w-3xl w-full">
-                    <div className="bg-red-50/80 dark:bg-red-900/20 border border-red-200/80 dark:border-red-800/60 rounded-xl shadow-md shadow-red-200/30 dark:shadow-red-900/20 backdrop-blur-sm px-4 py-3.5 mb-4">
-                      <div className="flex items-start gap-2 mb-2">
-                        <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm font-medium text-red-800 dark:text-red-200 leading-relaxed">
-                          Erreur
-                        </span>
-                      </div>
-                      <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap leading-relaxed text-left break-words">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-red-500 flex items-center justify-center">
+                      <AlertCircle className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-red-700 dark:text-red-400 whitespace-pre-wrap leading-relaxed break-words">
                         {message.content}
                       </p>
                     </div>
@@ -271,14 +261,17 @@ export function MessagesContainer({
               return (
                 <motion.div
                   key={message.id}
-                  className="flex justify-center w-full"
+                  className="w-full mb-8"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                 >
-                  <div className="max-w-3xl w-full">
-                    <div className="bg-slate-900 dark:bg-gray-950 border border-slate-700/80 dark:border-gray-800/60 rounded-xl shadow-md shadow-slate-900/30 overflow-x-auto px-4 py-3.5 mb-4">
-                      <pre className="text-sm text-slate-100 font-mono whitespace-pre-wrap leading-relaxed">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
+                      <span className="text-white text-xs font-mono">{'</>'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <pre className="text-sm text-slate-800 dark:text-slate-200 font-mono whitespace-pre-wrap leading-relaxed break-all">
                         <code>{message.content}</code>
                       </pre>
                     </div>
@@ -291,32 +284,30 @@ export function MessagesContainer({
           })}
         </AnimatePresence>
 
-        {/* Indicateur de chargement - Style moderne cohérent */}
+        {/* Indicateur de chargement - Style épuré */}
         {isLoading && (
-          <div className="flex justify-center w-full">
-            <div className="max-w-3xl w-full">
-              <motion.div
-                className="flex gap-2.5 w-full"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              >
-                {/* Avatar Brain animé */}
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shadow-sm">
-                  <Brain className="w-4 h-4 text-white" />
+          <motion.div
+            className="w-full mb-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+          >
+            <div className="flex items-start gap-4">
+              {/* Avatar Brain */}
+              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                <Brain className="w-4 h-4 text-white" />
+              </div>
+              {/* Texte de chargement */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                    L'IA réfléchit...
+                  </span>
                 </div>
-                {/* Bulle de chargement */}
-                <div className="bg-slate-50/80 dark:bg-gray-800/60 rounded-xl border border-slate-100/80 dark:border-gray-700/30 shadow-md shadow-slate-200/50 dark:shadow-gray-900/30 backdrop-blur-sm px-4 py-3.5">
-                  <div className="flex items-start gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed">
-                      L'IA réfléchit...
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
+              </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Anchor pour auto-scroll */}

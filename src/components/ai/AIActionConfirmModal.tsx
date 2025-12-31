@@ -15,7 +15,6 @@ interface AIActionConfirmModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   isLoading?: boolean;
-  darkMode?: boolean;
 }
 
 export function AIActionConfirmModal({
@@ -24,7 +23,6 @@ export function AIActionConfirmModal({
   onConfirm,
   onCancel,
   isLoading = false,
-  darkMode = false,
 }: AIActionConfirmModalProps) {
   if (!action) return null;
 

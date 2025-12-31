@@ -448,15 +448,6 @@ export function SimpleAutomationDashboard() {
     }
   };
 
-  // Charger les automatisations depuis la DB au montage
-  useEffect(() => {
-    // Afficher le fuseau horaire détecté pour vérification
-    const detectedTimezone = getUserTimezone();
-    console.log('🌍 Fuseau horaire détecté pour l\'affichage des logs:', detectedTimezone);
-    
-    loadAutomations();
-  }, [user?.id, loadAutomations]);
-
   const loadAutomations = useCallback(async () => {
     if (!user?.id) {
       setLoading(false);
@@ -529,6 +520,15 @@ export function SimpleAutomationDashboard() {
       setLoading(false);
     }
   }, [user?.id]);
+
+  // Charger les automatisations depuis la DB au montage
+  useEffect(() => {
+    // Afficher le fuseau horaire détecté pour vérification
+    const detectedTimezone = getUserTimezone();
+    console.log('🌍 Fuseau horaire détecté pour l\'affichage des logs:', detectedTimezone);
+    
+    loadAutomations();
+  }, [user?.id, loadAutomations]);
 
   const toggleAutomation = async (id: string) => {
     const automation = automations.find(a => a.id === id);

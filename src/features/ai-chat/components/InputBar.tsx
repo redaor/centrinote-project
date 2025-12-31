@@ -60,8 +60,6 @@ interface InputBarProps {
   isLoading: boolean;
   /** IA prête */
   isReady: boolean;
-  /** Mode sombre activé */
-  darkMode: boolean;
   /** Fichier sélectionné */
   selectedFile: File | null;
   /** Callback pour suppression de fichier */
@@ -84,7 +82,6 @@ export function InputBar({
   onFileSelect,
   isLoading,
   isReady,
-  darkMode,
   selectedFile,
   onRemoveFile,
   onQuickAction,
@@ -93,7 +90,7 @@ export function InputBar({
 }: InputBarProps) {
   return (
     <motion.div
-      className="flex-shrink-0 border-t border-slate-200/80 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-1.5"
+      className="flex-shrink-0 bg-white dark:bg-gray-900 px-4 py-6"
       initial={{ y: 20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 20, opacity: 0 }}
@@ -127,13 +124,12 @@ export function InputBar({
           onChange={onFileSelect}
         />
 
-        {/* Zone de saisie séparée - Style Notion/Copilot */}
-        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex justify-center px-4">
-          <div className="max-w-2xl w-full">
+        {/* Zone de saisie - Style Kimi/Copilot épuré */}
+        <div className="flex justify-center">
+          <div className="max-w-3xl w-full">
             <motion.div
-              className="flex items-center gap-2 w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-400/20 transition-all duration-200"
-              whileFocus={{ scale: 1.005 }}
-              style={{ padding: '0.5rem 0.75rem' }}
+              className="flex items-center gap-3 w-full bg-white dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 focus-within:border-blue-500 dark:focus-within:border-blue-400 focus-within:shadow-lg focus-within:shadow-blue-500/10 transition-all duration-200 px-5 py-3"
+              whileFocus={{ scale: 1.01 }}
             >
               {/* Bouton Pièce jointe */}
               <motion.button
@@ -164,14 +160,14 @@ export function InputBar({
                     // Shift + Entrée = nouvelle ligne (comportement par défaut)
                   }}
                   placeholder={selectedFile ? "Posez une question sur ce document..." : "Tapez votre message..."}
-                  className="flex-1 px-2 py-2.5 bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500 resize-none focus:outline-none text-xs leading-normal scrollbar-hide"
+                  className="flex-1 px-2 py-2 bg-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 resize-none focus:outline-none text-sm leading-normal"
                   disabled={isLoading || !isReady}
                   rows={1}
                   style={{
                     minHeight: '40px',
                     maxHeight: '200px',
                     height: 'auto',
-                    lineHeight: '1.4',
+                    lineHeight: '1.5',
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     whiteSpace: 'pre-wrap',
@@ -181,13 +177,11 @@ export function InputBar({
                     msOverflowStyle: 'none',
                     width: '100%',
                     boxSizing: 'border-box',
-                    direction: 'ltr',
                   }}
                   aria-label="Zone de saisie de message"
                   context="chat"
                   userId={user?.id}
                   enabled={false}
-                  darkMode={darkMode}
                 />
                 {/* Bouton de reconnaissance vocale */}
                 <VoiceRecognition inputId="rechercheIA" submitButtonId="notes" />

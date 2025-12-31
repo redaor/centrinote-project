@@ -24,7 +24,7 @@ function buildCorsHeaders(origin: string | null): HeadersInit {
   const allowedOrigin = origin && allowedOrigins.has(origin) ? origin : "*";
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Credentials": "true",
     "Content-Type": "application/json",

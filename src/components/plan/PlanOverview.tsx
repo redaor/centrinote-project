@@ -21,10 +21,6 @@ export function PlanOverview({ userId, onUpgrade }: PlanOverviewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadUserSubscription();
-  },[userId, loadUserSubscription]);
-
   const loadUserSubscription = useCallback(async () => {
     try {
       setLoading(true);
@@ -43,6 +39,10 @@ export function PlanOverview({ userId, onUpgrade }: PlanOverviewProps) {
       setLoading(false);
     }
   }, [userId]);
+
+  useEffect(() => {
+    loadUserSubscription();
+  }, [userId, loadUserSubscription]);
 
   const handleManageBilling = async () => {
     try {

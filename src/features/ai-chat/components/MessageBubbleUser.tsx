@@ -69,10 +69,7 @@ function UserAvatar({ user }: { user: User | null }) {
   const [imgError, setImgError] = useState(false);
 
   return (
-    <motion.div
-      className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center overflow-hidden"
-      whileHover={{ scale: 1.05 }}
-    >
+    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center overflow-hidden">
       {user?.avatar && !imgError ? (
         <img
           src={user.avatar}
@@ -83,7 +80,7 @@ function UserAvatar({ user }: { user: User | null }) {
       ) : (
         <span className="text-white text-xs">👤</span>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -98,31 +95,23 @@ export function MessageBubbleUser({
   return (
     <motion.div
       key={message.id}
-      className="flex justify-center gap-2.5 w-full"
+      className="w-full mb-8"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      {/* Bulle de message - Gradient vibrant avec glow effect */}
-      <div className="flex justify-center w-full">
-        <div className="max-w-3xl w-full">
-          <motion.div
-            className="relative bg-gradient-to-r from-blue-500 via-blue-600 to-purple-600 text-white rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-blue-500/30 px-4 py-3.5 mb-4"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05, ease: "easeOut" }}
-          >
-            {/* Glow effect subtil */}
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400/20 to-purple-400/20 blur-xl -z-10" />
+      <div className="flex items-start gap-4">
+        {/* Avatar User - Minimaliste */}
+        <UserAvatar user={user} />
 
-            {/* Contenu du message - Typography cohérente */}
-            <div className="prose prose-sm prose-invert max-w-none">
-              <div className="whitespace-pre-wrap leading-relaxed break-words">
-                {message.content}
-              </div>
+        {/* Contenu du message - Texte fluide type Kimi */}
+        <div className="flex-1 min-w-0">
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <div className="whitespace-pre-wrap leading-relaxed break-words text-gray-800 dark:text-gray-200">
+              {message.content}
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </motion.div>

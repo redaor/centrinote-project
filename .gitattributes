@@ -1,0 +1,11 @@
+# .gitattributes - Configuration Git pour le projet Centrinote
+
+# Fichiers de documentation - ne pas déployer sur Netlify
+*.md linguist-documentation
+*.md export-ignore
+
+# Fichiers de configuration à préserver
+robots.txt -export-ignore
+sitemap.xml -export-ignore
+_headers -export-ignore
+_redirects -export-ignore

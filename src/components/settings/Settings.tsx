@@ -183,42 +183,6 @@ export function Settings() {
         </div>
       </div>
 
-      {/* Styles pour les animations */}
-      <style jsx>{`
-        @keyframes fadeInDown {
-          from {
-            opacity: 0;
-            transform: translateY(-16px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(16px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .animate-fadeInDown {
-          animation: fadeInDown 400ms ease-out;
-        }
-        .animate-fadeInUp {
-          animation: fadeInUp 400ms ease-out 100ms both;
-        }
-        .animate-fadeIn {
-          animation: fadeIn 400ms ease-out 200ms both;
-        }
-      `}</style>
     </div>
   );
 }

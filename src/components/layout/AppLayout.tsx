@@ -35,7 +35,7 @@ const DEBUG = import.meta.env.DEV;
 
 export function AppLayout() {
   const { state, dispatch } = useApp();
-  const { darkMode, currentView } = state;
+  const { currentView } = state;
   const { user: authUser } = useAuth();
   const { setTheme } = useTheme();
   const { setTextSize } = useTextSize();
@@ -95,7 +95,8 @@ export function AppLayout() {
     // pour ne pas ralentir le rendu initial
     const timeoutId = setTimeout(syncSettingsFromDatabase, 100);
     return () => clearTimeout(timeoutId);
-  }, [authUser?.id, setTheme, setTextSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id]);
 
   // Synchronisation URL → State (unidirectionnel)
   useEffect(() => {
@@ -217,7 +218,9 @@ export function AppLayout() {
 
   return (
     <LanguageProvider>
-      <div className={`min-h-screen ${darkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+      {/* Composants de diagnostic désactivés pour ne pas gêner l'interface */}
+      
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="flex h-screen overflow-hidden">
           <Sidebar />
           <div className="flex-1 flex flex-col overflow-hidden">

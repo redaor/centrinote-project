@@ -1,6 +1,8 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Ignorer les fichiers .md lors du déploiement (déjà exclus par Vite)
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- '*.md'"
 
 [build.environment]
   NODE_VERSION = "18"

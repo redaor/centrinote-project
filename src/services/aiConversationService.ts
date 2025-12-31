@@ -44,10 +44,19 @@ class AIConversationService {
         .eq('user_id', userId)
         .gte('created_at', oneDayAgo.toISOString())
         .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (sessionError && sessionError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        logger.error('❌ [AIConversationService] Erreur lors de la recherche de session:', sessionError);
+        .limit(1)
+        .maybeSingle(); // Utiliser maybeSingle() pour éviter l'erreur si aucune ligne
+
+      if (sessionError) {
+        // PGRST116 = no rows returned (normal)
+        // 42P01 = table does not exist (table pas encore créée)
+        // 406 = Not Acceptable (peut arriver avec des problèmes RLS)
+        if (!['PGRST116', '42P01'].includes(sessionError.code || '')) {
+          logger.warn('⚠️ [AIConversationService] Erreur lors de la recherche de session:', {
+            code: sessionError.code,
+            message: sessionError.message
+          });
+        }
         // Continuer et créer une nouvelle session
       }
       
@@ -207,15 +216,20 @@ class AIConversationService {
         .gte('created_at', oneDayAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle(); // Utiliser maybeSingle() pour éviter l'erreur si aucune ligne
 
       if (sessionError) {
-        if (sessionError.code === 'PGRST116') {
-          // Aucune session trouvée
+        // PGRST116 = no rows returned (normal)
+        // 42P01 = table does not exist
+        if (['PGRST116', '42P01'].includes(sessionError.code || '')) {
           logger.debug('ℹ️ [AIConversationService] Aucune session récente trouvée');
           return [];
         }
-        throw sessionError;
+        logger.warn('⚠️ [AIConversationService] Erreur chargement session:', {
+          code: sessionError.code,
+          message: sessionError.message
+        });
+        return [];
       }
 
       if (!latestMessage?.session_id) {

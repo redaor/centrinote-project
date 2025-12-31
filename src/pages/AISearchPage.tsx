@@ -15,7 +15,7 @@ import { AIChat } from '../features/ai-chat';
  */
 function AIChatLoadingFallback() {
   return (
-    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="h-full w-full flex items-center justify-center bg-white dark:bg-gray-900">
       <motion.div
         className="flex flex-col items-center gap-4"
         initial={{ opacity: 0, scale: 0.9 }}

@@ -49,7 +49,10 @@
       "Bash(tree:*)",
       "Bash(python3:*)",
       "Bash(ls:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "WebFetch(domain:centrinote.fr)",
+      "WebSearch",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []

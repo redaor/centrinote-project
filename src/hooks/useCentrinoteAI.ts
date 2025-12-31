@@ -80,8 +80,6 @@ export function useCentrinoteAI(options: UseCentrinoteAIOptions = {}): UseCentri
     // Utiliser une clé factice pour initialiser (ne sera pas utilisée si Edge Function est préférée)
     const apiKey = 'dummy-key-use-edge-function-instead';
 
-    console.warn('⚠️ [useCentrinoteAI] Architecture legacy - Préférez useAIChatEdgeFunction pour sécurité');
-
     try {
       console.log('🔧 [useCentrinoteAI] Initialisation CentrinoteAI...');
       aiInstanceRef.current = new CentrinoteAI({

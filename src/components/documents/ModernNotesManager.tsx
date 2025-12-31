@@ -144,7 +144,7 @@ function getNoteCategoryMeta(note: Note): NoteCategoryMeta {
 
 export function ModernNotesManager() {
   const { state } = useApp();
-  const { darkMode, user } = state;
+  const { user } = state;
   
   const { 
     notes, 
@@ -600,7 +600,6 @@ export function ModernNotesManager() {
                     onCreateNewNote={() => {
                       handleBackToList();
                     }}
-                    darkMode={darkMode}
                   />
                 )}
                 {/* 2.4 Désactiver Enregistrer si identique */}
@@ -632,7 +631,6 @@ export function ModernNotesManager() {
                 context="notes"
                 userId={user?.id}
                 enabled={false}
-                darkMode={darkMode}
               />
             </div>
 
@@ -748,7 +746,6 @@ export function ModernNotesManager() {
                         });
                       }
                     }}
-                    darkMode={darkMode}
                   />
                 </div>
               </div>
@@ -764,7 +761,6 @@ export function ModernNotesManager() {
                 context="notes"
                 userId={user?.id}
                 enabled={false}
-                darkMode={darkMode}
               />
             </div>
 
@@ -780,7 +776,6 @@ export function ModernNotesManager() {
                 context="notes"
                 userId={user?.id}
                 enabled={false}
-                darkMode={darkMode}
               />
             </div>
           </div>
@@ -875,7 +870,6 @@ export function ModernNotesManager() {
                 onCreateNewNote={() => {
                   handleBackToList();
                 }}
-                darkMode={darkMode}
               />
             )}
             {/* 1.2 Badge auto-sauvegarde (remplace Aide IA) */}
@@ -1870,7 +1864,6 @@ export function ModernNotesManager() {
             <DatabaseErrorMessage 
               error={error} 
               onRetry={() => window.location.reload()}
-              darkMode={darkMode}
             />
           </Card>
         )}
@@ -1971,7 +1964,6 @@ export function ModernNotesManager() {
                 context="notes"
                 userId={user?.id}
                 enabled={false}
-                darkMode={darkMode}
               />
             </div>
             
@@ -2017,7 +2009,6 @@ export function ModernNotesManager() {
                       resetForm();
                       setShowAddModal(false);
                     }}
-                    darkMode={darkMode}
                   />
                 </div>
                 
@@ -2199,7 +2190,6 @@ export function ModernNotesManager() {
             }
           } : undefined}
           hasAIAccess={hasAIAccess}
-          darkMode={darkMode}
           isEditing={isEditing}
           title={formData.title}
         />
