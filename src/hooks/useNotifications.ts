@@ -133,6 +133,29 @@ export function useNotifications() {
           );
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          logger.debug('Notification supprimée via Realtime');
+          const deletedId = payload.old.id;
+          setNotifications(prev => {
+            const filtered = prev.filter(n => n.id !== deletedId);
+            logger.debug('Notification supprimée du state local', { deletedId, remaining: filtered.length });
+            return filtered;
+          });
+          // Mettre à jour le compteur si nécessaire
+          setUnreadCount(prev => {
+            const deletedNotification = prev > 0 ? 1 : 0; // Approximation, sera recalculé par l'effet
+            return Math.max(0, prev - deletedNotification);
+          });
+        }
+      )
       .subscribe((status) => {
         logger.debug('Statut de la souscription Realtime', { status });
         if (status === 'SUBSCRIBED') {
@@ -187,16 +210,26 @@ export function useNotifications() {
             return;
           }
 
-          // Comparer avec l'état actuel pour détecter les nouvelles notifications
+          // Synchroniser avec la base : ajouter les nouvelles et supprimer celles qui n'existent plus
           setNotifications(prev => {
             const currentIds = new Set(prev.map(n => n.id));
+            const dbIds = new Set((data || []).map(n => n.id));
+            
+            // Nouvelles notifications à ajouter
             const newNotifications = (data || []).filter(n => !currentIds.has(n.id));
+            
+            // Notifications supprimées en base (présentes localement mais absentes de la DB)
+            const deletedIds = prev.filter(n => !dbIds.has(n.id)).map(n => n.id);
             
             if (newNotifications.length > 0) {
               logger.debug('Nouvelles notifications détectées via polling', { count: newNotifications.length });
-              return [...newNotifications, ...prev];
             }
-            return prev;
+            if (deletedIds.length > 0) {
+              logger.debug('Notifications supprimées détectées via polling', { count: deletedIds.length, ids: deletedIds });
+            }
+            
+            // Retourner les notifications de la DB (source de vérité)
+            return data || [];
           });
         } catch (error) {
           logger.error('Erreur lors du polling', error instanceof Error ? error : new Error(String(error)));
@@ -285,7 +318,65 @@ export function useNotifications() {
     }
   }, [user?.id]);
 
-  // 6. Supprimer une notification
+  // 6. Supprimer plusieurs notifications en une fois
+  const deleteMultipleNotifications = useCallback(async (notificationIds: string[]) => {
+    if (!notificationIds || notificationIds.length === 0) {
+      logger.warn('Aucune notification à supprimer');
+      return;
+    }
+
+    try {
+      logger.debug('Suppression de plusieurs notifications', { count: notificationIds.length });
+
+      // Sauvegarder les notifications à supprimer (pour rollback si erreur)
+      const notificationsToDelete = notifications.filter(n => notificationIds.includes(n.id));
+      const unreadCountToRemove = notificationsToDelete.filter(n => !n.is_read).length;
+
+      // Mettre à jour l'UI immédiatement (optimistic update)
+      setNotifications(prev => prev.filter(n => !notificationIds.includes(n.id)));
+      if (unreadCountToRemove > 0) {
+        setUnreadCount(prev => Math.max(0, prev - unreadCountToRemove));
+      }
+
+      // Supprimer de la base de données
+      const { data, error } = await supabase
+        .from('notifications')
+        .delete()
+        .in('id', notificationIds)
+        .eq('user_id', user?.id) // Sécurité supplémentaire
+        .select(); // Retourner les données supprimées pour vérification
+
+      if (error) {
+        logger.error('Erreur lors de la suppression multiple des notifications', error instanceof Error ? error : new Error(String(error)));
+        // Rollback en cas d'erreur
+        if (notificationsToDelete.length > 0) {
+          setNotifications(prev => [...notificationsToDelete, ...prev].sort((a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          ));
+          if (unreadCountToRemove > 0) {
+            setUnreadCount(prev => prev + unreadCountToRemove);
+          }
+        }
+        return;
+      }
+
+      // Vérifier que la suppression a bien été effectuée
+      if (!data || data.length === 0) {
+        logger.warn('⚠️ Aucune notification supprimée - peut-être déjà supprimées ou permissions refusées', { notificationIds });
+        // Ne pas faire de rollback car les notifications n'existent peut-être plus
+        return;
+      }
+
+      logger.debug('Notifications supprimées avec succès de la base de données', { 
+        requested: notificationIds.length, 
+        deleted: data.length 
+      });
+    } catch (error) {
+      logger.error('Erreur lors de la suppression multiple des notifications', error instanceof Error ? error : new Error(String(error)));
+    }
+  }, [user?.id, notifications]);
+
+  // 7. Supprimer une notification
   const deleteNotification = useCallback(async (notificationId: string) => {
     try {
       logger.debug('Suppression de la notification');
@@ -301,11 +392,12 @@ export function useNotifications() {
       }
 
       // Supprimer de la base de données
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('notifications')
         .delete()
         .eq('id', notificationId)
-        .eq('user_id', user?.id); // Sécurité supplémentaire
+        .eq('user_id', user?.id) // Sécurité supplémentaire
+        .select(); // Retourner les données supprimées pour vérification
 
       if (error) {
         logger.error('Erreur lors de la suppression de la notification', error instanceof Error ? error : new Error(String(error)));
@@ -321,7 +413,15 @@ export function useNotifications() {
         return;
       }
 
-      logger.debug('Notification supprimée avec succès');
+      // Vérifier que la suppression a bien été effectuée
+      if (!data || data.length === 0) {
+        logger.warn('⚠️ Aucune notification supprimée - peut-être déjà supprimée ou permission refusée', { notificationId });
+        // Ne pas faire de rollback car la notification n'existe peut-être plus
+        // La suppression du state local reste valide
+        return;
+      }
+
+      logger.debug('Notification supprimée avec succès de la base de données', { notificationId, deletedCount: data.length });
     } catch (error) {
       logger.error('Erreur lors de la suppression de la notification', error instanceof Error ? error : new Error(String(error)));
     }
@@ -333,7 +433,8 @@ export function useNotifications() {
     loading,
     markAsRead,
     markAllAsRead,
-    deleteNotification
+    deleteNotification,
+    deleteMultipleNotifications
   };
 }
 

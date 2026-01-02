@@ -4,13 +4,18 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Send, X, Minimize2, Maximize2, Mail, MessageCircle, CheckCircle, AlertCircle, Lightbulb, Search } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, Mail, MessageCircle } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { chatbotService } from '../../services/chatbotService';
 import { analyzeMessage } from '../../utils/noteoMessageDetector';
-import { modernNoteoService } from '../../services/modernNoteoService';
-import { ModernNoteoMessage } from '../ai/ModernNoteoMessage';
+
+interface ValidationButton {
+  id: string;
+  label: string;
+  action: 'works' | 'still_blocked' | 'cant_find_button' | 'save_error' | 'other';
+  emoji: string;
+}
 
 interface Message {
   id: string;
@@ -23,6 +28,9 @@ interface Message {
     emailDraft?: string;
   };
   showConfirmationButtons?: boolean;
+  validationButtons?: ValidationButton[];
+  intent?: 'tutorial' | 'diagnostic' | 'resolved' | 'escalate';
+  feature?: string;
 }
 
 interface ChatbotWidgetProps {
@@ -30,202 +38,9 @@ interface ChatbotWidgetProps {
   initialMinimized?: boolean;
 }
 
-/**
- * Composant optimisé pour afficher un message moderne (avec cache)
- */
-function OptimizedModernMessage({
-  message,
-  userName,
-  darkMode
-}: {
-  message: Message;
-  userName?: string;
-  darkMode: boolean;
-}) {
-  // Mettre en cache le parsing pour éviter de le refaire à chaque rendu
-  const segments = useMemo(() => {
-    return modernNoteoService.parseTextToSegments(message.content, userName);
-  }, [message.content, userName]); // Re-parser uniquement si le contenu change
-
-  return (
-    <ModernNoteoMessage
-      segments={segments}
-      darkMode={darkMode}
-      showProgressively={false} // DÉSACTIVER les animations progressives pour le chatbot
-      segmentDelay={0} // Pas de délai entre les segments
-      onSuccess={undefined} // ✅ Désactiver les boutons intégrés (ils sont affichés par ChatbotWidget)
-      onFailure={undefined} // ✅ Désactiver les boutons intégrés
-    />
-  );
-}
 
 /**
- * Composant pour afficher les messages structurés avec icônes et encadrés
- */
-function StructuredMessage({
-  content,
-  darkMode
-}: {
-  content: string;
-  darkMode: boolean;
-}) {
-  // Détecter les marqueurs visuels et structurer le message
-  const lines = content.split('\n');
-  const parts: JSX.Element[] = [];
-  let currentSection: string[] = [];
-  let currentType: 'question' | 'solution' | 'warning' | 'tip' | 'normal' = 'normal';
-  let partIndex = 0;
-
-  const renderSection = (section: string[], type: string, index: number): JSX.Element | null => {
-    if (section.length === 0) return null;
-
-    const sectionContent = section.join('\n').trim();
-    if (!sectionContent) return null;
-
-    if (type === 'normal') {
-      return (
-        <p
-          key={`normal-${index}`}
-          className={`
-            text-sm whitespace-pre-wrap
-            ${darkMode ? 'text-gray-100' : 'text-gray-900'}
-          `}
-        >
-          {sectionContent}
-        </p>
-      );
-    }
-
-    const getIcon = () => {
-      switch (type) {
-        case 'question': return <Search className="w-4 h-4" />;
-        case 'solution': return <CheckCircle className="w-4 h-4" />;
-        case 'warning': return <AlertCircle className="w-4 h-4" />;
-        case 'tip': return <Lightbulb className="w-4 h-4" />;
-        default: return null;
-      }
-    };
-
-    const getStyles = () => {
-      switch (type) {
-        case 'question':
-          return {
-            bg: darkMode ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200',
-            icon: 'text-blue-500',
-            text: darkMode ? 'text-gray-200' : 'text-gray-800'
-          };
-        case 'solution':
-          return {
-            bg: darkMode ? 'bg-green-900/20 border-green-700' : 'bg-green-50 border-green-200',
-            icon: 'text-green-500',
-            text: darkMode ? 'text-gray-200' : 'text-gray-800'
-          };
-        case 'warning':
-          return {
-            bg: darkMode ? 'bg-yellow-900/20 border-yellow-700' : 'bg-yellow-50 border-yellow-200',
-            icon: 'text-yellow-500',
-            text: darkMode ? 'text-gray-200' : 'text-gray-800'
-          };
-        case 'tip':
-          return {
-            bg: darkMode ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50 border-purple-200',
-            icon: 'text-purple-500',
-            text: darkMode ? 'text-gray-200' : 'text-gray-800'
-          };
-        default:
-          return {
-            bg: '',
-            icon: '',
-            text: darkMode ? 'text-gray-100' : 'text-gray-900'
-          };
-      }
-    };
-
-    const styles = getStyles();
-
-    return (
-      <div
-        key={`section-${index}`}
-        className={`mt-2 p-3 rounded-lg border ${styles.bg}`}
-      >
-        <div className="flex items-start gap-2">
-          <div className={`mt-0.5 ${styles.icon}`}>
-            {getIcon()}
-          </div>
-          <div className="flex-1">
-            <p className={`text-sm whitespace-pre-wrap ${styles.text}`}>
-              {sectionContent.replace(/^[🔍✅⚠️💡]\s*/, '')}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  lines.forEach((line) => {
-    const trimmedLine = line.trim();
-    
-    // Détecter les types de sections
-    if (trimmedLine.startsWith('🔍') || (trimmedLine.toLowerCase().includes('quelle étape') && !trimmedLine.toLowerCase().includes('réponse'))) {
-      if (currentSection.length > 0) {
-        const rendered = renderSection(currentSection, currentType, partIndex++);
-        if (rendered) parts.push(rendered);
-      }
-      currentSection = [trimmedLine];
-      currentType = 'question';
-    } else if (trimmedLine.startsWith('✅') || trimmedLine.match(/^\d+\./)) {
-      if (currentSection.length > 0 && currentType !== 'solution') {
-        const rendered = renderSection(currentSection, currentType, partIndex++);
-        if (rendered) parts.push(rendered);
-        currentSection = [];
-      }
-      currentSection.push(trimmedLine);
-      currentType = 'solution';
-    } else if (trimmedLine.startsWith('⚠️')) {
-      if (currentSection.length > 0) {
-        const rendered = renderSection(currentSection, currentType, partIndex++);
-        if (rendered) parts.push(rendered);
-      }
-      currentSection = [trimmedLine];
-      currentType = 'warning';
-    } else if (trimmedLine.startsWith('💡')) {
-      if (currentSection.length > 0) {
-        const rendered = renderSection(currentSection, currentType, partIndex++);
-        if (rendered) parts.push(rendered);
-      }
-      currentSection = [trimmedLine];
-      currentType = 'tip';
-    } else if (trimmedLine === '' || trimmedLine === '---') {
-      if (currentSection.length > 0) {
-        const rendered = renderSection(currentSection, currentType, partIndex++);
-        if (rendered) parts.push(rendered);
-        currentSection = [];
-        currentType = 'normal';
-      }
-    } else {
-      if (currentType === 'normal' && currentSection.length === 0) {
-        currentType = 'normal';
-      }
-      currentSection.push(line);
-    }
-  });
-
-  // Ajouter la dernière section
-  if (currentSection.length > 0) {
-    const rendered = renderSection(currentSection, currentType, partIndex++);
-    if (rendered) parts.push(rendered);
-  }
-
-  // Si aucune structure détectée, afficher le message normal
-  if (parts.length === 0) {
-    return <p className={`text-sm whitespace-pre-wrap ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>{content}</p>;
-  }
-
-  return <div>{parts}</div>;
-}
-
-/**
- * Composant de boutons de confirmation
+ * Composant de boutons de confirmation (ANCIEN - gardé pour compatibilité)
  */
 function ConfirmationButtons({
   onResolved,
@@ -278,6 +93,63 @@ function ConfirmationButtons({
           <span className="text-sm">✗</span>
           <span>Pas encore</span>
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Composant de boutons de validation dynamiques (NOUVEAU - pipeline issue-tracker)
+ */
+function ValidationButtons({
+  buttons,
+  onButtonClick,
+  darkMode
+}: {
+  buttons: ValidationButton[];
+  onButtonClick: (action: 'works' | 'still_blocked' | 'cant_find_button' | 'save_error' | 'other') => void;
+  darkMode: boolean;
+}) {
+  if (!buttons || buttons.length === 0) return null;
+
+  return (
+    <div className={`
+      mt-4 pt-3 border-t
+      ${darkMode ? 'border-gray-600/50' : 'border-gray-200'}
+    `}>
+      <p className={`
+        text-xs font-medium mb-2
+        ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+      `}>
+        Cette réponse vous aide-t-elle ?
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {buttons.map((button) => (
+          <button
+            key={button.id}
+            onClick={() => onButtonClick(button.action)}
+            className={`
+              flex items-center justify-center gap-1.5 px-3 py-2 rounded-md
+              text-xs font-medium transition-all duration-150
+              ${button.action === 'works'
+                ? darkMode
+                  ? 'bg-green-700 hover:bg-green-600 text-white border border-green-600'
+                  : 'bg-green-100 hover:bg-green-200 text-green-800 border border-green-300'
+                : button.action === 'still_blocked'
+                ? darkMode
+                  ? 'bg-orange-700 hover:bg-orange-600 text-white border border-orange-600'
+                  : 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300'
+                : darkMode
+                ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
+              }
+              hover:scale-[1.01]
+            `}
+          >
+            <span className="text-sm">{button.emoji}</span>
+            <span>{button.label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -354,8 +226,21 @@ export function ChatbotWidget({
   const [isLoading, setIsLoading] = useState(false);
   const [showEscalation, setShowEscalation] = useState(false);
   const [failureCount, setFailureCount] = useState(0); // Compteur de clics "Non, toujours bloqué"
+  const [conversationId, setConversationId] = useState<string | null>(() => {
+    // Récupérer depuis localStorage ou générer un nouveau
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('noteo_conversation_id');
+      if (stored) return stored;
+      
+      // Générer un nouveau ID unique
+      const newId = `conv-${Date.now()}-${user?.id || 'anon'}-${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('noteo_conversation_id', newId);
+      return newId;
+    }
+    return null;
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = useCallback(() => {
     // Scroll instantané pour éviter les animations lentes
@@ -368,6 +253,14 @@ export function ChatbotWidget({
       scrollToBottom();
     });
   }, [messages, scrollToBottom]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 128)}px`;
+    }
+  }, [inputValue]);
 
   // Écouter l'événement personnalisé pour ouvrir le chatbot
   useEffect(() => {
@@ -382,6 +275,32 @@ export function ChatbotWidget({
     };
   }, []);
 
+  // Mettre à jour conversation_id si l'utilisateur change
+  useEffect(() => {
+    if (user?.id && conversationId && !conversationId.includes(user.id)) {
+      // Générer un nouveau ID si l'utilisateur change
+      const newId = `conv-${Date.now()}-${user.id}-${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('noteo_conversation_id', newId);
+      setConversationId(newId);
+    }
+  }, [user?.id, conversationId]);
+
+  // Réinitialiser conversation_id après résolution/escalade (une seule fois)
+  const lastIntentRef = useRef<string | undefined>();
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.intent && 
+        (lastMessage.intent === 'resolved' || lastMessage.intent === 'escalate') &&
+        lastIntentRef.current !== lastMessage.intent) {
+      // Nettoyer le conversation_id après résolution/escalade (une seule fois)
+      lastIntentRef.current = lastMessage.intent;
+      localStorage.removeItem('noteo_conversation_id');
+      const newId = `conv-${Date.now()}-${user?.id || 'anon'}-${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('noteo_conversation_id', newId);
+      setConversationId(newId);
+    }
+  }, [messages, user?.id]);
+
   const addMessage = (type: 'user' | 'bot' | 'system', content: string, escalationData?: any) => {
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -395,7 +314,7 @@ export function ChatbotWidget({
     return newMessage;
   };
 
-  const handleSend = async () => {
+  const handleSend = async (buttonClicked?: 'works' | 'still_blocked' | 'cant_find_button' | 'save_error' | 'other') => {
     if (!inputValue.trim() || isLoading) return;
 
     const userMessage = inputValue.trim();
@@ -406,16 +325,27 @@ export function ChatbotWidget({
     addMessage('user', userMessage);
 
     try {
-      // Envoyer au service chatbot
+      // Envoyer au service chatbot avec button_clicked si présent
       const response = await chatbotService.sendMessage({
         message: userMessage,
         userId: user?.id || 'anonymous',
         userEmail: user?.email || '',
-        userName: user?.full_name || user?.email || 'Utilisateur',
+        userName: user?.name || user?.email || 'Utilisateur',
         conversationHistory: messages.slice(-5).map(m => ({
           role: m.type === 'user' ? 'user' : 'assistant',
           content: m.content
-        }))
+        })),
+        button_clicked: buttonClicked, // NOUVEAU : envoyer l'action du bouton cliqué
+        conversation_id: conversationId // ✅ AJOUTER conversation_id
+      });
+
+      // DEBUG: Logger la réponse complète
+      console.log('[ChatbotWidget] 📥 Réponse du backend:', {
+        message: response.message,
+        messageLength: response.message?.length,
+        validationButtons: response.validationButtons,
+        intent: response.intent,
+        feature: response.feature
       });
 
       // Ajouter la réponse du bot
@@ -427,10 +357,24 @@ export function ChatbotWidget({
         setShowEscalation(true);
       } else {
         const newMessage = addMessage('bot', response.message);
-        if (response.showConfirmationButtons) {
-          // Marquer le message pour afficher les boutons de confirmation
-          setMessages(prev => prev.map(msg => 
-            msg.id === newMessage.id 
+
+        // NOUVEAU : Ajouter les boutons de validation dynamiques si présents
+        if (response.validationButtons && response.validationButtons.length > 0) {
+          setMessages(prev => prev.map(msg =>
+            msg.id === newMessage.id
+              ? {
+                  ...msg,
+                  validationButtons: response.validationButtons,
+                  intent: response.intent,
+                  feature: response.feature
+                }
+              : msg
+          ));
+        }
+        // ANCIEN : Fallback sur les boutons de confirmation classiques
+        else if (response.showConfirmationButtons) {
+          setMessages(prev => prev.map(msg =>
+            msg.id === newMessage.id
               ? { ...msg, showConfirmationButtons: true }
               : msg
           ));
@@ -439,6 +383,104 @@ export function ChatbotWidget({
     } catch (error) {
       console.error('Erreur chatbot:', error);
       addMessage('bot', t('chatbot_error') || 'Désolé, une erreur s\'est produite. Voulez-vous que je vous aide à rédiger un email à notre équipe de support ?');
+      setShowEscalation(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleValidationButtonClick = async (action: 'works' | 'still_blocked' | 'cant_find_button' | 'save_error' | 'other') => {
+    if (isLoading) return;
+
+    // Retirer les boutons de validation du message précédent immédiatement
+    setMessages(prev => prev.map(msg =>
+      msg.validationButtons ? { ...msg, validationButtons: undefined } : msg
+    ));
+
+    // Déterminer le message utilisateur basé sur l'action
+    let userMessage = '';
+    let userDisplayMessage = '';
+
+    switch (action) {
+      case 'works':
+        userMessage = 'ça marche maintenant, merci !';
+        userDisplayMessage = '✅ Ça marche !';
+        setFailureCount(0); // Réinitialiser le compteur
+        break;
+      case 'still_blocked':
+        userMessage = 'toujours bloqué, j\'ai essayé mais ça ne fonctionne pas';
+        userDisplayMessage = '⚠️ Toujours bloqué';
+        setFailureCount(prev => prev + 1);
+        break;
+      case 'cant_find_button':
+        userMessage = 'je ne trouve pas le bouton dont tu parles';
+        userDisplayMessage = '🔍 Je ne trouve pas le bouton';
+        break;
+      case 'save_error':
+        userMessage = 'j\'ai une erreur lors de l\'enregistrement';
+        userDisplayMessage = '⚠️ J\'ai une erreur';
+        break;
+      case 'other':
+        userMessage = 'j\'ai un autre problème';
+        userDisplayMessage = '💬 Autre problème';
+        break;
+    }
+
+    setIsLoading(true);
+
+    // Ajouter le message de l'utilisateur avec le display emoji
+    addMessage('user', userDisplayMessage);
+
+    try {
+      // Envoyer au service chatbot avec button_clicked
+      const response = await chatbotService.sendMessage({
+        message: userMessage,
+        userId: user?.id || 'anonymous',
+        userEmail: user?.email || '',
+        userName: user?.name || user?.email || 'Utilisateur',
+        conversationHistory: messages.slice(-5).map(m => ({
+          role: m.type === 'user' ? 'user' : 'assistant',
+          content: m.content
+        })),
+        button_clicked: action, // IMPORTANT : envoyer l'action du bouton
+        conversation_id: conversationId // ✅ AJOUTER conversation_id
+      });
+
+      // Ajouter la réponse du bot
+      if (response.requiresEscalation) {
+        addMessage('bot', response.message, {
+          ticketId: response.ticketId,
+          emailDraft: response.emailDraft
+        });
+        setShowEscalation(true);
+      } else {
+        const newMessage = addMessage('bot', response.message);
+
+        // Ajouter les nouveaux boutons de validation si présents
+        if (response.validationButtons && response.validationButtons.length > 0) {
+          setMessages(prev => prev.map(msg =>
+            msg.id === newMessage.id
+              ? {
+                  ...msg,
+                  validationButtons: response.validationButtons,
+                  intent: response.intent,
+                  feature: response.feature
+                }
+              : msg
+          ));
+        }
+        // Fallback sur les boutons de confirmation classiques
+        else if (response.showConfirmationButtons) {
+          setMessages(prev => prev.map(msg =>
+            msg.id === newMessage.id
+              ? { ...msg, showConfirmationButtons: true }
+              : msg
+          ));
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chatbot:', error);
+      addMessage('bot', 'Désolé, une erreur s\'est produite. Je vais t\'aider à contacter notre équipe de support.');
       setShowEscalation(true);
     } finally {
       setIsLoading(false);
@@ -454,7 +496,7 @@ export function ChatbotWidget({
     setInputValue('');
     setIsLoading(true);
 
-    addMessage('user', '✅ Oui, c\'est réglé');
+      addMessage('user', '👍 Oui, super !');
 
     // Retirer les boutons de confirmation du message précédent immédiatement
     setMessages(prev => prev.map(msg =>
@@ -466,11 +508,12 @@ export function ChatbotWidget({
         message: userMessage,
         userId: user?.id || 'anonymous',
         userEmail: user?.email || '',
-        userName: user?.full_name || user?.email || 'Utilisateur',
+        userName: user?.name || user?.email || 'Utilisateur',
         conversationHistory: messages.slice(-5).map(m => ({
           role: m.type === 'user' ? 'user' : 'assistant',
           content: m.content
-        }))
+        })),
+        conversation_id: conversationId // ✅ AJOUTER conversation_id
       });
 
       addMessage('bot', response.message);
@@ -492,7 +535,7 @@ export function ChatbotWidget({
     setInputValue('');
     setIsLoading(true);
 
-    addMessage('user', '❌ Non, toujours bloqué');
+    // Ne pas afficher de message utilisateur, laisser le bot répondre directement
 
     // Retirer les boutons de confirmation du message précédent immédiatement
     setMessages(prev => prev.map(msg =>
@@ -548,7 +591,7 @@ ${messages
 • Système d'exploitation : ${browserInfo.systeme}
 • Langue : ${browserInfo.langue}
 • Heure locale : ${browserInfo.heureLocale}
-• Utilisateur : ${user?.full_name || user?.email || 'Anonyme'}
+• Utilisateur : ${user?.name || user?.email || 'Anonyme'}
 • Email : ${user?.email || 'Non renseigné'}
 
 ---
@@ -556,8 +599,8 @@ ${messages
 Note : Cette demande a été générée automatiquement après 2 tentatives infructueuses de résolution via le chatbot.
 `;
 
-        // Créer le message d'escalation avec l'icône 📧
-        const escalationMessage = `Je comprends que le problème persiste malgré nos tentatives. 😔\n\n📧 **Notre équipe va examiner votre cas en détail.**\n\nJ'ai généré un email automatique avec :\n• Le résumé de votre problème\n• Les étapes que nous avons déjà testées\n• Vos informations techniques (${browserInfo.navigateur}, ${browserInfo.systeme})`;
+        // Créer le message d'escalation avec un ton rassurant
+        const escalationMessage = `⚠️ Pas de panique !\n\nJe vais faire passer ton problème à l'équipe qui va t'aider personnellement.\n\nJ'ai préparé un petit message avec :\n• Le résumé de ton problème\n• Les trucs qu'on a déjà testés ensemble\n• Tes infos techniques (${browserInfo.navigateur}, ${browserInfo.systeme})\n\nTu veux qu'on l'envoie ensemble ?`;
 
         const botMessage = addMessage('bot', escalationMessage, {
           ticketId: `temp-${Date.now()}`,
@@ -577,9 +620,9 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
                 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
               },
               body: JSON.stringify({
-                name: user?.full_name || user?.email?.split('@')[0] || 'Utilisateur Chatbot',
+                name: user?.name || user?.email?.split('@')[0] || 'Utilisateur Chatbot',
                 email: user?.email || 'noreply@centrinote.fr',
-                subject: `[Chatbot] Support automatique - ${user?.full_name || 'Utilisateur'}`,
+                subject: `[Chatbot] Support automatique - ${user?.name || 'Utilisateur'}`,
                 message: emailDraft,
               }),
             }
@@ -594,7 +637,7 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
 
           if (data.success && data.id) {
             console.log('[ChatbotWidget] ✅ Email envoyé avec succès, ID:', data.id);
-            addMessage('system', `✅ Email envoyé avec succès ! Votre demande a été enregistrée (ID: ${data.id}). Notre équipe vous répondra sous 24h.`);
+            addMessage('system', `📨 Votre demande a bien été envoyée à notre équipe.\n\n✅ Vous recevrez une réponse sous 24h. Merci pour votre patience !`);
           } else {
             throw new Error('Réponse invalide de notify-support');
           }
@@ -609,11 +652,13 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
           message: userMessage,
           userId: user?.id || 'anonymous',
           userEmail: user?.email || '',
-          userName: user?.full_name || user?.email || 'Utilisateur',
+          userName: user?.name || user?.email || 'Utilisateur',
           conversationHistory: messages.slice(-5).map(m => ({
             role: m.type === 'user' ? 'user' : 'assistant',
             content: m.content
-          }))
+          })),
+          button_clicked: 'still_blocked', // ✅ IMPORTANT : Indiquer que c'est un clic "Pas encore"
+          conversation_id: conversationId // ✅ AJOUTER conversation_id
         });
 
         if (response.requiresEscalation) {
@@ -662,9 +707,9 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            name: user?.full_name || user?.email?.split('@')[0] || 'Utilisateur Chatbot',
+            name: user?.name || user?.email?.split('@')[0] || 'Utilisateur Chatbot',
             email: user?.email || 'noreply@centrinote.fr',
-            subject: `[Chatbot] Support manuel - ${user?.full_name || 'Utilisateur'}`,
+            subject: `[Chatbot] Support manuel - ${user?.name || 'Utilisateur'}`,
             message: lastMessage.escalationData.emailDraft || messages.map(m => `${m.type}: ${m.content}`).join('\n\n'),
           }),
         }
@@ -679,7 +724,7 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
 
       if (data.success && data.id) {
         console.log('[ChatbotWidget] ✅ Email envoyé avec succès, ID:', data.id);
-        addMessage('system', `✅ Email envoyé avec succès ! Votre demande a été enregistrée (ID: ${data.id}). Notre équipe vous répondra sous 24h.`);
+        addMessage('system', `📨 Votre demande a bien été envoyée à notre équipe.\n\n✅ Vous recevrez une réponse sous 24h. Merci pour votre patience !`);
         setShowEscalation(false);
       } else {
         throw new Error('Réponse invalide de notify-support');
@@ -692,12 +737,6 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
 
   const positionClasses = {
     'bottom-right': 'bottom-4 right-4',
@@ -797,94 +836,57 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
           ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}
         `}
       >
-        {messages.map((message) => {
-          // Détecter si le message du bot doit utiliser le format moderne
-          const isBot = message.type === 'bot';
-          const shouldUseModern = isBot && analyzeMessage(message.content).shouldUseEnhanced;
-
-          // Si c'est un message bot avec des étapes numérotées, utiliser le composant optimisé
-          if (shouldUseModern) {
-            return (
-              <div key={message.id} className="flex justify-start w-full">
-                <div className="w-full">
-                  <OptimizedModernMessage
-                    message={message}
-                    userName={user?.full_name || undefined}
-                    darkMode={darkMode}
-                  />
-                  {message.showConfirmationButtons && (
-                    <div className={`
-                      mt-4 p-4 rounded-lg border
-                      ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}
-                    `}>
-                      <ConfirmationButtons
-                        onResolved={handleProblemResolved}
-                        onNotResolved={handleProblemNotResolved}
-                        darkMode={darkMode}
-                      />
-                    </div>
-                  )}
-                  {message.requiresEscalation && message.escalationData && (
-                    <div className={`
-                      mt-4 p-4 rounded-lg border
-                      ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}
-                    `}>
-                      <EscalationCard
-                        onEscalate={handleEscalateToEmail}
-                        darkMode={darkMode}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          }
-
-          // Format classique pour les messages utilisateur et les messages simples
-          return (
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
             <div
-              key={message.id}
-              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`
+                max-w-[85%] rounded-lg p-4
+                ${
+                  message.type === 'user'
+                    ? darkMode
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-blue-500 text-white shadow-md'
+                    : message.type === 'system'
+                    ? darkMode
+                      ? 'bg-yellow-900/30 text-yellow-200 border border-yellow-700 shadow-md'
+                      : 'bg-yellow-50 text-yellow-800 border border-yellow-200 shadow-md'
+                    : darkMode
+                    ? 'bg-gray-800 text-gray-100 border border-gray-700 shadow-md hover:shadow-lg transition-all'
+                    : 'bg-white text-gray-900 border border-gray-200 shadow-md hover:shadow-lg transition-all'
+                }
+              `}
             >
-              <div
-                className={`
-                  max-w-[80%] rounded-lg px-4 py-2
-                  ${
-                    message.type === 'user'
-                      ? darkMode
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-blue-500 text-white'
-                      : message.type === 'system'
-                      ? darkMode
-                        ? 'bg-yellow-900/30 text-yellow-200 border border-yellow-700'
-                        : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
-                      : darkMode
-                      ? 'bg-gray-700 text-gray-100'
-                      : 'bg-white text-gray-900 border border-gray-200'
-                  }
-                `}
-              >
-                <StructuredMessage
-                  content={message.content}
+              <div className="text-sm whitespace-pre-wrap">
+                {message.content}
+              </div>
+              {/* NOUVEAU : Boutons de validation dynamiques */}
+              {message.validationButtons && message.validationButtons.length > 0 && (
+                <ValidationButtons
+                  buttons={message.validationButtons}
+                  onButtonClick={handleValidationButtonClick}
                   darkMode={darkMode}
                 />
-                {message.showConfirmationButtons && (
-                  <ConfirmationButtons
-                    onResolved={handleProblemResolved}
-                    onNotResolved={handleProblemNotResolved}
-                    darkMode={darkMode}
-                  />
-                )}
-                {message.requiresEscalation && message.escalationData && (
-                  <EscalationCard
-                    onEscalate={handleEscalateToEmail}
-                    darkMode={darkMode}
-                  />
-                )}
-              </div>
+              )}
+              {/* ANCIEN : Fallback sur les boutons de confirmation classiques */}
+              {!message.validationButtons && message.showConfirmationButtons && (
+                <ConfirmationButtons
+                  onResolved={handleProblemResolved}
+                  onNotResolved={handleProblemNotResolved}
+                  darkMode={darkMode}
+                />
+              )}
+              {message.requiresEscalation && message.escalationData && (
+                <EscalationCard
+                  onEscalate={handleEscalateToEmail}
+                  darkMode={darkMode}
+                />
+              )}
             </div>
-          );
-        })}
+          </div>
+        ))}
         {isLoading && (
           <div className="flex justify-start">
             <div
@@ -912,16 +914,27 @@ Note : Cette demande a été générée automatiquement après 2 tentatives infr
         `}
       >
         <div className="flex gap-2">
-          <input
-            ref={inputRef}
-            type="text"
+          <textarea
+            ref={textareaRef}
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onChange={(e) => {
+              setInputValue(e.target.value);
+              // Auto-resize
+              e.target.style.height = 'auto';
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            rows={1}
             placeholder={t('chatbot_placeholder') || 'Tapez votre message...'}
             disabled={isLoading}
             className={`
-              flex-1 px-4 py-2 rounded-lg border
+              flex-1 px-4 py-2 rounded-lg border resize-none overflow-y-auto
+              min-h-[2.5rem] max-h-[8rem]
               focus:outline-none focus:ring-2 focus:ring-blue-500
               ${darkMode
                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'

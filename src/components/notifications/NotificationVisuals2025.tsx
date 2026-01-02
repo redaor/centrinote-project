@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Bell, X } from 'lucide-react';
+import { Bell, X, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ==========================================
@@ -194,6 +194,8 @@ interface NotificationPanelProps {
   onClose?: () => void;
   /** Callback suppression */
   onDelete?: (id: string) => void;
+  /** Callback suppression multiple */
+  onDeleteMultiple?: (ids: string[]) => void;
   /** Callback marquer comme lu */
   onMarkAsRead?: (id: string) => void;
 }
@@ -204,10 +206,19 @@ export function NotificationPanel({
   darkMode = false,
   onClose,
   onDelete,
+  onDeleteMultiple,
   onMarkAsRead
 }: NotificationPanelProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedNotifications, setSelectedNotifications] = useState<Set<string>>(new Set());
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Réinitialiser la sélection quand le panneau se ferme
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedNotifications(new Set());
+    }
+  }, [isOpen]);
 
   const handleDelete = (id: string) => {
     if (prefersReducedMotion) {
@@ -219,6 +230,39 @@ export function NotificationPanel({
         setDeletingId(null);
       }, 200);
     }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedNotifications(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedNotifications.size === notifications.length) {
+      setSelectedNotifications(new Set());
+    } else {
+      setSelectedNotifications(new Set(notifications.map(n => n.id)));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedNotifications.size === 0) return;
+    
+    const idsToDelete = Array.from(selectedNotifications);
+    // Utiliser onDeleteMultiple si disponible, sinon onDelete pour chaque notification
+    if (onDeleteMultiple) {
+      onDeleteMultiple(idsToDelete);
+    } else {
+      idsToDelete.forEach(id => onDelete?.(id));
+    }
+    setSelectedNotifications(new Set());
   };
 
   const getTypeColors = (type: string, isRead: boolean) => {
@@ -292,19 +336,35 @@ export function NotificationPanel({
                   </span>
                 )}
               </div>
-              <button
-                onClick={onClose}
-                className={`
-                  p-1.5 rounded-lg transition-colors
-                  ${darkMode
-                    ? 'hover:bg-gray-700 text-gray-300'
-                    : 'hover:bg-gray-100 text-gray-600'
-                  }
-                `}
-                aria-label="Fermer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {selectedNotifications.size > 0 && (
+                  <button
+                    onClick={handleDeleteSelected}
+                    className={`
+                      flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors
+                      bg-red-500 hover:bg-red-600 text-white text-xs font-medium
+                      focus:outline-none focus:ring-2 focus:ring-red-400
+                    `}
+                    aria-label={`Supprimer ${selectedNotifications.size} notification${selectedNotifications.size > 1 ? 's' : ''}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Supprimer ({selectedNotifications.size})</span>
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className={`
+                    p-1.5 rounded-lg transition-colors
+                    ${darkMode
+                      ? 'hover:bg-gray-700 text-gray-300'
+                      : 'hover:bg-gray-100 text-gray-600'
+                    }
+                  `}
+                  aria-label="Fermer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Liste avec scroll */}
@@ -316,6 +376,35 @@ export function NotificationPanel({
                 </div>
               ) : (
                 <div>
+                  {/* Bouton sélectionner tout */}
+                  {notifications.length > 0 && (
+                    <div className={`
+                      px-4 py-2 border-b
+                      ${darkMode ? 'border-gray-700/30' : 'border-gray-200/30'}
+                      flex items-center gap-2
+                    `}>
+                      <input
+                        type="checkbox"
+                        checked={selectedNotifications.size === notifications.length && notifications.length > 0}
+                        onChange={handleSelectAll}
+                        className={`
+                          w-4 h-4 rounded
+                          ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}
+                          focus:ring-2 focus:ring-purple-500
+                          cursor-pointer
+                        `}
+                        aria-label="Sélectionner toutes les notifications"
+                      />
+                      <label className={`
+                        text-sm cursor-pointer
+                        ${darkMode ? 'text-gray-300' : 'text-gray-600'}
+                      `}>
+                        {selectedNotifications.size === notifications.length && notifications.length > 0
+                          ? 'Tout désélectionner'
+                          : 'Tout sélectionner'}
+                      </label>
+                    </div>
+                  )}
                   <AnimatePresence>
                     {notifications.map((notif, index) => (
                       <motion.div
@@ -330,9 +419,12 @@ export function NotificationPanel({
                         transition={{ delay: index * 0.05, duration: prefersReducedMotion ? 0 : 0.2 }}
                         whileHover={{ scale: deletingId === notif.id ? 0.95 : 1.02 }}
                         className={`
-                          relative p-4 cursor-pointer transition-all duration-200
+                          relative p-4 transition-all duration-200
                           ${getTypeColors(notif.type, notif.isRead)}
-                          ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'}
+                          ${selectedNotifications.has(notif.id)
+                            ? darkMode ? 'bg-purple-500/20 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+                            : darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'
+                          }
                           border-b last:border-b-0
                           ${darkMode ? 'border-gray-700/30' : 'border-gray-200/30'}
                           overflow-hidden group
@@ -350,12 +442,28 @@ export function NotificationPanel({
                         )}
 
                         <div className="flex items-start gap-3 relative z-10">
+                          {/* Checkbox de sélection */}
+                          <input
+                            type="checkbox"
+                            checked={selectedNotifications.has(notif.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleToggleSelect(notif.id);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`
+                              flex-shrink-0 w-4 h-4 mt-2 rounded
+                              ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}
+                              focus:ring-2 focus:ring-purple-500
+                              cursor-pointer
+                            `}
+                            aria-label={`Sélectionner ${notif.title}`}
+                          />
                           {/* Dot indicateur */}
                           <div className={`
                             flex-shrink-0 w-2 h-2 rounded-full mt-2
                             ${notif.isRead ? 'opacity-0' : 'bg-gradient-to-br from-purple-500 to-pink-500'}
                           `} />
-
                           {/* Contenu */}
                           <div className="flex-1 min-w-0 pr-10">
                             <h4 className={`font-semibold text-sm ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>

@@ -8,12 +8,21 @@ interface ChatMessage {
   content: string;
 }
 
+interface ValidationButton {
+  id: string;
+  label: string;
+  action: 'works' | 'still_blocked' | 'cant_find_button' | 'save_error' | 'other';
+  emoji: string;
+}
+
 interface ChatbotRequest {
   message: string;
   userId: string;
   userEmail: string;
   userName: string;
   conversationHistory: ChatMessage[];
+  button_clicked?: 'works' | 'still_blocked' | 'cant_find_button' | 'save_error' | 'other';
+  conversation_id?: string | null;
 }
 
 interface ChatbotResponse {
@@ -23,6 +32,9 @@ interface ChatbotResponse {
   ticketId?: string;
   emailDraft?: string;
   showConfirmationButtons?: boolean;
+  validationButtons?: ValidationButton[];
+  intent?: 'tutorial' | 'diagnostic' | 'resolved' | 'escalate';
+  feature?: string;
 }
 
 interface EscalationRequest {

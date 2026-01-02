@@ -102,9 +102,11 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-teal-500 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-white" />
-              </div>
+              <img 
+                src="/images/centrinote/logo/Logo-centrinote.png" 
+                alt="Centrinote" 
+                className="w-10 h-10 object-contain"
+              />
               <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
                 Centrinote
               </span>

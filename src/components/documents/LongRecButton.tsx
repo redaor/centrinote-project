@@ -44,7 +44,12 @@ export function LongRecButton({
     transcribedText,
     error,
     audioStream,
+    mergeTranscriptionChunks,
+    isWakeLockActive, // ✅ Indicateur wake lock
   } = useLongRecording();
+  
+  // 🎯 Stocker les transcriptions précédentes pour fusion
+  const previousTranscriptionsRef = useRef<Array<{ chunkNumber: number; text: string }>>([]);
 
   // Insérer le texte transcrit à la fin de la note avec horodatage (une seule fois par chunk)
   const lastProcessedChunkRef = useRef<number>(0);
@@ -52,6 +57,24 @@ export function LongRecButton({
   useEffect(() => {
     // Ne traiter que si on a un nouveau texte transcrit ET un nouveau chunk
     if (transcribedText && currentChunk > 0 && currentChunk !== lastProcessedChunkRef.current) {
+      // 🎯 Vérifier s'il y a un chunk précédent à fusionner
+      const previousTranscription = previousTranscriptionsRef.current.find(t => t.chunkNumber === currentChunk - 1);
+      let finalText = transcribedText;
+      
+      if (previousTranscription && mergeTranscriptionChunks) {
+        console.log(`🔄 Fusion transcription chunks ${currentChunk - 1} et ${currentChunk} dans LongRecButton...`);
+        finalText = mergeTranscriptionChunks(previousTranscription.text, transcribedText);
+        console.log(`✅ Fusion transcription chunk ${currentChunk - 1} et chunk ${currentChunk} terminée (${previousTranscription.text.length} + ${transcribedText.length} → ${finalText.length} caractères)`);
+      }
+      
+      // Stocker cette transcription pour la fusion avec le prochain chunk
+      const existingIndex = previousTranscriptionsRef.current.findIndex(t => t.chunkNumber === currentChunk);
+      if (existingIndex >= 0) {
+        previousTranscriptionsRef.current[existingIndex].text = finalText;
+      } else {
+        previousTranscriptionsRef.current.push({ chunkNumber: currentChunk, text: finalText });
+      }
+      
       const now = new Date();
       const timestamp = now.toLocaleString('fr-FR', {
         day: '2-digit',
@@ -62,13 +85,13 @@ export function LongRecButton({
       });
 
       const separator = noteContent.trim() ? '\n\n' : '';
-      const chunkText = `${separator}--- Transcription chunk ${currentChunk} (${timestamp}) ---\n${transcribedText}`;
+      const chunkText = `${separator}--- Transcription chunk ${currentChunk} (${timestamp}) ---\n${finalText}`;
 
       onContentAppend(chunkText);
       lastProcessedChunkRef.current = currentChunk; // Marquer ce chunk comme traité
-      console.log(`✅ Texte transcrit inséré dans la note ${noteId} (chunk ${currentChunk})`);
+      console.log(`✅ Texte transcrit inséré dans la note ${noteId} (chunk ${currentChunk}${previousTranscription ? ', fusionné' : ''})`);
     }
-  }, [transcribedText, currentChunk, noteId, onContentAppend, noteContent]);
+  }, [transcribedText, currentChunk, noteId, onContentAppend, noteContent, mergeTranscriptionChunks]);
 
   // Formater le temps écoulé (MM:SS)
   const formatTime = (seconds: number): string => {
@@ -139,12 +162,35 @@ export function LongRecButton({
                 isRecording={isRecording}
                 darkMode={darkMode}
               />
+              {/* 🔋 Indicateur Wake Lock (écran allumé) */}
+              {isWakeLockActive && (
+                <div className="flex items-center gap-1 text-green-600 dark:text-green-400" title="Écran maintenu allumé pendant l'enregistrement">
+                  <Monitor className="w-3.5 h-3.5" />
+                </div>
+              )}
             </div>
             {isTranscribing && (
               <span className="text-blue-600 dark:text-blue-400 animate-pulse">
                 Transcription en cours...
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 🎯 Indicateur de transcription (visible après l'arrêt de l'enregistrement) */}
+      {!isRecording && isTranscribing && (
+        <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="relative">
+            <div className="w-5 h-5 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              Transcription en cours...
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-300">
+              {currentChunk > 0 ? `Chunk ${currentChunk}` : 'Traitement de l\'audio'} • Votre fichier est en cours de traitement
+            </p>
           </div>
         </div>
       )}

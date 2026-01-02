@@ -17,6 +17,7 @@ import {
   CreditCard,
   Shield
 } from 'lucide-react';
+// Note: BookOpen est toujours utilisé pour l'icône du menu "vocabulary"
 import { useApp } from '../../contexts/AppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 
@@ -103,7 +104,7 @@ export function Sidebar() {
       {/* Sidebar */}
       <div
         className={`
-          ${sidebarCollapsed ? '-translate-x-full lg:translate-x-0 lg:w-16' : 'translate-x-0 w-80 lg:w-64'}
+          ${sidebarCollapsed ? '-translate-x-full lg:translate-x-0 lg:w-24' : 'translate-x-0 w-80 lg:w-64'}
           fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto
           transition-all duration-300 ease-in-out
           flex flex-col h-full
@@ -112,12 +113,16 @@ export function Sidebar() {
         {/* Conteneur séparé pour les couleurs et bordures */}
         <div className="w-full h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 lg:p-4 border-b border-gray-200 dark:border-gray-700 min-h-[4rem]">
+          <div className={`flex items-center justify-between p-4 lg:p-4 min-h-[4rem] ${
+            sidebarCollapsed ? '' : 'border-b border-gray-200 dark:border-gray-700'
+          }`}>
             {!sidebarCollapsed && (
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 lg:w-8 lg:h-8 bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 lg:w-5 lg:h-5 text-white" />
-                </div>
+                <img 
+                  src="/images/centrinote/logo/Logo-centrinote.png" 
+                  alt="Centrinote" 
+                  className="w-8 h-8 lg:w-8 lg:h-8 object-contain"
+                />
                 <h1 className="text-xl lg:text-xl font-bold text-gray-900 dark:text-white">
                   Centrinote
                 </h1>
@@ -125,9 +130,19 @@ export function Sidebar() {
             )}
             <button
               onClick={toggleSidebar}
-              className="p-3 lg:p-2 rounded-lg transition-colors min-w-[3rem] min-h-[3rem] lg:min-w-0 lg:min-h-0 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              className={`p-3 lg:p-2 rounded-lg transition-colors min-w-[3rem] min-h-[3rem] lg:min-w-0 lg:min-h-0 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white flex items-center justify-center ${
+                sidebarCollapsed ? 'w-full' : ''
+              }`}
             >
-              {sidebarCollapsed ? <Menu className="w-6 h-6 lg:w-5 lg:h-5" /> : <X className="w-6 h-6 lg:w-5 lg:h-5" />}
+              {sidebarCollapsed ? (
+                <img 
+                  src="/images/centrinote/logo/Logo-centrinote.png" 
+                  alt="Centrinote" 
+                  className="w-20 h-20 lg:w-20 lg:h-20 object-contain transition-all duration-200 ease-in-out mx-auto"
+                />
+              ) : (
+                <X className="w-6 h-6 lg:w-5 lg:h-5" />
+              )}
             </button>
           </div>
 
@@ -143,8 +158,12 @@ export function Sidebar() {
                     <button
                       onClick={() => handleViewChange(item.id)}
                       className={`
-                        w-full flex items-center space-x-4 lg:space-x-3 px-4 lg:px-3 py-4 lg:py-2.5 rounded-lg
-                        transition-all duration-200 ease-in-out text-left min-h-[3.5rem] lg:min-h-0
+                        w-full flex items-center justify-center
+                        ${sidebarCollapsed 
+                          ? 'px-2 py-2 min-h-[2.5rem]' 
+                          : 'space-x-4 lg:space-x-3 px-4 lg:px-3 py-3 lg:py-2 min-h-[3.5rem] lg:min-h-0 text-left'
+                        }
+                        rounded-lg transition-all duration-200 ease-in-out
                         hover:scale-[1.02] active:scale-[0.98] transform
                         ${isActive
                           ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-lg scale-[1.02]'
@@ -152,9 +171,9 @@ export function Sidebar() {
                         }
                       `}
                     >
-                      <Icon className="w-6 h-6 lg:w-5 lg:h-5 flex-shrink-0" />
+                      <Icon className={`flex-shrink-0 ${sidebarCollapsed ? 'w-5 h-5' : 'w-6 h-6 lg:w-5 lg:h-5'}`} />
                       {!sidebarCollapsed && (
-                        <span className="font-medium text-base lg:text-sm">
+                        <span className="font-medium text-base lg:text-sm flex-1">
                           {item.id === 'automation' || item.id === 'meetings' || item.id === 'admin' || item.id === 'notes' ? item.label : t(item.label as any)}
                         </span>
                       )}

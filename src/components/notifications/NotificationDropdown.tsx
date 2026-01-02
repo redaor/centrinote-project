@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, X, Check, CheckCheck } from 'lucide-react';
+import { Bell, X, Check, CheckCheck, Trash2 } from 'lucide-react';
 import { useNotifications, type Notification } from '../../hooks/useNotifications';
 import { useApp } from '../../contexts/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,6 +70,33 @@ export function NotificationDropdown({ isOpen, onClose }: NotificationDropdownPr
     }
   };
 
+  const handleToggleSelect = (id: string) => {
+    setSelectedNotifications(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedNotifications.size === notifications.length) {
+      setSelectedNotifications(new Set());
+    } else {
+      setSelectedNotifications(new Set(notifications.map(n => n.id)));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedNotifications.size === 0) return;
+    const idsToDelete = Array.from(selectedNotifications);
+    deleteMultipleNotifications(idsToDelete);
+    setSelectedNotifications(new Set());
+  };
+
   const formatTime = (dateString: string) => {
     if (!dateString) return 'Date inconnue';
     try {
@@ -125,6 +152,20 @@ export function NotificationDropdown({ isOpen, onClose }: NotificationDropdownPr
               )}
             </div>
             <div className="flex items-center gap-2">
+              {selectedNotifications.size > 0 && (
+                <button
+                  onClick={handleDeleteSelected}
+                  className={`
+                    flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors
+                    bg-red-500 hover:bg-red-600 text-white text-sm font-medium
+                    focus:outline-none focus:ring-2 focus:ring-red-400
+                  `}
+                  aria-label={`Supprimer ${selectedNotifications.size} notification${selectedNotifications.size > 1 ? 's' : ''}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Supprimer ({selectedNotifications.size})</span>
+                </button>
+              )}
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
@@ -167,20 +208,70 @@ export function NotificationDropdown({ isOpen, onClose }: NotificationDropdownPr
               </div>
             ) : (
               <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                {/* Bouton sélectionner tout */}
+                {notifications.length > 0 && (
+                  <div className={`
+                    px-4 py-2 border-b
+                    ${darkMode ? 'border-gray-700' : 'border-gray-200'}
+                    flex items-center gap-2
+                  `}>
+                    <input
+                      type="checkbox"
+                      checked={selectedNotifications.size === notifications.length && notifications.length > 0}
+                      onChange={handleSelectAll}
+                      className={`
+                        w-4 h-4 rounded
+                        ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}
+                        focus:ring-2 focus:ring-purple-500
+                        cursor-pointer
+                      `}
+                      aria-label="Sélectionner toutes les notifications"
+                    />
+                    <label className={`
+                      text-sm cursor-pointer
+                      ${darkMode ? 'text-gray-300' : 'text-gray-600'}
+                    `}>
+                      {selectedNotifications.size === notifications.length && notifications.length > 0
+                        ? 'Tout désélectionner'
+                        : 'Tout sélectionner'}
+                    </label>
+                  </div>
+                )}
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
                     onClick={() => !notification.is_read && markAsRead(notification.id)}
                     className={`
-                      p-4 cursor-pointer transition-colors
+                      p-4 transition-colors
                       ${notification.is_read 
                         ? darkMode ? 'bg-gray-800/50' : 'bg-white'
                         : getTypeBg(notification.type)
                       }
-                      ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}
+                      ${selectedNotifications.has(notification.id)
+                        ? darkMode ? 'bg-purple-500/20 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+                        : darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                      }
+                      ${!notification.is_read ? 'cursor-pointer' : ''}
                     `}
                   >
                     <div className="flex items-start gap-3">
+                      {/* Checkbox de sélection */}
+                      <input
+                        type="checkbox"
+                        checked={selectedNotifications.has(notification.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelect(notification.id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`
+                          flex-shrink-0 w-4 h-4 mt-2 rounded
+                          ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}
+                          focus:ring-2 focus:ring-purple-500
+                          cursor-pointer
+                        `}
+                        aria-label={`Sélectionner ${notification.title}`}
+                      />
                       <div className={`
                         flex-shrink-0 w-2 h-2 rounded-full mt-2
                         ${notification.is_read ? 'opacity-0' : getTypeColor(notification.type)}

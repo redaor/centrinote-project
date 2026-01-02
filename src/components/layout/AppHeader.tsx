@@ -51,7 +51,7 @@ export function AppHeader() {
   const navigate = useNavigate();
   
   // 🔔 Hook de notifications
-  const { notifications, unreadCount, loading: notificationsLoading, markAsRead, deleteNotification } = useNotifications();
+  const { notifications, unreadCount, loading: notificationsLoading, markAsRead, deleteNotification, deleteMultipleNotifications } = useNotifications();
   const [showNotifications, setShowNotifications] = useState(false);
   
   // 🔍 DEBUG: Afficher les notifications dans la console
@@ -245,6 +245,7 @@ export function AppHeader() {
               darkMode={isDarkMode}
               onClose={() => setShowNotifications(false)}
               onDelete={(id) => deleteNotification(id)}
+              onDeleteMultiple={(ids) => deleteMultipleNotifications(ids)}
               onMarkAsRead={(id) => markAsRead(id)}
               notifications={notifications.map(n => ({
                 id: n.id,

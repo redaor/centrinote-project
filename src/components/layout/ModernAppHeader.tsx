@@ -128,7 +128,12 @@ export function ModernAppHeader() {
             </Button>
 
             {/* Logo/Titre */}
-            <div className="hidden sm:block">
+            <div className="hidden sm:flex items-center space-x-2">
+              <img 
+                src="/images/centrinote/logo/Logo-centrinote.png" 
+                alt="Centrinote" 
+                className="w-8 h-8 object-contain"
+              />
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                 Centrinote
               </h1>

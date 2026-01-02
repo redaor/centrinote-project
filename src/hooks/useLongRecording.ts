@@ -6,8 +6,27 @@
  * - Indicateur de niveau audio en temps réel
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+
+// 🔋 Déclaration de type pour WakeLockSentinel (API moderne des navigateurs)
+// Utilisation de declare global pour éviter les conflits avec les types existants
+declare global {
+  interface WakeLockSentinel extends EventTarget {
+    readonly type: 'screen';
+    readonly released: boolean;
+    release(): Promise<void>;
+    onrelease: ((this: WakeLockSentinel, ev: Event) => any) | null;
+  }
+
+  interface WakeLock {
+    request(type: 'screen'): Promise<WakeLockSentinel>;
+  }
+
+  interface Navigator {
+    wakeLock?: WakeLock;
+  }
+}
 
 interface UseLongRecordingReturn {
   isRecording: boolean;
@@ -19,11 +38,19 @@ interface UseLongRecordingReturn {
   transcribedText: string | null;
   error: string | null;
   audioStream: MediaStream | null; // Stream audio pour l'indicateur de niveau
+  mergeTranscriptionChunks: (chunk1: string, chunk2: string) => string; // Fonction de fusion exportée
+  isWakeLockActive: boolean; // ✅ Indicateur pour l'UI
 }
 
 const CHUNK_DURATION_MS = 30 * 60 * 1000; // 30 minutes en millisecondes
-const SAMPLE_RATE = 48000; // 48 kHz
+const OVERLAP_DURATION_MS = 5 * 1000; // 5 secondes de chevauchement entre chunks
+// Note: On laisse le navigateur capturer à 48 kHz (meilleure compatibilité)
+// Whisper rééchantillonne automatiquement à 16 kHz, donc pas besoin de forcer ici
+const SAMPLE_RATE = 48000; // 48 kHz (meilleure compatibilité navigateurs)
 const CHANNELS = 1; // Mono
+// Optimisation: 32 kbps au lieu de 128 kbps = réduction de ~75% de la taille du fichier
+// Cela réduit le temps d'upload et le temps de traitement
+const AUDIO_BITRATE = 32000; // 32 kbps (suffisant pour la parole, Whisper fonctionne bien à ce bitrate)
 
 export function useLongRecording(): UseLongRecordingReturn {
   const [isRecording, setIsRecording] = useState(false);
@@ -33,6 +60,7 @@ export function useLongRecording(): UseLongRecordingReturn {
   const [transcribedText, setTranscribedText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+  const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -42,6 +70,126 @@ export function useLongRecording(): UseLongRecordingReturn {
   const shouldContinueRef = useRef<boolean>(false);
   // FIX: Set pour stocker les timestamps des chunks déjà envoyés à l'API
   const sentChunksRef = useRef<Set<number>>(new Set());
+  // 🎯 Overlap management
+  const nextRecorderRef = useRef<MediaRecorder | null>(null);
+  const isOverlappingRef = useRef<boolean>(false);
+  const nextChunksRef = useRef<Blob[]>([]);
+  const transcriptionsRef = useRef<Array<{ chunkNumber: number; text: string }>>([]);
+  // 🔋 Wake Lock management
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  // 🎯 Fonction pour détecter l'overlap entre deux transcriptions
+  const findOverlap = useCallback((chunk1: string, chunk2: string, minOverlapWords: number = 5): number => {
+    const words1 = chunk1.trim().split(/\s+/);
+    const words2 = chunk2.trim().split(/\s+/);
+    
+    // Essayer différents points de départ dans chunk2
+    for (let start = 0; start < Math.min(words2.length, words1.length); start++) {
+      let matchCount = 0;
+      
+      // Comparer les mots de la fin de chunk1 avec le début de chunk2
+      for (let i = 0; i < Math.min(words1.length - start, words2.length - start); i++) {
+        const word1 = words1[words1.length - start - i]?.toLowerCase().replace(/[.,!?;:]/g, '') || '';
+        const word2 = words2[i]?.toLowerCase().replace(/[.,!?;:]/g, '') || '';
+        
+        if (word1 === word2 && word1.length > 0) {
+          matchCount++;
+        } else if (matchCount > 0) {
+          break; // Série brisée, mais on a déjà des correspondances
+        }
+      }
+      
+      // Si on a trouvé assez de mots communs, c'est probablement l'overlap
+      if (matchCount >= minOverlapWords) {
+        return start;
+      }
+    }
+    
+    return -1; // Pas d'overlap trouvé
+  }, []);
+
+  // 🔋 Fonction pour demander le Wake Lock
+  const requestWakeLock = useCallback(async () => {
+    // ✅ 1. Vérifier si un wake lock est déjà actif (éviter les doublons)
+    if (wakeLockRef.current && !wakeLockRef.current.released) {
+      console.log('🔋 Wake Lock déjà actif, pas de nouvelle demande');
+      return;
+    }
+
+    try {
+      // Vérifier si l'API est disponible
+      if ('wakeLock' in navigator && navigator.wakeLock) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        
+        // Écouter l'événement release (quand le système libère le wake lock)
+        wakeLockRef.current.addEventListener('release', () => {
+          console.log('🔋 Wake Lock libéré par le système');
+          wakeLockRef.current = null;
+          setIsWakeLockActive(false); // ✅ Mettre à jour l'état
+        });
+        
+        console.log('🔋 Wake Lock activé');
+        setIsWakeLockActive(true); // ✅ Mettre à jour l'état pour l'UI
+      } else {
+        console.warn('⚠️ Wake Lock API non disponible dans ce navigateur');
+      }
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Erreur inconnue';
+      
+      // ✅ 3. Détection des erreurs spécifiques (batterie faible, eco-mode)
+      if (errorMessage.includes('NotAllowedError') || errorMessage.includes('NotAllowed')) {
+        console.warn('⚠️ Wake Lock refusé: Permission refusée ou mode économie d\'énergie actif');
+      } else if (errorMessage.includes('AbortError')) {
+        console.warn('⚠️ Wake Lock annulé: Possiblement dû au mode économie d\'énergie');
+      } else {
+        console.error('❌ Wake Lock erreur:', err);
+      }
+      
+      // Ne pas bloquer l'enregistrement si le wake lock échoue
+      wakeLockRef.current = null;
+    }
+  }, []);
+
+  // 🔋 Fonction pour libérer le Wake Lock
+  const releaseWakeLock = useCallback(() => {
+    if (!wakeLockRef.current) {
+      return; // Déjà libéré ou jamais activé
+    }
+
+    // ✅ 2. Utiliser try/finally pour garantir la réinitialisation
+    try {
+      if (!wakeLockRef.current.released) {
+        wakeLockRef.current.release();
+        console.log('🔋 Wake Lock libéré');
+      }
+    } catch (err) {
+      console.error('❌ Erreur lors de la libération du Wake Lock:', err);
+    } finally {
+      // Garantir que la ref est toujours réinitialisée, même en cas d'erreur
+      wakeLockRef.current = null;
+    }
+  }, []);
+
+  // 🎯 Fonction pour fusionner deux transcriptions en gérant l'overlap
+  const mergeTranscriptionChunks = useCallback((chunk1: string, chunk2: string): string => {
+    if (!chunk1.trim() || !chunk2.trim()) {
+      return (chunk1.trim() + ' ' + chunk2.trim()).trim();
+    }
+
+    const overlapIndex = findOverlap(chunk1, chunk2);
+    
+    if (overlapIndex === -1) {
+      // Pas d'overlap détecté, concaténation simple
+      return chunk1.trim() + ' ' + chunk2.trim();
+    }
+    
+    // Extraire la partie unique de chunk2 (sans l'overlap)
+    const words2 = chunk2.trim().split(/\s+/);
+    const uniquePart2 = words2.slice(overlapIndex).join(' ');
+    
+    // Fusionner en excluant l'overlap
+    return chunk1.trim() + ' ' + uniquePart2;
+  }, [findOverlap]);
 
   // Demander permission micro (une seule fois)
   const requestMicrophonePermission = useCallback(async (): Promise<MediaStream> => {
@@ -192,16 +340,24 @@ export function useLongRecording(): UseLongRecordingReturn {
       chunksRef.current = [];
       // FIX: Réinitialiser le Set des chunks envoyés
       sentChunksRef.current.clear();
+      // 🎯 Réinitialiser les refs d'overlap
+      nextRecorderRef.current = null;
+      isOverlappingRef.current = false;
+      nextChunksRef.current = [];
+      transcriptionsRef.current = [];
+      // 🔋 S'assurer que le Wake Lock est libéré avant de démarrer (au cas où)
+      releaseWakeLock();
 
       // Demander permission micro
       const stream = await requestMicrophonePermission();
       streamRef.current = stream;
       setAudioStream(stream); // Exposer le stream pour l'indicateur
 
-      // Créer MediaRecorder avec configuration webm mono 48 kHz
+      // Créer MediaRecorder avec configuration optimisée pour la transcription
+      // 16 kHz mono 32 kbps = taille réduite de ~75% par rapport à 48 kHz 128 kbps
       const options: MediaRecorderOptions = {
         mimeType: 'audio/webm;codecs=opus',
-        audioBitsPerSecond: 128000, // 128 kbps
+        audioBitsPerSecond: AUDIO_BITRATE, // 32 kbps (optimal pour transcription)
       };
 
       // Vérifier si le format est supporté
@@ -214,89 +370,110 @@ export function useLongRecording(): UseLongRecordingReturn {
       mediaRecorderRef.current = mediaRecorder;
 
       // Gérer les données enregistrées
-      const chunks: Blob[] = [];
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          chunks.push(event.data);
           chunksRef.current.push(event.data);
         }
       };
 
-      // FIX: Gérer l'arrêt du chunk et redémarrer
+      // 🎯 Gérer l'arrêt du chunk avec overlap
       mediaRecorder.onstop = async () => {
-        if (chunks.length === 0) {
-          // Si pas de données, redémarrer directement si on continue
-          if (shouldContinueRef.current && streamRef.current) {
-            const nextRecorder = new MediaRecorder(streamRef.current, options);
-            const nextChunks: Blob[] = [];
-            
-            nextRecorder.ondataavailable = mediaRecorder.ondataavailable;
-            nextRecorder.onstop = mediaRecorder.onstop;
-            mediaRecorderRef.current = nextRecorder;
-            
-            setTimeout(() => {
-              if (nextRecorder.state === 'inactive' && streamRef.current && shouldContinueRef.current) {
-                nextRecorder.start();
-                startTimeRef.current = Date.now();
-                setElapsedTime(0);
-                const nextChunk = currentChunk + 1;
-                setCurrentChunk(nextChunk);
-                console.log(`🎤 Chunk ${nextChunk} redémarré`);
-              }
-            }, 1000);
+        if (chunksRef.current.length === 0) {
+          // Si pas de données et qu'on continue, utiliser le nextRecorder qui a déjà démarré avec overlap
+          if (shouldContinueRef.current && nextRecorderRef.current) {
+            console.log('🔄 Pas de données dans chunk actuel, utilisation du nextRecorder (overlap)');
+            // Transférer les chunks du nextRecorder
+            chunksRef.current = [...nextChunksRef.current];
+            nextChunksRef.current = [];
+            // Le nextRecorder devient le recorder actuel
+            nextRecorderRef.current.onstop = mediaRecorder.onstop;
+            mediaRecorderRef.current = nextRecorderRef.current;
+            nextRecorderRef.current = null;
+            isOverlappingRef.current = false;
+            // Le nextRecorder continue déjà depuis T-5s, pas besoin de redémarrer
           }
           return;
         }
 
-        const chunkBlob = new Blob(chunks, { type: 'audio/webm' });
-        const chunkNumber = currentChunk + 1;
-        setCurrentChunk(chunkNumber);
-        chunks.length = 0; // Réinitialiser pour le prochain chunk
+        const chunkBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const chunkNumber = currentChunk;
+        chunksRef.current = []; // Réinitialiser pour le prochain chunk
 
         // Traiter le chunk (transcription)
         try {
           const transcribed = await processChunk(chunkBlob, chunkNumber);
+          
+          // Stocker cette transcription pour la fusion ultérieure dans le composant
+          transcriptionsRef.current.push({ chunkNumber, text: transcribed });
+          
+          // Pour l'instant, retourner la transcription telle quelle
+          // La fusion sera gérée dans le composant LongRecButton
           setTranscribedText(transcribed);
+          
         } catch (err) {
           console.error('Erreur lors du traitement du chunk:', err);
         }
 
-        // FIX: Si on continue l'enregistrement, arrêter et redémarrer le MediaRecorder
+        // 🎯 Si on continue l'enregistrement, le nextRecorder est déjà démarré (overlap à T-5s)
         if (shouldContinueRef.current && streamRef.current) {
-          // FIX: Créer un nouveau MediaRecorder pour le chunk suivant
-          const nextOptions: MediaRecorderOptions = {
-            mimeType: 'audio/webm;codecs=opus',
-            audioBitsPerSecond: 128000,
-          };
-          if (!MediaRecorder.isTypeSupported(nextOptions.mimeType!)) {
-            delete nextOptions.mimeType;
+          if (nextRecorderRef.current) {
+            // Le nextRecorder a déjà démarré avec overlap à T-5s
+            // Transférer ses chunks dans chunksRef et lui donner le handler onstop
+            chunksRef.current = [...nextChunksRef.current];
+            nextChunksRef.current = [];
+            
+            // Le nextRecorder devient le recorder actuel et hérite du handler onstop
+            nextRecorderRef.current.onstop = mediaRecorder.onstop;
+            mediaRecorderRef.current = nextRecorderRef.current;
+            nextRecorderRef.current = null;
+            isOverlappingRef.current = false;
+            
+            const nextChunkNumber = chunkNumber + 1;
+            setCurrentChunk(nextChunkNumber);
+            
+            // Réinitialiser le timer pour le prochain chunk (en tenant compte de l'overlap)
+            startTimeRef.current = Date.now() - OVERLAP_DURATION_MS;
+            setElapsedTime(Math.floor(OVERLAP_DURATION_MS / 1000));
+            
+            console.log(`🔄 Passage au chunk ${nextChunkNumber} (overlap actif depuis T-5s)`);
+          } else {
+            // Cas de fallback : démarrer normalement (ne devrait pas arriver avec overlap)
+            console.warn('⚠️ nextRecorder non trouvé, démarrage normal');
+            const nextOptions: MediaRecorderOptions = {
+              mimeType: 'audio/webm;codecs=opus',
+              audioBitsPerSecond: AUDIO_BITRATE,
+            };
+            if (!MediaRecorder.isTypeSupported(nextOptions.mimeType!)) {
+              delete nextOptions.mimeType;
+            }
+
+            const nextRecorder = new MediaRecorder(streamRef.current, nextOptions);
+            const nextChunks: Blob[] = [];
+            
+            nextRecorder.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                nextChunks.push(event.data);
+              }
+            };
+
+            nextRecorder.onstop = mediaRecorder.onstop;
+            mediaRecorderRef.current = nextRecorder;
+            
+            setTimeout(() => {
+              if (nextRecorder && nextRecorder.state === 'inactive' && streamRef.current && shouldContinueRef.current) {
+                nextRecorder.start();
+                startTimeRef.current = Date.now();
+                setElapsedTime(0);
+                const nextChunk = chunkNumber + 1;
+                setCurrentChunk(nextChunk);
+                console.log(`🎤 Chunk ${nextChunk} redémarré (fallback, sans overlap)`);
+              }
+            }, 1000);
           }
-
-          const nextRecorder = new MediaRecorder(streamRef.current, nextOptions);
-          const nextChunks: Blob[] = [];
-          
-          nextRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              nextChunks.push(event.data);
-            }
-          };
-
-          // FIX: Réutiliser le même handler pour le prochain chunk
-          nextRecorder.onstop = mediaRecorder.onstop;
-          mediaRecorderRef.current = nextRecorder;
-          
-          // FIX: Redémarrer après un court délai
-          setTimeout(() => {
-            if (nextRecorder && nextRecorder.state === 'inactive' && streamRef.current && shouldContinueRef.current) {
-              nextRecorder.start();
-              startTimeRef.current = Date.now();
-              setElapsedTime(0);
-              console.log(`🎤 Chunk ${chunkNumber + 1} redémarré`);
-            }
-          }, 1000);
         } else {
-          // FIX: Arrêt définitif
+          // Arrêt définitif
           setIsRecording(false);
+          isOverlappingRef.current = false;
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
@@ -310,17 +487,52 @@ export function useLongRecording(): UseLongRecordingReturn {
       shouldContinueRef.current = true; // Marquer qu'on doit continuer après chaque chunk
       startTimeRef.current = Date.now();
 
-      // Mettre à jour le temps écoulé toutes les secondes
+      // 🔋 Activer le Wake Lock pour empêcher la mise en veille
+      await requestWakeLock();
+
+      // 🎯 Mettre à jour le temps écoulé toutes les secondes et gérer l'overlap
       intervalRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         setElapsedTime(elapsed);
 
-        // Vérifier si on a atteint la durée du chunk (arrêter automatiquement le chunk)
+        const timeUntilEnd = (CHUNK_DURATION_MS / 1000) - elapsed;
+        
+        // 🎯 Démarrer le prochain MediaRecorder à T-5s (overlap)
+        if (timeUntilEnd <= OVERLAP_DURATION_MS / 1000 && !isOverlappingRef.current && shouldContinueRef.current && streamRef.current) {
+          console.log('🔄 Démarrage overlap à T-5s');
+          
+          const nextOptions: MediaRecorderOptions = {
+            mimeType: 'audio/webm;codecs=opus',
+            audioBitsPerSecond: AUDIO_BITRATE,
+          };
+          if (!MediaRecorder.isTypeSupported(nextOptions.mimeType!)) {
+            delete nextOptions.mimeType;
+          }
+
+          const nextRecorder = new MediaRecorder(streamRef.current, nextOptions);
+          nextRecorderRef.current = nextRecorder;
+          
+          // Le nextRecorder utilisera le même handler que le recorder actuel
+          // On stocke ses chunks dans nextChunksRef temporairement
+          nextRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              nextChunksRef.current.push(event.data);
+            }
+          };
+          
+          // Le nextRecorder héritera du handler onstop quand il deviendra le recorder actuel
+          // Pour l'instant, on le stocke juste dans nextRecorderRef
+
+          nextRecorder.start();
+          isOverlappingRef.current = true;
+          console.log(`🔄 Chunk suivant démarré avec overlap (T-5s avant la fin du chunk ${currentChunk + 1})`);
+        }
+
+        // 🎯 Arrêter le chunk actuel à T=30:00
         if (elapsed >= CHUNK_DURATION_MS / 1000) {
           if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
             mediaRecorderRef.current.stop();
-            startTimeRef.current = Date.now(); // Réinitialiser pour le prochain chunk
-            setElapsedTime(0);
+            // Note: Le nextRecorder continue déjà depuis T-5s
           }
         }
       }, 1000);
@@ -331,14 +543,21 @@ export function useLongRecording(): UseLongRecordingReturn {
       setError(errorMessage);
       console.error('❌ Erreur démarrage enregistrement:', err);
     }
-  }, [currentChunk, processChunk, requestMicrophonePermission]);
+  }, [currentChunk, processChunk, requestMicrophonePermission, mergeTranscriptionChunks]);
 
   // Arrêter l'enregistrement
   const stopRecording = useCallback(() => {
     shouldContinueRef.current = false; // Ne plus continuer automatiquement
+    isOverlappingRef.current = false; // Arrêter l'overlap
     
+    // Arrêter le MediaRecorder actuel
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
+    }
+    
+    // Arrêter le nextRecorder si en cours d'overlap
+    if (nextRecorderRef.current && nextRecorderRef.current.state !== 'inactive') {
+      nextRecorderRef.current.stop();
     }
 
     if (streamRef.current) {
@@ -352,8 +571,32 @@ export function useLongRecording(): UseLongRecordingReturn {
       intervalRef.current = null;
     }
 
+    // Nettoyer les refs d'overlap
+    nextRecorderRef.current = null;
+    nextChunksRef.current = [];
+
+    // 🔋 Libérer le Wake Lock
+    releaseWakeLock();
+
     setIsRecording(false);
     console.log('🛑 Enregistrement arrêté');
+  }, []);
+
+  // ✅ 7. Clean-up : Libérer le Wake Lock lors du démontage du composant
+  useEffect(() => {
+    return () => {
+      // Cleanup lors du démontage
+      if (wakeLockRef.current && !wakeLockRef.current.released) {
+        try {
+          wakeLockRef.current.release();
+          console.log('🔋 Wake Lock libéré (cleanup unmount)');
+        } catch (err) {
+          console.error('❌ Erreur lors de la libération du Wake Lock (cleanup):', err);
+        } finally {
+          wakeLockRef.current = null;
+        }
+      }
+    };
   }, []);
 
   return {
@@ -366,5 +609,7 @@ export function useLongRecording(): UseLongRecordingReturn {
     transcribedText,
     error,
     audioStream,
+    mergeTranscriptionChunks, // Exporter la fonction de fusion
+    isWakeLockActive, // ✅ Exporter l'état du wake lock pour l'UI
   };
 }

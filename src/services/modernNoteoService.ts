@@ -186,7 +186,6 @@ export class ModernNoteoService {
         .substring(stepMatch.startIndex, stepMatch.endIndex)
         .trim()
         .replace(/^[:\-]\s*/, '') // Enlever les deux points ou tirets au début
-        .split('\n\n')[0] // Prendre seulement le premier paragraphe si plusieurs
         .trim();
 
       steps.push({
@@ -231,7 +230,6 @@ export class ModernNoteoService {
           .substring(stepMatch.index, stepMatch.endIndex)
           .trim()
           .replace(/^[:\-]\s*/, '')
-          .split('\n\n')[0] // Prendre seulement le premier paragraphe
           .trim();
 
         steps.push({
@@ -284,8 +282,6 @@ export class ModernNoteoService {
           .replace(/Est-ce que.*\?/gi, '')
           .replace(/Oui, c'est réglé/gi, '')
           .replace(/Non, toujours bloqué/gi, '')
-          .trim()
-          .split('\n\n')[0]
           .trim();
 
         if (followUpText && followUpText.length > 10) {

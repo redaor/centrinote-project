@@ -62,3 +62,4 @@ export function useThemeSync(): UseThemeSyncReturn {
     mounted
   };
 }
+

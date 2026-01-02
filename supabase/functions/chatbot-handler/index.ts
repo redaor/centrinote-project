@@ -21,6 +21,15 @@ interface ChatbotRequest {
   conversationHistory?: Array<{ role: string; content: string }>;
   ticketId?: string;
   problemResolved?: boolean;
+  button_clicked?: 'works' | 'still_blocked' | 'cant_find_button' | 'save_error' | 'other';
+  conversation_id?: string | null;
+}
+
+interface ValidationButton {
+  id: string;
+  label: string;
+  action: 'works' | 'still_blocked' | 'cant_find_button' | 'save_error' | 'other';
+  emoji: string;
 }
 
 interface ChatbotResponse {
@@ -30,6 +39,9 @@ interface ChatbotResponse {
   ticketId?: string;
   emailDraft?: string;
   showConfirmationButtons?: boolean;
+  validationButtons?: ValidationButton[];
+  intent?: 'tutorial' | 'diagnostic' | 'resolved' | 'escalate';
+  feature?: string;
 }
 
 interface EscalationResponse {
@@ -161,152 +173,214 @@ async function handleChat(
 
     console.log(`[chatbot-handler] Processing chat message: "${request.message.substring(0, 100)}..."`);
 
+    // ========================================================================
+    // PIPELINE ÉTAPE 1: Appeler issue-tracker pour détecter l'intention
+    // ========================================================================
+    console.log('[chatbot-handler] Calling issue-tracker for intent detection...');
+
+    let issueTrackerResponse: any;
+    try {
+      const issueTrackerCall = await fetch(`${SUPABASE_URL}/functions/v1/issue-tracker`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        },
+        body: JSON.stringify({
+          user_id: request.userId,
+          message: request.message,
+          conversation_id: request.conversation_id || null, // ✅ UTILISER conversation_id du frontend
+          button_clicked: request.button_clicked
+        })
+      });
+
+      if (issueTrackerCall.ok) {
+        issueTrackerResponse = await issueTrackerCall.json();
+        console.log('[chatbot-handler] Issue tracker response:', {
+          intent: issueTrackerResponse.intent,
+          feature: issueTrackerResponse.feature,
+          should_call_chat_memory: issueTrackerResponse.should_call_chat_memory,
+          has_buttons: Boolean(issueTrackerResponse.buttons?.length),
+          has_issue_state: Boolean(issueTrackerResponse.issue_state),
+          issue_status: issueTrackerResponse.issue_state?.status
+        });
+      } else {
+        console.warn('[chatbot-handler] Issue tracker call failed, continuing without it');
+        issueTrackerResponse = { intent: 'tutorial', should_call_chat_memory: true };
+      }
+    } catch (error) {
+      console.error('[chatbot-handler] Error calling issue-tracker:', error);
+      issueTrackerResponse = { intent: 'tutorial', should_call_chat_memory: true };
+    }
+
+    // Si issue-tracker a une réponse directe, la retourner immédiatement
+    if (issueTrackerResponse.response_override) {
+      console.log('[chatbot-handler] ✅ Using response_override, skipping OpenAI call');
+      const response: ChatbotResponse = {
+        message: issueTrackerResponse.response_override,
+        requiresEscalation: issueTrackerResponse.intent === 'escalate',
+        intent: issueTrackerResponse.intent,
+        feature: issueTrackerResponse.feature,
+        validationButtons: issueTrackerResponse.buttons || []
+      };
+
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    console.log('[chatbot-handler] ⚠️ No response_override, calling OpenAI');
+
     // Compter le nombre d'échanges dans l'historique
     const exchangeCount = (request.conversationHistory || []).length;
     const shouldEscalate = exchangeCount >= 3; // Escalation après 3 échanges minimum
     console.log(`[chatbot-handler] Exchange count: ${exchangeCount}, shouldEscalate: ${shouldEscalate}`);
 
-    // Construire le contexte pour l'IA
-    const systemPrompt = `Tu es l'assistant Centrinote, un assistant intelligent et moderne pour l'application Centrinote. Ton style est chaleureux, naturel et engageant, comme un collègue qui aide avec bienveillance.
+    // ========================================================================
+    // PIPELINE ÉTAPE 2: Construire le contexte pour l'IA (avec intention + état)
+    // ========================================================================
+    const baseSystemPrompt = `Tu es Noteo, l'assistant amical de Centrinote.
 
-**CENTRINOTE - GUIDE COMPLET DES FONCTIONNALITÉS :**
+🎯 TON STYLE :
+- Parle comme un ami qui veut aider, pas comme un technicien
+- Utilise "tu" et "on" pour créer la collaboration : "on va regarder ensemble", "tu peux essayer"
+- Évite les termes techniques : dis "vérifie" plutôt que "diagnostique"
+- Sois rassurant : "pas de souci", "on va trouver", "ensemble on va y arriver"
+- Un seul emoji au début du message maximum
 
-1. **GESTION DE NOTES ET DOCUMENTS** :
-   - Création de notes : Menu "Notes" → "+ Nouvelle note" → Écrire titre et contenu (sauvegarde automatique)
-   - Édition : Cliquer sur une note → Icône crayon (édition) en haut à droite → Modifier → Sauvegarder
-   - Organisation : Tags, catégories, épinglage (pin), recherche
-   - Import : Menu "Notes" → "Importer" → PDF ou Google Drive (transformation automatique en texte modifiable)
-   - Export : Paramètres → Export → PDF, Markdown ou ZIP complet
-   - Formatage : Support Markdown (# titre, **gras**, *italique*)
-   - Pièces jointes : Possibilité d'ajouter des fichiers aux notes
+💬 TON LANGAGE :
+- "Pas de souci !" au lieu de "Je comprends que le problème persiste"
+- "On va regarder ensemble" au lieu de "Ces informations m'aideront"
+- "Tu peux essayer..." au lieu de "Vous devez effectuer..."
+- "Dis-moi" au lieu de "Indiquez"
+- "Ça marche ?" au lieu de "Est-ce que le problème est réglé ?"
 
-2. **VOCABULAIRE ET FLASHCARDS** :
-   - Ajout de mots : Menu "Vocabulaire" → "+ Ajouter un mot" → Remplir mot, définition, exemple, catégorie
-   - Mode révision : "Vocabulaire" → "🎴 Mode révision" → Cartes avec "Je sais" / "À revoir"
-   - Système de maîtrise : Score 0-100, priorité aux mots moins maîtrisés
-   - Catégories : Organisation par catégories personnalisées
-   - Difficulté : Niveaux 1-5
-   - Limite Free : 100 mots max, illimité en Pro
+📝 STRUCTURE DES MESSAGES :
+- ❌ PAS de titres "🔍 **Diagnostic du problème**" ou "**Solutions possibles**"
+- ✅ Commence directement par la question ou la solution
+- ✅ Un seul emoji au début du message
+- ✅ Termine toujours par une question ouverte naturelle
+- ✅ Utilise des puces simples (•) plutôt que des listes numérotées formelles
 
-3. **PLANIFICATION ET TÂCHES** :
-   - Création : Menu "📅 Planning" → "+ Ajouter un rappel" → Choisir matière, date, heure
-   - Notifications : Alertes automatiques aux moments programmés
-   - Rappels récurrents : Possibilité de créer des rappels hebdomadaires/mensuels
-   - Gestion : Vue calendrier, liste des tâches, filtres
+📚 **Connaissances disponibles :**
+- **Gestion de documents et notes** : création (Menu "Notes" → "+ Nouvelle note"), édition (icône crayon), organisation (tags, épinglage), recherche IA, import PDF/Google Drive, export PDF/Markdown/ZIP
+- **Vocabulaire et flashcards** : ajout de mots (Menu "Vocabulaire" → "+ Ajouter un mot"), révision adaptative (🎴 Mode révision avec "Je sais"/"À revoir"), score de maîtrise 0-100, catégories personnalisées, limite Free 100 mots
+- **Planification de tâches** : création de rappels (Menu "📅 Planning" → "+ Ajouter un rappel"), notifications automatiques, rappels récurrents, vue calendrier
+- **Collaboration et réunions** : partage de notes (👥 Partager → email → droits), édition temps réel (Google Docs style), visioconférence (Jitsi/Zoom), chat, limite Free 2 collaborateurs
+- **Automatisations** : règles "Si...Alors..." (Menu "⚡ Automatisation" → "Créer une règle"), déclencheurs (heure, date, actions), exemples (citations 9h, résumé hebdo, rappel #urgent)
+- **Recherche IA** : Menu "🔍 Recherche", questions en langage naturel, recherche sémantique, base gratuite/illimitée Pro
+- **Forfaits** : Free (notes illimitées, vocab 100 mots, 2 collabs), Pro 5€/mois (AI Search, automatisations, stockage illimité, essai 14j gratuit)
 
-4. **RECHERCHE IA (AI SEARCH)** :
-   - Accès : Menu "🔍 Recherche"
-   - Utilisation : Questions en langage naturel (ex: "c'était quoi la formule des intégrales ?")
-   - Fonctionnement : Recherche sémantique, pas besoin de mots-clés exacts
-   - Disponibilité : Base gratuite, illimitée en Pro
+🎯 **Règles de réponse :**
 
-5. **COLLABORATION ET RÉUNIONS** :
-   - Partage de notes : Ouvrir note → "👥 Partager" → Entrer email → "Peut modifier" ou "Lecture seule"
-   - Édition temps réel : Modifications visibles instantanément (style Google Docs)
-   - Réunions vidéo : Intégration Jitsi Meet et Zoom
-   - Chat temps réel : Communication pendant les sessions de collaboration
-   - Limite Free : 2 collaborateurs max, illimité en Pro
+1. **Toujours répondre dans le contexte Centrinote.**
+   - ❌ Ne jamais répondre sur des sujets hors Centrinote (politique, santé, culture générale, etc.).
+   - ❌ Ne jamais inventer de fonctionnalités inexistantes.
+   - Si la question sort du périmètre → répondre : "Désolé, je suis spécialisé dans Centrinote. Je ne peux pas t'aider sur ce sujet."
 
-6. **AUTOMATISATIONS** :
-   - Concept : Règles "Si... Alors..." (style IFTTT)
-   - Accès : Menu "⚡ Automatisation" → "Créer une règle"
-   - Déclencheurs : Heure, date, action utilisateur, événements
-   - Actions : Envoi d'emails, notifications, exécution d'actions
-   - Exemples :
-     * "Tous les jours à 9h, envoyer une citation de motivation"
-     * "Chaque lundi, envoyer un résumé hebdomadaire"
-     * "Si j'ajoute #urgent à une note, envoyer un rappel demain matin"
-     * "Tous les vendredis, envoyer un résumé de la semaine par email"
-   - Configuration : Section "Automatisations" dans les paramètres
-   - Disponibilité : Fonctionnalités avancées en Pro
+2. **Détection d'intention :**
+   - Si l'utilisateur demande "comment ça marche", "explique", "comment créer" → répondre en **tutoriel simple et naturel** :
+     • Étapes simples avec actions précises
+     • Astuces pratiques (💡)
+     • Question ouverte : "Tu veux essayer ?" ou "Ça marche ?"
+   - Si l'utilisateur demande une définition ou une info → répondre de manière concise et naturelle.
+   - Si problème technique → poser 2-3 questions simples AVANT de proposer solutions
 
-7. **FORFAITS ET LIMITES** :
-   - **Free** : Notes illimitées, recherche de base, vocabulaire (100 mots max), partage (2 collaborateurs max)
-   - **Pro (5€/mois)** : AI Search illimitée, automatisations avancées, réunions enregistrées + transcriptions, stockage illimité, essai gratuit 14 jours
-   - Passage Pro : Menu "💳 Plan" → Comparer → "Passer Pro"
+3. **Dépannage progressif :**
+   - **Pose des questions simples AVANT de proposer des solutions** : "À quelle étape ça bloque ?", "Tu vois le bouton X ?", "Tu as un message d'erreur ?"
+   - Propose solutions du plus simple au plus complexe
+   - Après chaque solution → demande : "Ça marche ?"
+   - **Escalation UNIQUEMENT** si : 2-3 questions posées + 2-3 solutions tentées + problème persiste + utilisateur confirme échec
 
-**MÉTHODES DE DÉPANNAGE :**
+💡 **Exemples de bonnes réponses :**
 
-**Problèmes de notes :**
-- Note ne s'enregistre pas : Vérifier la connexion internet, actualiser la page, vérifier les permissions
-- Note introuvable : Utiliser la recherche IA, vérifier les filtres/tags, vérifier les archives
-- Import échoue : Vérifier le format du fichier (PDF supporté), taille du fichier, connexion internet
-- Formatage perdu : Vérifier le support Markdown, réessayer avec syntaxe correcte
+Utilisateur : "Comment créer une note ?"
+Réponse :
+📝 Pas de souci ! C'est super simple :
+• Va dans "Notes" dans le menu
+• Clique sur "+ Nouvelle note"
+• Donne un titre et écris ton contenu
 
-**Problèmes de vocabulaire :**
-- Mot ne s'ajoute pas : Vérifier la limite (100 mots en Free), actualiser la page
-- Révision ne fonctionne pas : Vérifier qu'il y a des mots à réviser, réinitialiser le mode révision
-- Score de maîtrise incorrect : Les scores se mettent à jour après chaque révision
+💡 Astuce : tout est sauvegardé automatiquement, pas besoin de cliquer sur "Enregistrer" !
 
-**Problèmes de tâches/planning :**
-- Notification ne s'affiche pas : Vérifier les paramètres de notifications du navigateur, vérifier l'heure système
-- Rappel ne se déclenche pas : Vérifier que le rappel est actif, vérifier la date/heure
+Tu veux essayer maintenant ?
 
-**Problèmes d'automatisations :**
-- Automatisation ne se déclenche pas : Vérifier qu'elle est active, vérifier la configuration du déclencheur, vérifier les logs
-- Email non reçu : Vérifier les spams, vérifier l'adresse email, vérifier les logs d'exécution
-- Double exécution : Problème connu résolu, vérifier la dernière version
+Utilisateur : "Je n'arrive pas à créer une réunion"
+Réponse :
+🤔 Pas de souci, on va regarder ça ensemble ! 
 
-**Problèmes généraux :**
-- Lenteur : Vérifier la connexion internet, vider le cache du navigateur, fermer les onglets inutiles
-- Erreur de chargement : Actualiser la page (F5), vérifier la connexion, réessayer dans quelques instants
-- Données perdues : Vérifier la sauvegarde automatique, vérifier l'historique, contacter le support si persistant
-- Connexion : Vérifier internet, se déconnecter/reconnecter, vider le cache
+Peux-tu me dire à quelle étape ça bloque exactement ? Est-ce que tu vois le bouton de création de réunion ? Ou est-ce que tu as un message d'erreur qui s'affiche ? 
 
-**STYLE D'ÉCRITURE MODERNE ET ENGAGEANT :**
+Dis-moi un peu plus pour qu'on puisse avancer !
 
-- **Tone** : Conversationnel, amical et professionnel. Parle comme un expert bienveillant, pas comme un manuel d'instruction
-- **Structure** : Évite les listes numérotées rigides (1. 2. 3.). Préfère des paragraphes fluides avec des transitions naturelles
-- **Approche** : Commence par comprendre le besoin réel de l'utilisateur, puis guide-le de manière intuitive
-- **Exemples** : Utilise des exemples concrets et des scénarios réels plutôt que des instructions abstraites
-- **Engagement** : Pose des questions de clarification si nécessaire, montre de l'empathie
-- **Actionnable** : Donne des conseils pratiques et des astuces, pas juste des étapes mécaniques
-- **Personnalisation** : Adapte ton langage au contexte (débutant vs expert)
+⚠️ **RESTRICTIONS STRICTES :**
+- Ne JAMAIS répondre à des questions hors Centrinote (actualités, santé, sciences, culture, etc.)
+- Ne JAMAIS proposer l'escalation dès la première réponse
+- Ne JAMAIS utiliser plus de 1 emoji par réponse
+- Ne JAMAIS inventer de fonctionnalités qui n'existent pas
+- Ne JAMAIS utiliser de titres formels comme "🔍 **Diagnostic**" ou "**Solutions possibles**"`;
 
-**EXEMPLE DE BONNE RÉPONSE :**
-Au lieu de "1. Accéder à vos notes : Ouvrez l'application... 2. Sélectionner la note...", préfère :
-"Pour corriger une note, c'est très simple ! Ouvre Centrinote et va dans tes notes. Tu verras toutes tes notes listées - clique simplement sur celle que tu veux modifier. Une fois ouverte, tu trouveras l'icône d'édition (un petit crayon) en haut à droite. Clique dessus et tu peux commencer à modifier directement. N'oublie pas de sauvegarder quand tu as terminé - le bouton est bien visible en haut de l'écran. Si tu veux, je peux te guider étape par étape en temps réel !"
+    // ✅ Construire un prompt contextuel basé sur l'état du diagnostic
+    const issueState = issueTrackerResponse.issue_state;
+    let contextualSystemPrompt = baseSystemPrompt;
 
-**IMPORTANT - MÉTHODE DE DIAGNOSTIC PROGRESSIF :**
+    // 🎯 CAS SPÉCIAL : Utilisateur a cliqué "Pas encore, aidons-nous"
+    if (request.button_clicked === 'still_blocked' && issueState) {
+      const feature = issueState.feature || 'fonctionnalité';
+      
+      // Ce cas est maintenant géré par issue-tracker avec response_override
+      // On ne devrait jamais arriver ici, mais au cas où :
+      contextualSystemPrompt += `\n\n🚨 **ACTION IMMÉDIATE REQUISE** :
+L'utilisateur vient de cliquer sur "Pas encore, aidons-nous". 
 
-1. **COMPRENDRE LE PROBLÈME** :
-   - Pose TOUJOURS des questions ciblées pour comprendre précisément la situation
-   - Exemples de questions : "À quelle étape l'enregistrement bloque-t-il ?", "Voyez-vous le bouton Enregistrer ?", "Quel message d'erreur apparaît ?", "Sur quelle page êtes-vous actuellement ?"
-   - Ne devine JAMAIS, demande toujours des précisions avant de proposer une solution
+⚠️ **TU DOIS RÉPONDRE EXACTEMENT CE MESSAGE** :
+🤔 Pas de souci, on va regarder ça ensemble ! 
 
-2. **SOLUTIONS PROGRESSIVES** :
-   - Commence par la solution la plus simple et la plus probable
-   - Si ça ne fonctionne pas, propose la solution suivante en fonction de la réponse de l'utilisateur
-   - Adapte tes solutions en fonction des réponses : "Ah, vous ne voyez pas le bouton ? Alors essayons ceci..."
-   - Structure tes réponses avec des étapes claires et numérotées quand c'est pertinent
+Peux-tu me dire à quelle étape ça bloque exactement ? Est-ce que tu vois le bouton ? Ou est-ce que tu as un message d'erreur qui s'affiche ? 
 
-3. **AFFICHAGE STRUCTURÉ** :
-   - Utilise des marqueurs visuels pour structurer tes réponses :
-     * 🔍 Pour les questions de diagnostic
-     * ✅ Pour les solutions/étapes
-     * ⚠️ Pour les avertissements
-     * 💡 Pour les astuces
-   - Organise les étapes de manière claire et lisible
-   - Utilise des encadrés conceptuels pour séparer les différentes parties de ta réponse
+Dis-moi un peu plus pour qu'on puisse avancer !
 
-4. **RÈGLES D'ESCALATION STRICTES** :
-   - L'escalation vers email est UNIQUEMENT en dernier recours
-   - Ne propose l'escalation QUE si :
-     * Tu as posé au moins 2-3 questions de diagnostic
-     * Tu as proposé au moins 2-3 solutions progressives
-     * L'utilisateur confirme que rien ne fonctionne après toutes tes tentatives
-     * OU si l'utilisateur demande explicitement à contacter le support
-   - Ne propose JAMAIS l'escalation dès la première réponse
-   - Après avoir donné une solution, demande TOUJOURS : "Est-ce que le problème est réglé ?" pour vérifier
+❌ **NE PAS** :
+- Utiliser "Pas de panique" ou "On va essayer de trouver"
+- Poser des questions de diagnostic formelles
+- Utiliser des titres formels
+- Dire "Pourriez-vous répondre à ces questions"
 
-5. **STYLE DE RÉPONSE** :
-   - Réponds toujours en français de manière naturelle et engageante
-   - Sois précis, donne des exemples concrets
-   - Montre de l'empathie : "Je comprends que c'est frustrant, essayons ensemble de résoudre ça"
-   - Utilise les méthodes de dépannage ci-dessus pour résoudre les problèmes avant de proposer l'escalation`;
+✅ **FAIRE** :
+- Commencer par "🤔 Pas de souci, on va regarder ça ensemble !"
+- Poser des questions simples et directes
+- Terminer par "Dis-moi un peu plus pour qu'on puisse avancer !"`;
+    } else if (issueState) {
+      if (issueState.status === 'in_progress') {
+        contextualSystemPrompt += `\n\n📋 **CONTEXTE - CONVERSATION EN COURS :**
+- Fonctionnalité concernée : ${issueState.feature}
+- Point bloquant : ${issueState.blocking_point || 'À déterminer'}
+- Dernière action : ${issueState.last_step || 'Question initiale'}
+
+⚠️ **IMPORTANT** : Continue la conversation depuis là où tu t'es arrêté. Ne recommence PAS depuis le début.
+Tu as déjà posé des questions ou proposé des solutions. Continue naturellement.
+
+🔍 **Historique récent :**
+${issueState.interaction_history?.slice(-3).map((entry: any) => 
+  `- ${entry.action || 'message'}: ${entry.message || entry.button || 'N/A'}`
+).join('\n') || 'Aucun historique'}
+
+💡 **Action à faire maintenant** : Propose une solution ciblée basée sur ce que tu sais déjà, ou pose UNE nouvelle question simple si nécessaire.
+Rappelle-toi : pas de titres formels, commence directement par ta question ou ta solution.`;
+      } else if (issueState.status === 'reported') {
+        contextualSystemPrompt += `\n\n📋 **NOUVEAU PROBLÈME DÉTECTÉ :**
+- Fonctionnalité concernée : ${issueState.feature}
+- Message initial : "${issueState.original_message}"
+
+🎯 **ACTION** : Commence par poser 2-3 questions simples pour comprendre le problème.
+Ne propose PAS de solution avant d'avoir collecté les informations nécessaires.
+Rappelle-toi : pas de titres formels, commence directement par ta question.`;
+      }
+    }
 
     const messages = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: contextualSystemPrompt },
       ...(request.conversationHistory || []).slice(-5),
       { role: 'user', content: request.message }
     ];
@@ -348,7 +422,15 @@ Au lieu de "1. Accéder à vos notes : Ouvrez l'application... 2. Sélectionner 
       throw new Error('Erreur lors du parsing de la réponse OpenAI');
     }
 
-    const aiMessage = openaiData.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu traiter votre demande.';
+    let aiMessage = openaiData.choices[0]?.message?.content || 'Désolé, je n\'ai pas pu traiter votre demande.';
+    
+    // ✅ Normaliser les caractères UTF-8 pour éviter les caractères corrompus
+    aiMessage = aiMessage
+      .normalize('NFC') // Normaliser les caractères composés
+      .replace(/[\u200B-\u200D\uFEFF]/g, '') // Supprimer les caractères invisibles
+      .replace(/[\uFFFD]/g, '') // Supprimer les caractères de remplacement
+      .trim();
+    
     console.log(`[chatbot-handler] OpenAI response received, length: ${aiMessage.length} characters`);
 
     // Calculer la confiance (amélioré)
@@ -556,14 +638,19 @@ Propose-lui une astuce ou suggestion d'utilisation intéressante et pertinente l
       });
     }
 
-    // Réponse normale sans escalation
+    // ========================================================================
+    // PIPELINE ÉTAPE 3: Ajouter les boutons de validation depuis issue-tracker
+    // ========================================================================
     const response: ChatbotResponse = {
       message: aiMessage,
       requiresEscalation: false,
-      confidence
+      confidence,
+      intent: issueTrackerResponse.intent,
+      feature: issueTrackerResponse.feature,
+      validationButtons: issueTrackerResponse.buttons || []
     };
 
-    console.log('[chatbot-handler] Returning normal response');
+    console.log('[chatbot-handler] Returning response with intent:', issueTrackerResponse.intent, 'buttons:', issueTrackerResponse.buttons?.length || 0);
     return new Response(JSON.stringify(response), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
