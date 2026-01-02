@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { Mic, Square, Plus } from 'lucide-react';
+import { Mic, Square, Plus, Monitor } from 'lucide-react';
 import { useLongRecording } from '../../hooks/useLongRecording';
 import { Button } from '../ui/Button';
 import { AudioLevelIndicator } from './AudioLevelIndicator';
@@ -52,11 +52,11 @@ export function LongRecButton({
   const previousTranscriptionsRef = useRef<Array<{ chunkNumber: number; text: string }>>([]);
 
   // Insérer le texte transcrit à la fin de la note avec horodatage (une seule fois par chunk)
-  const lastProcessedChunkRef = useRef<number>(0);
+  const lastProcessedChunkRef = useRef<number>(-1);
   
   useEffect(() => {
     // Ne traiter que si on a un nouveau texte transcrit ET un nouveau chunk
-    if (transcribedText && currentChunk > 0 && currentChunk !== lastProcessedChunkRef.current) {
+    if (transcribedText && currentChunk >= 0 && currentChunk !== lastProcessedChunkRef.current) {
       // 🎯 Vérifier s'il y a un chunk précédent à fusionner
       const previousTranscription = previousTranscriptionsRef.current.find(t => t.chunkNumber === currentChunk - 1);
       let finalText = transcribedText;

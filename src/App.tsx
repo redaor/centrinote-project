@@ -1,5 +1,6 @@
 import { AppRouter } from './components/routing/AppRouter';
 import { InstallPrompt } from './components/InstallPrompt';
+import { InstallInfoBanner } from './components/InstallInfoBanner';
 import './styles/neurodesign.css';
 
 function App() {
@@ -7,6 +8,7 @@ function App() {
     <div className="App">
       <AppRouter />
       <InstallPrompt />
+      <InstallInfoBanner />
     </div>
   );
 }
