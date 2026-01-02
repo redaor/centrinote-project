@@ -201,10 +201,14 @@ export function useSettings(userId?: string): UseSettingsReturn {
     setError(null);
 
     try {
+      // Le service logout gère maintenant les erreurs gracieusement
+      // Il nettoie toujours le localStorage même si l'API échoue
       await settingsService.logout();
     } catch (err: any) {
-      setError(err.message);
-      throw err;
+      // Ne pas bloquer la déconnexion même en cas d'erreur
+      // Le service a déjà nettoyé le localStorage
+      console.warn('⚠️ Erreur déconnexion (nettoyage effectué):', err);
+      setError(null); // Ne pas afficher d'erreur à l'utilisateur
     } finally {
       setIsLoading(false);
     }

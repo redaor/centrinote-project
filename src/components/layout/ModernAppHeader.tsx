@@ -88,23 +88,39 @@ export function ModernAppHeader() {
     
     try {
       dispatch({ type: 'SET_USER', payload: null });
-      const { error } = await supabase.auth.signOut({ scope: 'global' });
       
-      if (error) {
-        console.warn('Erreur déconnexion:', error.message);
+      // Tenter la déconnexion Supabase (sans scope global pour éviter 403)
+      const { error } = await supabase.auth.signOut();
+      
+      // Si erreur 403 (Forbidden), c'est souvent dû à un token expiré/invalide
+      // On continue quand même la déconnexion locale
+      if (error && error.status === 403) {
+        console.warn('⚠️ Token invalide/expiré, déconnexion locale uniquement');
+      } else if (error) {
+        console.warn('⚠️ Erreur déconnexion (non bloquant):', error.message);
       }
       
-      // Nettoyage localStorage
+      // Nettoyage localStorage (toujours exécuté, même si API échoue)
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('sb-') || key.includes('supabase') || key.includes('centrinote')) {
           localStorage.removeItem(key);
         }
       });
       
+      // Redirection même en cas d'erreur
       window.location.href = '/';
     } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
-      setIsLoggingOut(false);
+      console.warn('⚠️ Erreur lors de la déconnexion (nettoyage local effectué):', error);
+      
+      // Nettoyer quand même le localStorage
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase') || key.includes('centrinote')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // Rediriger quand même
+      window.location.href = '/';
     }
   };
 

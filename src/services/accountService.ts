@@ -148,8 +148,17 @@ class AccountService {
   async signOut(): Promise<void> {
     try {
       console.log('🚪 Déconnexion de Supabase...');
-      await supabase.auth.signOut({ scope: 'global' });
-      console.log('✅ Déconnexion réussie');
+      const { error } = await supabase.auth.signOut();
+      
+      // Si erreur 403 (Forbidden), c'est souvent dû à un token expiré/invalide
+      // On continue quand même la déconnexion locale
+      if (error && error.status === 403) {
+        console.warn('⚠️ Token invalide/expiré, déconnexion locale uniquement');
+      } else if (error) {
+        console.warn('⚠️ Erreur déconnexion (non bloquant):', error.message);
+      } else {
+        console.log('✅ Déconnexion réussie');
+      }
     } catch (error) {
       console.warn('⚠️ Erreur lors de la déconnexion:', error);
     }

@@ -410,14 +410,37 @@ class SettingsService {
    */
   async logout(): Promise<void> {
     try {
+      // Tenter la déconnexion Supabase (peut échouer avec 403 si token invalide)
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      
+      // Si erreur 403 (Forbidden), c'est souvent dû à un token expiré/invalide
+      // On continue quand même la déconnexion locale
+      if (error && error.status !== 403) {
+        console.warn('⚠️ Erreur déconnexion Supabase (non bloquant):', error.message);
+      } else if (error && error.status === 403) {
+        console.warn('⚠️ Token invalide/expiré, déconnexion locale uniquement');
+      }
 
-      // Nettoyer le localStorage
+      // Nettoyer le localStorage (toujours exécuté, même si API échoue)
       localStorage.clear();
+      
+      // Nettoyer aussi les clés spécifiques Supabase
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          localStorage.removeItem(key);
+        }
+      });
     } catch (error) {
-      console.error('Error logging out:', error);
-      throw new Error('Impossible de se déconnecter');
+      // En cas d'erreur inattendue, continuer quand même le nettoyage local
+      console.warn('⚠️ Erreur lors de la déconnexion (nettoyage local effectué):', error);
+      
+      // Nettoyer le localStorage même en cas d'erreur
+      localStorage.clear();
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          localStorage.removeItem(key);
+        }
+      });
     }
   }
 

@@ -561,9 +561,11 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="col-span-1 md:col-span-2">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-teal-500 rounded-xl flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-white" />
-                </div>
+                <img 
+                  src="/images/centrinote/logo/Logo-centrinote.png" 
+                  alt="Centrinote" 
+                  className="w-10 h-10 object-contain"
+                />
                 <span className="text-xl font-bold">Centrinote</span>
               </div>
               <p className="text-gray-400 mb-6 max-w-md">
