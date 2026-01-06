@@ -20,19 +20,55 @@ class SettingsService {
     try {
       // 1. Essayer de récupérer depuis Supabase (source de vérité)
       try {
-        // Charger les données du profil depuis la table profiles
-        const { data: profileData, error: profileError } = await supabase
+        // Charger les données du profil depuis la table profiles avec timeout
+        const profilePromise = supabase
           .from('profiles')
           .select('name, email, avatar_url, subscription')
           .eq('id', userId)
           .single();
 
-        // Charger les paramètres depuis user_settings
-        const { data: settingsData, error: settingsError } = await supabase
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 8000)
+        );
+
+        const { data: profileData, error: profileError } = await Promise.race([
+          profilePromise,
+          timeoutPromise
+        ]).catch((err) => {
+          // Ignorer les erreurs réseau et timeout
+          if (err instanceof TypeError && err.message?.includes('Failed to fetch')) {
+            return { data: null, error: null };
+          }
+          if (err instanceof Error && err.message?.includes('Timeout')) {
+            return { data: null, error: null };
+          }
+          throw err;
+        }) as any;
+
+        // Charger les paramètres depuis user_settings avec timeout
+        const settingsPromise = supabase
           .from('user_settings')
           .select('settings')
           .eq('user_id', userId)
           .single();
+
+        const settingsTimeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 8000)
+        );
+
+        const { data: settingsData, error: settingsError } = await Promise.race([
+          settingsPromise,
+          settingsTimeoutPromise
+        ]).catch((err) => {
+          // Ignorer les erreurs réseau et timeout
+          if (err instanceof TypeError && err.message?.includes('Failed to fetch')) {
+            return { data: null, error: null };
+          }
+          if (err instanceof Error && err.message?.includes('Timeout')) {
+            return { data: null, error: null };
+          }
+          throw err;
+        }) as any;
 
         // Si on a au moins les données de profil, construire les settings
         if (!profileError && profileData) {
@@ -98,11 +134,29 @@ class SettingsService {
     let profilePlan: 'free' | 'basic' | 'premium' = 'free';
 
     try {
-      const { data: profileData, error: profileError } = await supabase
+      const profilePromise = supabase
         .from('profiles')
         .select('name, email, avatar_url, subscription')
         .eq('id', userId)
         .single();
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 8000)
+      );
+
+      const { data: profileData, error: profileError } = await Promise.race([
+        profilePromise,
+        timeoutPromise
+      ]).catch((err) => {
+        // Ignorer les erreurs réseau et timeout
+        if (err instanceof TypeError && err.message?.includes('Failed to fetch')) {
+          return { data: null, error: { message: 'Network error' } };
+        }
+        if (err instanceof Error && err.message?.includes('Timeout')) {
+          return { data: null, error: { message: 'Timeout' } };
+        }
+        throw err;
+      }) as any;
 
       if (!profileError && profileData) {
         profileName = profileData.name || '';

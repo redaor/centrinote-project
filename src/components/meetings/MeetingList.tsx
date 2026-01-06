@@ -32,15 +32,16 @@ export function MeetingList() {
   const { checkAndShowModal: checkQuotaWithModal, modal: quotaModal } = useQuotaLimit();
   
   // ⚠️ IMPORTANT: Déclarer useMeetings() AVANT les useEffect qui l'utilisent
-  const { 
-    meetings, 
-    loading, 
-    error, 
-    deleteMeeting, 
-    totalMeetings, 
-    activeCount, 
+  const {
+    meetings,
+    loading,
+    error,
+    createMeeting: createMeetingFromHook,
+    deleteMeeting,
+    totalMeetings,
+    activeCount,
     completedCount,
-    refresh 
+    refresh
   } = useMeetings();
   
   // 🔍 TRACE: Removed unnecessary effect that logs on every render
@@ -108,6 +109,12 @@ export function MeetingList() {
       } catch (error) {
         // Afficher l'erreur complète pour le debug
         const errorMessage = error instanceof Error ? error.message : String(error);
+        // Ignorer les erreurs réseau et timeout (normales)
+        if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Timeout')) {
+          // Ignorer silencieusement - permettre la création par défaut
+          setCanCreateMeeting(true);
+          return;
+        }
         // Ne pas logger l'erreur "Utilisateur non connecté" car c'est normal au chargement
         if (!errorMessage.includes('Utilisateur non connecté')) {
           console.error('Erreur vérification quota réunion:', errorMessage, error);
@@ -176,11 +183,50 @@ export function MeetingList() {
   };
 
   // Fonction de création de réunion avec participants
-  const handleCreateMeeting = async () => {
-    if (!validateForm()) return;
+  const handleCreateMeeting = async (overrideData?: {
+    title: string;
+    description: string;
+    participants: MeetingParticipant[];
+    enableAiSummary: boolean;
+  }) => {
+    // Utiliser les données passées en paramètre ou les états locaux
+    const meetingTitle = overrideData?.title || formTitle;
+    const meetingDescription = overrideData?.description || formDescription;
+    const meetingParticipants = overrideData?.participants || participants;
+    const meetingEnableAiSummary = overrideData?.enableAiSummary ?? enableAiSummary;
+
+    // Validation avec les données correctes
+    if (!meetingTitle.trim()) {
+      alert('Veuillez saisir un titre');
+      return;
+    }
+
+    if (!user) {
+      alert('Utilisateur non connecté');
+      return;
+    }
+
+    // Vérifier que tous les participants ont un nom et email valide
+    const invalidParticipants = meetingParticipants.filter(p =>
+      !p.name.trim() || !p.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)
+    );
+
+    if (invalidParticipants.length > 0) {
+      alert('Veuillez corriger les erreurs dans la liste des participants');
+      return;
+    }
+
+    // Vérifier les doublons
+    const emails = meetingParticipants.map(p => p.email.toLowerCase());
+    const duplicates = emails.filter((email, index) => emails.indexOf(email) !== index);
+
+    if (duplicates.length > 0) {
+      alert('Des adresses email sont en doublon');
+      return;
+    }
 
     setCreateLoading(true);
-    
+
     try {
       // Vérifier les quotas avant création avec modals
       // Vérifier le quota de réunions
@@ -202,88 +248,44 @@ export function MeetingList() {
       }
 
       // Vérifier le quota de résumés si activé
-      if (enableAiSummary) {
+      if (meetingEnableAiSummary) {
         const canGenerateSummary = await checkQuotaWithModal('summary', 1);
         if (!canGenerateSummary) {
           setEnableAiSummary(false);
         }
       }
-    
-      console.log('[CREATE] participants payload:', participants);
+
+      console.log('[CREATE] participants payload:', meetingParticipants);
 
       const payload: CreateMeetingPayload = {
-        title: formTitle.trim(),
-        description: formDescription.trim() || 'Réunion créée avec participants',
+        title: meetingTitle.trim(),
+        description: meetingDescription.trim() || 'Réunion créée avec participants',
         scheduled_at: new Date().toISOString(),
         duration_minutes: 60,
-        participants,
+        participants: meetingParticipants,
         created_by: user!.id,
-        enable_ai_summary: enableAiSummary
+        enable_ai_summary: meetingEnableAiSummary
       };
 
       console.log('[CREATE] Full payload:', payload);
       console.log('[CREATE] Participants à envoyer:', participants.map(p => ({ name: p.name, email: p.email, role: p.role })));
 
-      const response = await fetch('/.netlify/functions/create-meeting-v3', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      // ✅ Utiliser la Supabase Edge Function via le hook useMeetings
+      // Cette fonction utilise les secrets Supabase (DAILY_API_KEY, SUPABASE_SERVICE_ROLE_KEY)
+      const data = await createMeetingFromHook({
+        title: payload.title,
+        description: payload.description,
+        scheduled_at: payload.scheduled_at,
+        duration_minutes: payload.duration_minutes,
+        participants: payload.participants,
+        enable_ai_summary: payload.enable_ai_summary
       });
-
-      console.log('[CREATE] Response status:', response.status);
-      
-      // Vérifier si la réponse est vide ou invalide
-      let data;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        try {
-          const text = await response.text();
-          if (!text || text.trim() === '') {
-            throw new Error('Réponse vide');
-          }
-          data = JSON.parse(text);
-        } catch (jsonError) {
-          console.error('[CREATE] Erreur parsing JSON:', jsonError);
-          // Si c'est une erreur 429 ou 403, c'est probablement un quota
-          if (response.status === 429 || response.status === 403) {
-            // Afficher le modal de quota
-            const canProceed = await checkQuotaWithModal('meeting', 1);
-            if (!canProceed) {
-              setCreateLoading(false);
-              return;
-            }
-          }
-          alert(`❌ Erreur lors de la création de la réunion. Veuillez réessayer.`);
-          setCreateLoading(false);
-          return;
-        }
-      } else {
-        // Réponse non-JSON, probablement une erreur
-        if (response.status === 429 || response.status === 403) {
-          const canProceed = await checkQuotaWithModal('meeting', 1);
-          if (!canProceed) {
-            setCreateLoading(false);
-            return;
-          }
-        }
-        alert(`❌ Erreur serveur (${response.status}). Veuillez réessayer.`);
-        setCreateLoading(false);
-        return;
-      }
 
       console.log('[CREATE] Response data:', data);
 
-      if (!data.success) {
+      if (!data?.success) {
         console.error('[CREATE] Failed:', data);
-        // Vérifier si c'est une erreur de quota
-        if (data.reason?.includes('quota') || data.reason?.includes('limit') || response.status === 429) {
-          const canProceed = await checkQuotaWithModal('meeting', 1);
-          if (!canProceed) {
-            setCreateLoading(false);
-            return;
-          }
-        }
-        alert(`❌ Erreur Daily (${response.status}): ${data.detail || data.reason || 'inconnue'}`);
+        alert(`❌ Erreur création réunion: ${data?.error || data?.detail || 'inconnue'}`);
         setCreateLoading(false);
         return;
       }
@@ -303,7 +305,7 @@ export function MeetingList() {
       }
       
       // Reset du formulaire AVANT le refresh pour éviter les conflits
-      const createdTitle = formTitle.trim();
+      const createdTitle = meetingTitle.trim();
       setFormTitle('');
       setFormDescription('');
       setEnableAiSummary(false);
@@ -440,21 +442,22 @@ export function MeetingList() {
         invited: guests
       };
       
-      const response = await fetch('/.netlify/functions/send-invites-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const { supabase } = await import('../../lib/supabase');
+      const { data, error } = await supabase.functions.invoke('send-invites-batch', {
+        body: payload
       });
       
-      const result = await response.json();
+      if (error) {
+        throw new Error(error.message || 'Erreur envoi invitations');
+      }
       
-      if (result.success) {
-        alert(`✅ ${result.results.sent}/${result.results.total} invitations envoyées`);
-        if (result.results.failed.length > 0) {
-          console.warn('Échecs:', result.results.failed);
+      if (data?.success) {
+        alert(`✅ ${data.results.sent}/${data.results.total} invitations envoyées`);
+        if (data.results.failed.length > 0) {
+          console.warn('Échecs:', data.results.failed);
         }
       } else {
-        throw new Error(result.message || 'Erreur envoi invitations');
+        throw new Error(data?.error || data?.message || 'Erreur envoi invitations');
       }
     } catch (error) {
       console.error('❌ [INVITES] Erreur:', error);
@@ -610,17 +613,8 @@ export function MeetingList() {
         {user && (
           <ModernMeetingForm
             onSubmit={async (data) => {
-              // Mettre à jour les états locaux
-              setFormTitle(data.title);
-              setFormDescription(data.description);
-              setParticipants(data.participants);
-              setEnableAiSummary(data.enableAiSummary);
-              
-              // Attendre un peu pour que les états se mettent à jour
-              await new Promise(resolve => setTimeout(resolve, 100));
-              
-              // Appeler la fonction de création existante
-              await handleCreateMeeting();
+              // Appeler directement avec les données du formulaire
+              await handleCreateMeeting(data);
             }}
             onReset={() => {
               setFormTitle('');

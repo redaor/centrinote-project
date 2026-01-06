@@ -53,7 +53,10 @@ export function ModernCompletedMeetingCard({
   // Vérifier si la réunion est terminée ou a des données
   const hasRecording = !!meeting.recording_url;
   const hasTranscript = !!meeting.transcript;
-  const hasSummary = !!meeting.ai_summary;
+  // ✅ Vérifier si ai_summary existe et n'est pas vide
+  const hasSummary = meeting.ai_summary && 
+    (typeof meeting.ai_summary === 'string' ? meeting.ai_summary.trim() !== '' : 
+     typeof meeting.ai_summary === 'object' ? Object.keys(meeting.ai_summary).length > 0 : false);
   const isOver = meeting.status === 'completed' || !!meeting.ended_at || hasRecording || hasTranscript || hasSummary;
 
   // Récupérer le résumé
@@ -64,6 +67,18 @@ export function ModernCompletedMeetingCard({
       refetchInterval: isOver ? 5000 : undefined
     }
   );
+
+  // ✅ DEBUG: Log pour comprendre pourquoi le résumé ne s'affiche pas
+  if (isOver && !summary && !summaryLoading) {
+    console.log('🔍 [CARD] Résumé non trouvé pour:', {
+      meetingId: meeting.id,
+      meetingTitle: meeting.title,
+      hasAiSummary: !!meeting.ai_summary,
+      aiSummaryType: meeting.ai_summary ? typeof meeting.ai_summary : 'null',
+      isOver,
+      summaryError
+    });
+  }
 
   // Calculer le statut et la progression
   const getMeetingStatus = (): MeetingStatusInfo => {

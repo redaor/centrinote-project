@@ -1,8 +1,8 @@
 // 🎥 Composant salle de réunion Daily.co
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Mic, MicOff, Video, VideoOff, Monitor, Phone, 
+import {
+  Mic, MicOff, Video, VideoOff, Monitor, Phone,
   Users, MessageCircle, Settings, Loader2, AlertCircle, ArrowLeft
 } from 'lucide-react';
 import { useDaily } from '../../hooks/useDaily';
@@ -133,19 +133,23 @@ export function MeetingRoom() {
   const { state } = useApp();
   const { darkMode } = state;
   
-  // 🔍 TRACE: Montage du composant MeetingRoom
-  console.log('🎬 [PREJOIN MOUNT] MeetingRoom composant monté:', {
-    timestamp: new Date().toISOString(),
-    meetingId: id,
-    pathname: window.location.pathname,
-    href: window.location.href
-  });
-  
-  // 🔍 DEBUG: Instrumentation du montage/démontage
+  // 🔍 TRACE: Montage du composant MeetingRoom (dev only)
+  if (import.meta.env.DEV) {
+    console.log('🎬 [PREJOIN MOUNT] MeetingRoom composant monté:', {
+      timestamp: new Date().toISOString(),
+      meetingId: id,
+      pathname: window.location.pathname,
+      href: window.location.href
+    });
+  }
+
+  // 🔍 DEBUG: Instrumentation du montage/démontage (dev only)
   useEffect(() => {
-    const el = containerRef.current;
-    console.debug('[ROOM] mount, container=', el);
-    return () => console.debug('[ROOM] unmount, container=', el);
+    if (import.meta.env.DEV) {
+      const el = containerRef.current;
+      console.debug('[ROOM] mount, container=', el);
+      return () => console.debug('[ROOM] unmount, container=', el);
+    }
   }, []);
   
   const { meetings, loading: meetingsLoading, updateMeeting } = useMeetings();
@@ -215,7 +219,26 @@ export function MeetingRoom() {
   
   // ✅ AUTO-JOIN PREVENTION: N'initialiser Daily que sur action utilisateur explicite
   const [userRequestedJoin, setUserRequestedJoin] = useState(false);
-  
+
+  // 🔧 WRAPPER FUNCTIONS - Mémoïsées pour éviter les re-renders
+  const handleInitializeDaily = useCallback(async (roomUrl: string, userInitiated = false) => {
+    return initializeDaily(roomUrl, dailyHook, containerRef, userInitiated);
+  }, [dailyHook]);
+
+  const handleFetchMeetingDirectly = useCallback(async (meetingId: string) => {
+    return fetchMeetingDirectly(meetingId, navigate, setMeeting, dailyHook, containerRef);
+  }, [navigate, dailyHook]);
+
+  const handleTestDirectAccess = useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.log('🧪 [TEST] Accès direct déclenché manuellement');
+    }
+    setTestDirectAccess(true);
+    if (id) {
+      handleFetchMeetingDirectly(id);
+    }
+  }, [id, handleFetchMeetingDirectly]);
+
   useEffect(() => {
     if (!meeting?.room_url) return;
     if (!containerRef.current) return;
@@ -229,34 +252,23 @@ export function MeetingRoom() {
       return; // 🚫 Pas d'auto-join
     }
 
+    // ✅ Protection supplémentaire: Vérifier que le hook Daily n'a pas été détruit
+    if (dailyHook.state.connectionState === 'left') {
+      console.warn('⚠️ [ROOM-JOIN] Hook Daily déjà quitté, skip auto-join');
+      return;
+    }
+
     console.debug('✅ [ROOM-JOIN] Utilisateur a demandé à rejoindre', {
       title: meeting.title,
       participantsCount: meeting.participants?.length || 0,
-      hasContainer: !!containerRef.current
+      hasContainer: !!containerRef.current,
+      connectionState: dailyHook.state.connectionState
     });
 
     // Initialiser Daily uniquement sur demande utilisateur
     handleInitializeDaily(meeting.room_url, true);
-  },[meeting?.room_url, meeting?.title, meeting?.participants?.length, 
-  userRequestedJoin, handleInitializeDaily]);
-  
-  // Wrapper functions qui utilisent les helpers hissés
-  const handleInitializeDaily = useCallback(async (roomUrl: string, userInitiated = false) => {
-    return initializeDaily(roomUrl, dailyHook, containerRef, userInitiated);
-  }, [dailyHook]);
-  
-  const handleFetchMeetingDirectly = useCallback(async (meetingId: string) => {
-    return fetchMeetingDirectly(meetingId, navigate, setMeeting, dailyHook, containerRef);
-  }, [navigate, setMeeting, dailyHook]);
-  
-  const handleTestDirectAccess = () => {
-    console.log('🧪 [TEST] Accès direct déclenché manuellement');
-    setTestDirectAccess(true);
-    // Test direct sans attendre la redirection
-    if (id) {
-      handleFetchMeetingDirectly(id);
-    }
-  };
+  },[meeting?.room_url, meeting?.title, meeting?.participants?.length,
+  userRequestedJoin, handleInitializeDaily, dailyHook.state.connectionState]);
 
   // Détecter les extensions problématiques
   useEffect(() => {
@@ -350,84 +362,49 @@ export function MeetingRoom() {
   }, [id, meetings, meetingsLoading, handleFetchMeetingDirectly, 
   handleInitializeDaily, updateMeeting]);  // ✅ Retirer dailyHook des dépendances
 
-  // Gérer la déconnexion
-  const handleLeave = async () => {
-    console.log('🚪 [ROOM] Début processus de déconnexion...');
-    
-    // Flag pour éviter les re-renders pendant la navigation
-    let isNavigating = false;
-    
-    try {
-      // 1. D'abord quitter la room Daily (ATTENDRE complètement pour éviter erreur React)
-      if (dailyHook && dailyHook.leaveRoom) {
-        console.log('📤 [ROOM] Fermeture de la room Daily.co...');
-        try {
-          await dailyHook.leaveRoom();
-          console.log('✅ [ROOM] Room Daily.co fermée proprement');
-        } catch (dailyError) {
-          console.warn('⚠️ [ROOM] Erreur lors de la fermeture Daily.co (non bloquant):', dailyError);
-        }
-      }
-      
-      // 2. Laisser le temps à React de finir son cycle de nettoyage (IMPORTANT pour éviter erreur React)
-      // Utiliser requestAnimationFrame pour synchroniser avec le cycle de rendu React
-      await new Promise(res => {
-        requestAnimationFrame(() => {
-          setTimeout(res, 100); // Réduit à 100ms car requestAnimationFrame ajoute déjà un délai
-        });
-      });
-      console.log('✅ [ROOM] Délai de nettoyage React terminé');
-      
-      // 2. Marquer la réunion comme terminée via end-meeting (en arrière-plan, non bloquant)
-      // Note: Cette requête peut être annulée par la navigation, c'est normal et non bloquant
-      if (meeting && meeting.status === 'active') {
-        console.log('✏️ [ROOM] Mise à jour statut réunion via end-meeting...');
-        fetch(`/.netlify/functions/end-meeting`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ meetingId: meeting.id }),
-        })
-        .then(res => res.json())
-        .then(result => {
-          if (result.error) {
-            console.error('❌ [ROOM] Erreur mise à jour statut:', result.error);
-          } else {
-            console.log('✅ [ROOM] Réunion marquée comme terminée');
-          }
-        })
-        .catch(err => {
-          // Ignorer les erreurs de navigation (Failed to fetch est normal lors de window.location.href)
-          if (err.message?.includes('Failed to fetch') || err.name === 'TypeError') {
-            console.log('ℹ️ [ROOM] Requête annulée par navigation (normal)');
-          } else {
-            console.error('❌ [ROOM] Erreur lors de la mise à jour:', err);
-          }
-        });
-      }
-      
-      // 3. Navigation après nettoyage complet (évite erreur React NotFoundError)
-      const meetingId = meeting?.id;
-      const url = meetingId
-        ? `/meetings?completed=${meetingId}`
-        : '/meetings';
-      console.log('🌐 [ROOM] Navigation vers:', url);
-      isNavigating = true;
+  // 🚪 FLAG pour empêcher les doubles clics
+  const leavingRef = useRef(false);
 
-      // ✅ FIX: Utiliser window.location.href pour forcer le rechargement complet
-      // Cela évite les problèmes de page blanche causés par React Router
-      console.log('🔄 [ROOM] Navigation forcée avec window.location.href');
-      window.location.href = url;
-      
-    } catch (error) {
-      console.error('❌ [ROOM] Erreur lors de la déconnexion:', error);
-      
-      // Fallback : forcer la navigation même en cas d'erreur
-      if (!isNavigating) {
-        console.log('🆘 [ROOM] Navigation forcée suite à erreur...');
-        window.location.href = '/meetings';
+  // Gérer la déconnexion (UTILISÉ PAR LE BOUTON QUITTER)
+  const handleLeave = useCallback(() => {
+    // ⚠️ PROTECTION: Empêcher les double-clics
+    if (leavingRef.current) {
+      if (import.meta.env.DEV) console.warn('⚠️ [EXIT] Déconnexion déjà en cours, skip');
+      return;
+    }
+
+    leavingRef.current = true;
+    if (import.meta.env.DEV) {
+      console.log('🚪 [EXIT] Clic bouton Quitter');
+    }
+
+    // 1. Empêcher tout auto-rejoin pendant la navigation
+    setUserRequestedJoin(false);
+
+    // 2. Appeler destroy() pour marquer le hook comme détruit
+    if (dailyHook?.destroy) {
+      try {
+        dailyHook.destroy();
+      } catch (destroyError) {
+        if (import.meta.env.DEV) console.warn('⚠️ [EXIT] Erreur destroy Daily:', destroyError);
       }
     }
-  };
+
+    // 3. Nettoyer manuellement le conteneur Daily
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+    }
+
+    // 4. Marquer la réunion comme terminée (fire-and-forget, non bloquant)
+    if (meeting?.status === 'active') {
+      supabase.functions.invoke('end-meeting', {
+        body: { meetingId: meeting.id },
+      }).catch(() => {});
+    }
+
+    // 5. Navigation instantanée vers /meetings (SPA, sans rechargement de page)
+    navigate('/meetings');
+  }, [dailyHook, meeting, navigate]);
 
   // Chargement initial
   if (meetingsLoading) {
@@ -778,8 +755,8 @@ export function MeetingRoom() {
               <button
                 onClick={dailyHook.state.isRecording ? dailyHook.stopRecording : dailyHook.startRecording}
                 className={`p-3 rounded-full transition-colors ${
-                  dailyHook.state.isRecording 
-                    ? 'bg-red-600 hover:bg-red-700' 
+                  dailyHook.state.isRecording
+                    ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-gray-600 hover:bg-gray-700'
                 } text-white`}
                 title={dailyHook.state.isRecording ? 'Arrêter l\'enregistrement' : 'Démarrer l\'enregistrement'}
@@ -789,15 +766,6 @@ export function MeetingRoom() {
                     dailyHook.state.isRecording ? 'bg-white animate-pulse' : 'bg-white'
                   }`} />
                 </div>
-              </button>
-
-              {/* Quitter */}
-              <button
-                onClick={handleLeave}
-                className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition-colors"
-                title="Quitter la réunion"
-              >
-                <Phone className="w-5 h-5 transform rotate-[135deg]" />
               </button>
             </div>
           </div>

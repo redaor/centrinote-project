@@ -257,40 +257,18 @@ export function useDaily(
   meetingParticipants?: MeetingParticipant[],
   meeting?: { id: string; title?: string; room_name: string; room_url: string; created_by: string } | null
 ): UseDaily {
-  // 🔍 LOG DE DEBUG pour tracer les données reçues et le lifecycle (dev only)
-  if (import.meta.env.DEV) {
-    console.debug('🔍 [useDaily-MOUNT] Hook mounted/remounted', {
-      meetingParticipants: meetingParticipants,
-      participantsCount: meetingParticipants?.length || 0,
-      meeting: meeting ? {
-        id: meeting.id,
-        title: meeting.title,
-        room_name: meeting.room_name
-      } : 'null',
-      timestamp: new Date().toISOString()
-    });
-  }
-  
-  // Valeurs par défaut & garde-fous
-  const validatedParticipants = Array.isArray(meetingParticipants) ? meetingParticipants : [];
-  
   const { user } = useAuth();
-  
-  // 📌 Refs pour garder les données à jour dans les callbacks
-  const participantsRef = useRef<MeetingParticipant[]>([]);
+
+  // 📌 Refs pour garder les données à jour dans les callbacks (optimisé)
+  const participantsRef = useRef<MeetingParticipant[]>(Array.isArray(meetingParticipants) ? meetingParticipants : []);
+  const meetingRef = useRef<typeof meeting>(meeting);
+
   useEffect(() => {
     participantsRef.current = Array.isArray(meetingParticipants) ? meetingParticipants : [];
-    if (import.meta.env.DEV) {
-      console.log('📌 [useDaily] participantsRef mis à jour:', participantsRef.current.length, 'participants');
-    }
   }, [meetingParticipants]);
 
-  const meetingRef = useRef<typeof meeting>(null);
-  useEffect(() => { 
-    meetingRef.current = meeting; 
-    if (import.meta.env.DEV) {
-      console.log('📌 [useDaily] meetingRef mis à jour:', meeting ? meeting.title : 'null');
-    }
+  useEffect(() => {
+    meetingRef.current = meeting;
   }, [meeting]);
   
   const [state, setState] = useState<DailyState>({
@@ -315,7 +293,220 @@ export function useDaily(
   const initializingRef = useRef(false);
   const destroyedRef = useRef(false);
   const recordingIdRef = useRef<string | null>(null);
-  
+
+  // ✅ IMPORTANT: Réinitialiser destroyedRef à chaque mount (React StrictMode fait double-mount)
+  useEffect(() => {
+    console.log('🔄 [DAILY] Hook monté, réinitialisation destroyedRef');
+    destroyedRef.current = false;
+  }, []);
+
+  // 🔧 HELPER: updateState - DOIT ÊTRE AVANT setupEventHandlers
+  function updateState(updates: Partial<DailyState>) {
+    setState(prev => ({ ...prev, ...updates }));
+  }
+
+  // 🔧 SETUP EVENT HANDLERS - DOIT ÊTRE AVANT ensureFrame
+  const setupEventHandlers = useCallback((callFrame: DailyCall) => {
+    // Helper to register event handler and track it for cleanup
+    const registerHandler = (event: DailyEvent, handler: any) => {
+      callFrame.on(event, handler);
+      eventHandlersRef.current.push({ event, handler });
+    };
+
+    // Connexion
+    registerHandler('loading', () => {
+      if (import.meta.env.DEV) console.log('🔄 [DAILY] Chargement...');
+      updateState({ isLoading: true, error: null });
+    });
+
+    registerHandler('loaded', () => {
+      if (import.meta.env.DEV) console.log('✅ [DAILY] Chargé');
+      updateState({ isLoading: false, connectionState: 'initialized' });
+    });
+
+    registerHandler('joining-meeting', () => {
+      if (import.meta.env.DEV) console.log('🚪 [DAILY] Connexion en cours...');
+      updateState({ connectionState: 'joining' });
+    });
+
+    registerHandler('joined-meeting', async (event: any) => {
+      if (import.meta.env.DEV) console.log('✅ [DAILY] Connecté à la réunion:', event);
+      updateState({
+        isJoined: true,
+        connectionState: 'joined',
+        participants: Object.values(event?.participants || {}),
+        localParticipant: event?.local
+      });
+
+      // 🧪 FRONT PROBE - Test direct app → n8n (participant.joined) THROTTLED
+      try {
+        const roomUrl = state.roomUrl || '';
+        await sendFrontProbeThrottled('participant.joined', {
+          room: roomUrl ? new URL(roomUrl).pathname.slice(1) : 'unknown',
+          meeting_id: event?.participants?.local?.meeting_id || 'unknown',
+          participant: {
+            user_name: event?.participants?.local?.user_name || 'anonymous',
+            session_id: event?.participants?.local?.session_id || 'unknown'
+          }
+        }, user, participantsRef, meetingRef);
+      } catch (e) {
+        console.debug('[DAILY] Error sending front probe:', e);
+      }
+    });
+
+    registerHandler('left-meeting', () => {
+      if (import.meta.env.DEV) console.log('👋 [DAILY] Quitté la réunion');
+      updateState({
+        isJoined: false,
+        connectionState: 'left',
+        participants: [],
+        localParticipant: null
+      });
+
+      // ✅ Si l'utilisateur quitte via Daily.co (bouton masqué ou raccourci), rediriger vers /meetings
+      setTimeout(() => {
+        window.location.href = '/meetings';
+      }, 500); // Délai pour permettre au cleanup de se terminer
+    });
+
+    // Participants
+    registerHandler('participant-joined', async (event: any) => {
+      if (import.meta.env.DEV) console.log('👋 [DAILY] Participant rejoint:', event?.participant);
+      if (event?.participant) {
+        setState(prev => {
+          const newParticipants = [...prev.participants, event.participant];
+
+          // Si c'est le 2ème participant qui rejoint (réunion qui démarre)
+          if (newParticipants.length === 2 && import.meta.env.DEV) {
+            console.log('🎬 [DAILY] Meeting started - 2 participants present');
+
+            // Envoyer meeting.started avec la liste des participants du formulaire (THROTTLED)
+            try {
+              const currentRoomUrl = prev.roomUrl || '';
+              sendFrontProbeThrottled('meeting.started', {
+                room: currentRoomUrl ? new URL(currentRoomUrl).pathname.slice(1) : 'unknown',
+                meeting_id: 'meeting-started'
+              }, user, participantsRef, meetingRef).catch(error => {
+                console.error('❌ [FRONT-PROBE] Erreur meeting.started:', error);
+              });
+            } catch (e) {
+              console.debug('[DAILY] Error sending meeting.started probe:', e);
+            }
+          }
+
+          return {
+            ...prev,
+            participants: newParticipants
+          };
+        });
+      }
+    });
+
+    registerHandler('participant-left', (event: any) => {
+      console.log('👋 [DAILY] Participant parti:', event?.participant);
+      if (event?.participant) {
+        setState(prev => ({
+          ...prev,
+          participants: prev.participants.filter(p => p.session_id !== event.participant.session_id)
+        }));
+      }
+    });
+
+    registerHandler('participant-updated', (event: any) => {
+      if (event?.participant) {
+        setState(prev => ({
+          ...prev,
+          participants: prev.participants.map(p =>
+            p.session_id === event.participant.session_id ? event.participant : p
+          )
+        }));
+      }
+    });
+
+    // Enregistrement
+    registerHandler('recording-started', async (event: any) => {
+      console.log('🎬 [DAILY] Enregistrement démarré', event);
+      console.log('🔍 [DAILY-STATE] AVANT updateState - isRecording:', frameRef.current ? 'frame exists' : 'no frame');
+      updateState({ isRecording: true });
+      console.log('🔍 [DAILY-STATE] APRÈS updateState({ isRecording: true })');
+
+      if (event?.recording?.id) {
+        recordingIdRef.current = event.recording.id;
+        console.log('📹 [SUMMARY] Recording ID stocké depuis recording-started:', recordingIdRef.current);
+
+        // NOUVEAU : Sauvegarder aussi le recording_id en base de données immédiatement
+        const currentMeeting = meetingRef.current;
+        if (currentMeeting?.id) {
+          try {
+            console.log('💾 [DAILY] Sauvegarde recording_id en base:', event.recording.id);
+            const { supabase } = await import('../lib/supabase');
+            const { data, error } = await supabase.functions.invoke('update-meeting-recording', {
+              body: {
+                meetingId: currentMeeting.id,
+                recordingId: event.recording.id
+              }
+            });
+
+            if (!error && data?.success) {
+              console.log('✅ [DAILY] Recording ID sauvegardé en base');
+            } else {
+              console.warn('⚠️ [DAILY] Échec sauvegarde recording_id:', error?.message || data?.error);
+            }
+          } catch (error) {
+            console.error('❌ [DAILY] Erreur sauvegarde recording_id:', error);
+          }
+        }
+      }
+    });
+
+    registerHandler('recording-stopped', async (event: any) => {
+      console.log('⏹️ [DAILY] Enregistrement arrêté:', event);
+      console.log('🔍 [DAILY-STATE] AVANT updateState - isRecording:', frameRef.current ? 'frame exists' : 'no frame');
+      updateState({ isRecording: false });
+      console.log('🔍 [DAILY-STATE] APRÈS updateState({ isRecording: false })');
+
+      // ✅ WEBHOOK SYSTEM: Plus de polling ni d'appel generate-summary-auto ici
+      // Le webhook Daily.co (daily-recording-ready) gérera automatiquement :
+      // 1. Récupération du recording_url via Daily API
+      // 2. Mise à jour de Supabase (recording_url, recording_ready_at)
+      // 3. Appel de generate-summary-auto server-side
+
+      console.log('✅ [WEBHOOK] Enregistrement terminé - traitement en cours via webhook Daily.co');
+
+      recordingIdRef.current = null;
+    });
+
+    // Erreurs
+    registerHandler('error', (event: any) => {
+      console.error('❌ [DAILY] Erreur:', event);
+      updateState({
+        error: event?.errorMsg || 'Erreur inconnue',
+        isLoading: false,
+        connectionState: 'error'
+      });
+    });
+
+    // Chat
+    registerHandler('app-message', (event: any) => {
+      console.log('💬 [DAILY] Message chat:', event);
+    });
+
+    // Partage d'écran
+    registerHandler('track-started', (event: any) => {
+      if (event?.track?.kind === 'video' && event?.participant?.screen) {
+        console.log('🖥️ [DAILY] Partage d\'écran démarré');
+        updateState({ isScreenSharing: true });
+      }
+    });
+
+    registerHandler('track-stopped', (event: any) => {
+      if (event?.track?.kind === 'video' && event?.participant?.screen) {
+        console.log('🖥️ [DAILY] Partage d\'écran arrêté');
+        updateState({ isScreenSharing: false });
+      }
+    });
+  }, [state.roomUrl, user]);
+
   // 🔧 SINGLETON FRAME MANAGEMENT - IDEMPOTENT ET STRICTMODE SAFE
   const ensureFrame = useCallback(() => {
     // Protection contre les appels multiples pendant l'initialisation
@@ -323,13 +514,13 @@ export function useDaily(
       console.debug('[DAILY] ensureFrame: initialization in progress, skipping');
       return null;
     }
-    
+
     // Protection contre l'utilisation après destruction
     if (destroyedRef.current) {
       console.debug('[DAILY] ensureFrame: hook was destroyed, skipping');
       return null;
     }
-    
+
     // Si on a déjà une ref locale ET qu'elle est encore valide, on la retourne
     if (frameRef.current) {
       try {
@@ -339,7 +530,16 @@ export function useDaily(
         return frameRef.current;
       } catch (e) {
         // Frame invalide, la nettoyer
-        console.debug('[DAILY] ensureFrame: local ref invalid, cleaning up');
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        console.debug('[DAILY] ensureFrame: local ref invalid, cleaning up. Error:', errorMessage);
+
+        // Si c'est "Use after destroy", marquer comme détruit
+        if (errorMessage.includes('Use after destroy')) {
+          console.error('❌ [DAILY] ensureFrame: Frame destroyed, marking as destroyed');
+          destroyedRef.current = true;
+          return null;
+        }
+
         frameRef.current = null;
         setSingleton(undefined);
         recordingIdRef.current = null;
@@ -397,7 +597,7 @@ export function useDaily(
           borderRadius: '8px',
           pointerEvents: 'auto' // S'assurer que les clics passent à travers
         },
-        showLeaveButton: true,
+        showLeaveButton: false, // ✅ Masquer le bouton Leave de Daily.co (on utilise notre propre bouton)
         showFullscreenButton: true,
         showLocalVideo: true,
         showParticipantsBar: true,
@@ -478,207 +678,6 @@ export function useDaily(
     };
   }, []);
 
-  function updateState(updates: Partial<DailyState>) {
-    setState(prev => ({ ...prev, ...updates }));
-  }
-
-  const setupEventHandlers = useCallback((callFrame: DailyCall) => {
-    // Helper to register event handler and track it for cleanup
-    const registerHandler = (event: DailyEvent, handler: any) => {
-      callFrame.on(event, handler);
-      eventHandlersRef.current.push({ event, handler });
-    };
-    
-    // Connexion
-    registerHandler('loading', () => {
-      console.log('🔄 [DAILY] Chargement...');
-      updateState({ isLoading: true, error: null });
-    });
-
-    registerHandler('loaded', () => {
-      console.log('✅ [DAILY] Chargé');
-      updateState({ isLoading: false, connectionState: 'initialized' });
-    });
-
-    registerHandler('joining-meeting', () => {
-      console.log('🚪 [DAILY] Connexion en cours...');
-      updateState({ connectionState: 'joining' });
-    });
-
-    registerHandler('joined-meeting', async (event: any) => {
-      console.log('✅ [DAILY] Connecté à la réunion:', event);
-      updateState({ 
-        isJoined: true, 
-        connectionState: 'joined',
-        participants: Object.values(event?.participants || {}),
-        localParticipant: event?.local
-      });
-      
-      // 🧪 FRONT PROBE - Test direct app → n8n (participant.joined) THROTTLED
-      try {
-        const roomUrl = state.roomUrl || '';
-        await sendFrontProbeThrottled('participant.joined', {
-          room: roomUrl ? new URL(roomUrl).pathname.slice(1) : 'unknown',
-          meeting_id: event?.participants?.local?.meeting_id || 'unknown',
-          participant: { 
-            user_name: event?.participants?.local?.user_name || 'anonymous',
-            session_id: event?.participants?.local?.session_id || 'unknown'
-          }
-        }, user, participantsRef, meetingRef);
-      } catch (e) {
-        console.debug('[DAILY] Error sending front probe:', e);
-      }
-    });
-
-    registerHandler('left-meeting', () => {
-      console.log('👋 [DAILY] Quitté la réunion');
-      updateState({ 
-        isJoined: false, 
-        connectionState: 'left',
-        participants: [],
-        localParticipant: null
-      });
-    });
-
-    // Participants
-    registerHandler('participant-joined', async (event: any) => {
-      console.log('👋 [DAILY] Participant rejoint:', event?.participant);
-      if (event?.participant) {
-        setState(prev => {
-          const newParticipants = [...prev.participants, event.participant];
-          
-          // Si c'est le 2ème participant qui rejoint (réunion qui démarre)
-          if (newParticipants.length === 2) {
-            console.log('🎬 [DAILY] Meeting started - 2 participants present');
-            
-            // Envoyer meeting.started avec la liste des participants du formulaire (THROTTLED)
-            try {
-              const currentRoomUrl = prev.roomUrl || '';
-              sendFrontProbeThrottled('meeting.started', {
-                room: currentRoomUrl ? new URL(currentRoomUrl).pathname.slice(1) : 'unknown',
-                meeting_id: 'meeting-started'
-              }, user, participantsRef, meetingRef).catch(error => {
-                console.error('❌ [FRONT-PROBE] Erreur meeting.started:', error);
-              });
-            } catch (e) {
-              console.debug('[DAILY] Error sending meeting.started probe:', e);
-            }
-          }
-          
-          return {
-            ...prev,
-            participants: newParticipants
-          };
-        });
-      }
-    });
-
-    registerHandler('participant-left', (event: any) => {
-      console.log('👋 [DAILY] Participant parti:', event?.participant);
-      if (event?.participant) {
-        setState(prev => ({
-          ...prev,
-          participants: prev.participants.filter(p => p.session_id !== event.participant.session_id)
-        }));
-      }
-    });
-
-    registerHandler('participant-updated', (event: any) => {
-      if (event?.participant) {
-        setState(prev => ({
-          ...prev,
-          participants: prev.participants.map(p => 
-            p.session_id === event.participant.session_id ? event.participant : p
-          )
-        }));
-      }
-    });
-
-    // Enregistrement
-    registerHandler('recording-started', async (event: any) => {
-      console.log('🎬 [DAILY] Enregistrement démarré', event);
-      console.log('🔍 [DAILY-STATE] AVANT updateState - isRecording:', frameRef.current ? 'frame exists' : 'no frame');
-      updateState({ isRecording: true });
-      console.log('🔍 [DAILY-STATE] APRÈS updateState({ isRecording: true })');
-
-      if (event?.recording?.id) {
-        recordingIdRef.current = event.recording.id;
-        console.log('📹 [SUMMARY] Recording ID stocké depuis recording-started:', recordingIdRef.current);
-
-        // NOUVEAU : Sauvegarder aussi le recording_id en base de données immédiatement
-        const currentMeeting = meetingRef.current;
-        if (currentMeeting?.id) {
-          try {
-            console.log('💾 [DAILY] Sauvegarde recording_id en base:', event.recording.id);
-            const response = await fetch('/.netlify/functions/update-meeting-recording', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                meetingId: currentMeeting.id,
-                recordingId: event.recording.id
-              })
-            });
-
-            if (response.ok) {
-              console.log('✅ [DAILY] Recording ID sauvegardé en base');
-            } else {
-              console.warn('⚠️ [DAILY] Échec sauvegarde recording_id:', await response.text());
-            }
-          } catch (error) {
-            console.error('❌ [DAILY] Erreur sauvegarde recording_id:', error);
-          }
-        }
-      }
-    });
-
-    registerHandler('recording-stopped', async (event: any) => {
-      console.log('⏹️ [DAILY] Enregistrement arrêté:', event);
-      console.log('🔍 [DAILY-STATE] AVANT updateState - isRecording:', frameRef.current ? 'frame exists' : 'no frame');
-      updateState({ isRecording: false });
-      console.log('🔍 [DAILY-STATE] APRÈS updateState({ isRecording: false })');
-
-      // ✅ WEBHOOK SYSTEM: Plus de polling ni d'appel generate-summary-auto ici
-      // Le webhook Daily.co (daily-recording-ready) gérera automatiquement :
-      // 1. Récupération du recording_url via Daily API
-      // 2. Mise à jour de Supabase (recording_url, recording_ready_at)
-      // 3. Appel de generate-summary-auto server-side
-
-      console.log('✅ [WEBHOOK] Enregistrement terminé - traitement en cours via webhook Daily.co');
-
-      recordingIdRef.current = null;
-    });
-
-    // Erreurs
-    registerHandler('error', (event: any) => {
-      console.error('❌ [DAILY] Erreur:', event);
-      updateState({ 
-        error: event?.errorMsg || 'Erreur inconnue',
-        isLoading: false,
-        connectionState: 'error'
-      });
-    });
-
-    // Chat
-    registerHandler('app-message', (event: any) => {
-      console.log('💬 [DAILY] Message chat:', event);
-    });
-
-    // Partage d'écran
-    registerHandler('track-started', (event: any) => {
-      if (event?.track?.kind === 'video' && event?.participant?.screen) {
-        console.log('🖥️ [DAILY] Partage d\'écran démarré');
-        updateState({ isScreenSharing: true });
-      }
-    });
-
-    registerHandler('track-stopped', (event: any) => {
-      if (event?.track?.kind === 'video' && event?.participant?.screen) {
-        console.log('🖥️ [DAILY] Partage d\'écran arrêté');
-        updateState({ isScreenSharing: false });
-      }
-    });
-  }, [state.roomUrl, user]);
-
   async function createAndJoin(roomName?: string) {
     updateState({ isLoading: true, error: null });
     
@@ -717,43 +716,68 @@ export function useDaily(
       userInitiated,
       callStack: new Error().stack?.split('\n').slice(1, 5) // 4 premières lignes de la stack
     });
-    
+
     if (!userInitiated) {
       console.error('🚫 [DAILY-JOIN] ATTENTION: joinRoom appelé sans action utilisateur explicite !');
       console.error('🚫 [DAILY-JOIN] Stack trace:', new Error().stack);
       return; // Bloquer les auto-joins
     }
-    
-    console.debug('[DAILY] joinRoom called with:', roomUrl);
-    
+
+    console.log('✅ [DAILY-JOIN] Check userInitiated passé');
+
     // Protection contre l'utilisation après destruction
     if (destroyedRef.current) {
-      console.debug('[DAILY] joinRoom: hook was destroyed, aborting');
+      console.error('❌ [DAILY-JOIN] Hook was destroyed, aborting!');
       return;
     }
-    
+
+    console.log('✅ [DAILY-JOIN] Check destroyedRef passé');
+
     // Get or create frame
+    console.log('🔧 [DAILY-JOIN] Appel ensureFrame...');
     const frame = ensureFrame();
+    console.log('🔧 [DAILY-JOIN] ensureFrame result:', frame ? 'Frame créée/trouvée' : 'NULL');
+
     if (!frame) {
-      console.error('[DAILY] joinRoom: no frame available');
-      updateState({ 
+      console.error('❌ [DAILY-JOIN] No frame available, container not ready');
+      updateState({
         error: 'Container not ready',
-        isLoading: false 
+        isLoading: false
       });
       return;
     }
-    
+
+    console.log('✅ [DAILY-JOIN] Frame disponible');
+
+    // ✅ PROTECTION SUPPLÉMENTAIRE: Vérifier que le frame n'est pas destroyed
+    try {
+      frame.meetingState(); // Test si le frame est encore valide
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Use after destroy')) {
+        console.error('❌ [DAILY-JOIN] Frame détruit, abandon!');
+        destroyedRef.current = true; // Marquer comme détruit
+        return;
+      }
+      // Autre erreur, on laisse continuer
+    }
+
     // Check if already joined or joining
-    if (isJoinedOrJoining(frame)) {
-      console.debug('[DAILY] joinRoom: already joined or joining, skipping');
+    const joinStatus = isJoinedOrJoining(frame);
+    console.log('🔍 [DAILY-JOIN] isJoinedOrJoining:', joinStatus);
+    if (joinStatus) {
+      console.warn('⚠️ [DAILY-JOIN] Already joined or joining, skipping');
       return;
     }
-    
+
     // Check if join is already in progress
+    console.log('🔍 [DAILY-JOIN] joiningRef.current:', joiningRef.current);
     if (joiningRef.current) {
-      console.debug('[DAILY] joinRoom: join already in progress, skipping');
+      console.warn('⚠️ [DAILY-JOIN] Join already in progress, skipping');
       return;
     }
+
+    console.log('✅ [DAILY-JOIN] Tous les checks passés, démarrage join...');
     
     updateState({ isLoading: true, error: null, roomUrl });
     joiningRef.current = true;

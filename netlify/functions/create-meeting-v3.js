@@ -1,8 +1,9 @@
-// 🎥 Fonction Netlify v3 : Création réunion SANS n8n (100% autonome)
-const { createClient } = require('@supabase/supabase-js');
-const { processInvitation } = require('./lib/sendInvitation.cjs');
-const crypto = require('crypto');
+// 🎥 Fonction Netlify AMÉLIORÉE pour créer une réunion Daily.co + Supabase
+// Version 3.0 avec debug amélioré et gestion d'erreurs
 
+const { createClient } = require('@supabase/supabase-js');
+
+// Headers CORS
 const headers = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -11,12 +12,15 @@ const headers = {
 };
 
 exports.handler = async (event, context) => {
-  console.log('📥 [CREATE-MEETING-V3] Requête reçue');
+  console.log('📥 [CREATE-MEETING-V3] Requête reçue:', event.httpMethod);
+  console.log('🔧 [CREATE-MEETING-V3] Context:', context.functionName);
 
+  // Gérer les requêtes OPTIONS (preflight)
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
 
+  // Seules les requêtes POST sont autorisées
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -26,45 +30,106 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Configuration
+    // Configuration - Vérification des variables d'environnement
+    console.log('🔍 [CREATE-MEETING-V3] Vérification des variables d\'environnement...');
+    
+    // Variables pour Daily.co
     const DAILY_API_KEY = process.env.DAILY_API_KEY || process.env.REACT_APP_DAILY_API_KEY;
-    const DAILY_BASE_URL = 'https://api.daily.co/v1';
-    const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
+    const DAILY_DOMAIN = process.env.REACT_APP_DAILY_DOMAIN || 'centrinote.daily.co';
+    
+    // Variables pour Supabase
+    const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    // Variables pour n8n webhooks
+    const N8N_EVENTS_WEBHOOK = process.env.REACT_APP_N8N_EVENTS_WEBHOOK;
+    const N8N_RECORDING_WEBHOOK = process.env.REACT_APP_N8N_RECORDING_WEBHOOK;
 
-    if (!DAILY_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    // Log des variables (sans les clés sensibles)
+    console.log('📋 [CREATE-MEETING-V3] Configuration:', {
+      hasDaily: !!DAILY_API_KEY,
+      dailyDomain: DAILY_DOMAIN,
+      hasSupabaseUrl: !!SUPABASE_URL,
+      hasSupabaseKey: !!SUPABASE_SERVICE_KEY,
+      hasEventsWebhook: !!N8N_EVENTS_WEBHOOK,
+      hasRecordingWebhook: !!N8N_RECORDING_WEBHOOK
+    });
+
+    // Validation critique
+    if (!DAILY_API_KEY) {
+      console.error('❌ [CREATE-MEETING-V3] DAILY_API_KEY manquante');
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Configuration manquante' })
+        body: JSON.stringify({ 
+          error: 'Configuration Daily.co manquante',
+          debug: 'DAILY_API_KEY not configured in Netlify environment'
+        })
       };
     }
 
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+      console.error('❌ [CREATE-MEETING-V3] Configuration Supabase manquante');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Configuration Supabase manquante',
+          debug: 'SUPABASE_URL or SERVICE_KEY not configured'
+        })
+      };
+    }
+
+    // Initialiser Supabase
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-    // Parser les données
+    // Parser les données du formulaire
     const requestBody = JSON.parse(event.body);
-    const {
-      title,
-      description,
-      scheduled_at,
-      duration_minutes = 60,
+    const { 
+      title, 
+      description, 
+      scheduled_at, 
+      duration_minutes = 60, 
       participants = [],
-      created_by,
-      enable_ai_summary = false, // Nouveau: toggle IA
+      created_by 
     } = requestBody;
 
-    // Validation
-    if (!title || !title.trim() || !created_by) {
+    console.log('📝 [CREATE-MEETING-V3] Données reçues:', {
+      title,
+      hasDescription: !!description,
+      scheduled_at,
+      duration_minutes,
+      participantsCount: participants.length,
+      created_by
+    });
+
+    // Log participants pour debug
+    console.log('👥 [CREATE-MEETING-V3] participants.count =', participants.length);
+    if (participants.length > 0) {
+      console.log('👤 [CREATE-MEETING-V3] Première adresse (sanity check):', participants[0]?.email);
+      console.log('👥 [CREATE-MEETING-V3] payload participants sample:', participants[0]);
+    }
+
+    // Validation des données
+    if (!title || !title.trim()) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Titre et utilisateur requis' })
+        body: JSON.stringify({ error: 'Le titre de la réunion est obligatoire' })
       };
     }
 
-    // Valider et sanitizer les participants
+    if (!created_by) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Utilisateur non identifié' })
+      };
+    }
+
+    // Validation des participants
     if (!Array.isArray(participants)) {
+      console.error('❌ [CREATE-MEETING-V3] participants n\'est pas un array:', typeof participants);
       return {
         statusCode: 400,
         headers,
@@ -72,34 +137,43 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log(`📊 [CREATE-MEETING-V3] Participants reçus (raw):`, JSON.stringify(participants, null, 2));
-    
-    const sanitizedParticipants = participants
-      .filter(p => p && p.name && p.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email))
-      .map(p => ({
-        name: p.name.trim(),
-        email: p.email.trim().toLowerCase(),
-        role: p.role || 'guest'
-      }));
-    
-    console.log(`📊 [CREATE-MEETING-V3] Participants sanitizés:`, sanitizedParticipants.length, sanitizedParticipants);
+    // Validation de chaque participant
+    const invalidParticipants = participants.filter(p => 
+      !p || typeof p !== 'object' || !p.name || !p.email || 
+      typeof p.name !== 'string' || typeof p.email !== 'string' ||
+      !p.name.trim() || !p.email.trim() ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)
+    );
 
-    // Générer nom de salle
+    if (invalidParticipants.length > 0) {
+      console.error('❌ [CREATE-MEETING-V3] Participants invalides:', invalidParticipants);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Certains participants ont des données invalides',
+          invalidCount: invalidParticipants.length
+        })
+      };
+    }
+
+    // Sanitiser les participants
+    const sanitizedParticipants = participants.map(p => ({
+      name: p.name.trim(),
+      email: p.email.trim().toLowerCase(),
+      role: p.role || 'guest'
+    }));
+
+    console.log('✅ [CREATE-MEETING-V3] Participants validés et sanitisés:', sanitizedParticipants.length);
+
+    // Générer un nom de salle unique
     const timestamp = Date.now().toString(36);
     const random = Math.random().toString(36).substr(2, 5);
     const roomName = `centrinote-${timestamp}-${random}`;
-
-    // Créer la salle Daily.co (SANS webhooks n8n)
-    // URL de base pour les webhooks (production)
-    // Utiliser URL depuis les headers de la requête ou fallback
-    const host = event.headers.host || event.headers.Host || 'centrinote.fr';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const BASE_URL = `${protocol}://${host}`;
-    const webhookUrl = `${BASE_URL}/.netlify/functions/daily-webhook-recording`;
     
-    // Construire la configuration de la salle
-    // ⚠️ IMPORTANT: Les webhooks d'enregistrement NE PEUVENT PAS être configurés dans les propriétés de la room
-    // Ils doivent être configurés au niveau ACCOUNT dans Daily Dashboard ou via l'API webhooks
+    console.log('🏠 [CREATE-MEETING-V3] Création salle Daily.co:', roomName);
+
+    // Configuration de la requête Daily.co - PAYLOAD MINIMALE
     const dailyRoomConfig = {
       name: roomName,
       privacy: 'public',
@@ -108,16 +182,25 @@ exports.handler = async (event, context) => {
         start_video_off: false,
         start_audio_off: false,
         max_participants: 10,
-        enable_recording: enable_ai_summary ? 'cloud' : false, // Enregistrement si IA activée
       },
     };
     
-    console.log('📡 [CREATE-MEETING-V3] Configuration room:', {
-      enable_ai_summary,
-      enable_recording: dailyRoomConfig.properties.enable_recording,
-      note: 'Webhooks doivent être configurés au niveau compte Daily.co (Dashboard ou API)',
+    console.log('🔒 [STEP-6] Configuration room:', {
+      privacy: dailyRoomConfig.privacy,
+      knocking: dailyRoomConfig.properties.enable_knocking,
+      maxParticipants: dailyRoomConfig.properties.max_participants
     });
 
+    // ⚠️ WEBHOOKS SUPPRIMÉS DE LA PAYLOAD ROOM
+    // Les webhooks doivent être configurés au niveau ACCOUNT dans Daily Dashboard
+    console.log('ℹ️ [CREATE-MEETING-V3] Webhooks configurés au niveau account Daily Dashboard');
+    console.log('🔗 N8N Events webhook:', N8N_EVENTS_WEBHOOK);
+    console.log('🎬 N8N Recording webhook:', N8N_RECORDING_WEBHOOK);
+
+    // Créer la salle Daily.co
+    console.log('🚀 [CREATE-MEETING-V3] Appel API Daily.co...');
+    const DAILY_BASE_URL = 'https://api.daily.co/v1';
+    
     const dailyResponse = await fetch(`${DAILY_BASE_URL}/rooms`, {
       method: 'POST',
       headers: {
@@ -127,22 +210,50 @@ exports.handler = async (event, context) => {
       body: JSON.stringify(dailyRoomConfig)
     });
 
+    const dailyResponseText = await dailyResponse.text();
+    console.log('📡 [CREATE-MEETING-V3] Réponse Daily.co status:', dailyResponse.status);
+
     if (!dailyResponse.ok) {
-      const errorText = await dailyResponse.text();
+      console.error('[DAILY] Create room failed', dailyResponse.status, dailyResponseText);
       return {
         statusCode: 502,
         headers,
         body: JSON.stringify({
           success: false,
-          error: 'Erreur création salle Daily.co',
-          detail: errorText
+          reason: 'daily_room_create_failed',
+          status: dailyResponse.status,
+          detail: dailyResponseText
+        }),
+      };
+    }
+
+    let dailyRoom;
+    try {
+      dailyRoom = JSON.parse(dailyResponseText);
+      console.log('✅ [CREATE-MEETING-V3] Salle Daily.co créée:', {
+        name: dailyRoom.name,
+        url: dailyRoom.url,
+        domain_name: dailyRoom.domain_name,
+        created: dailyRoom.created_at
+      });
+      console.log('🌐 [DOMAIN-CHECK] Room URL complète:', dailyRoom.url);
+      console.log('🏷️ [DOMAIN-CHECK] Domain name:', dailyRoom.domain_name || 'undefined');
+      console.log('🔍 [DOMAIN-CHECK] URL hostname:', new URL(dailyRoom.url).hostname);
+    } catch (parseError) {
+      console.error('❌ [CREATE-MEETING-V3] Erreur parsing Daily.co response:', parseError);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Erreur parsing réponse Daily.co',
+          debug: dailyResponseText
         })
       };
     }
 
-    const dailyRoom = await dailyResponse.json();
-
     // Sauvegarder dans Supabase
+    console.log('💾 [CREATE-MEETING-V3] Sauvegarde dans Supabase...');
+    
     const meetingData = {
       room_name: dailyRoom.name,
       room_url: dailyRoom.url,
@@ -150,10 +261,15 @@ exports.handler = async (event, context) => {
       description: description?.trim() || null,
       scheduled_at: scheduled_at || null,
       duration_minutes: parseInt(duration_minutes),
-      participants: sanitizedParticipants,
+      participants: sanitizedParticipants, // Utiliser les participants sanitisés
       status: 'scheduled',
       created_by: created_by
     };
+
+    console.log('💾 [CREATE-MEETING-V3] Meeting data with participants:', {
+      ...meetingData,
+      participants: `${meetingData.participants.length} participants`
+    });
 
     const { data: meeting, error: supabaseError } = await supabase
       .from('meetings')
@@ -162,174 +278,121 @@ exports.handler = async (event, context) => {
       .single();
 
     if (supabaseError) {
-      // Nettoyer la salle Daily.co
-      await fetch(`${DAILY_BASE_URL}/rooms/${dailyRoom.name}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` }
-      }).catch(() => {});
+      console.error('❌ [CREATE-MEETING-V3] Erreur Supabase:', supabaseError);
+      
+      // Nettoyer la salle Daily.co en cas d'erreur Supabase
+      try {
+        console.log('🧹 [CREATE-MEETING-V3] Nettoyage salle Daily.co...');
+        await fetch(`${DAILY_BASE_URL}/rooms/${dailyRoom.name}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` }
+        });
+      } catch (cleanupError) {
+        console.error('❌ [CREATE-MEETING-V3] Erreur nettoyage:', cleanupError);
+      }
 
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           error: 'Erreur base de données',
-          details: supabaseError.message
+          details: supabaseError.message,
+          code: supabaseError.code,
+          debug: 'Check if meetings table exists in Supabase'
         })
       };
     }
 
-    // Créer les invitations dans meeting_invitations et envoyer les emails
-    const invitations = [];
-    const emailPromises = [];
-    
-    console.log(`📧 [CREATE-MEETING-V3] Préparation envoi emails pour ${sanitizedParticipants.length} participant(s)`);
-    
-    // Filtrer les participants qui ont besoin d'une invitation (pas l'organisateur)
-    const participantsToInvite = sanitizedParticipants.filter(p => p.role !== 'organizer');
-    console.log(`📧 [CREATE-MEETING-V3] Participants à inviter: ${participantsToInvite.length}`, participantsToInvite.map(p => ({ email: p.email, role: p.role })));
+    console.log('✅ [CREATE-MEETING-V3] Réunion sauvegardée:', meeting.id);
+    console.log('👥 [CREATE-MEETING-V3] Participants sauvegardés:', meeting.participants?.length || 0);
 
-    for (const participant of sanitizedParticipants) {
-      if (participant.role === 'organizer') {
-        console.log(`⏭️ [CREATE-MEETING-V3] Ignorer organisateur: ${participant.email}`);
-        continue; // L'organisateur n'a pas besoin d'invitation
+    // Réponse de succès complète
+    const successResponse = {
+      success: true,
+      meetingId: meeting.id,
+      roomName: dailyRoom.name,
+      roomUrl: dailyRoom.url,
+      meeting: meeting,
+      dailyConfig: {
+        domain: DAILY_DOMAIN,
+        hasWebhooks: !!N8N_EVENTS_WEBHOOK || !!N8N_RECORDING_WEBHOOK
       }
+    };
 
-      const token = crypto.randomBytes(32).toString('base64url');
-      
-      const { data: invitation, error: inviteError } = await supabase
-        .from('meeting_invitations')
-        .insert({
-          meeting_id: meeting.id,
-          email: participant.email,
-          name: participant.name,
-          token,
-          status: 'pending', // 'pending' jusqu'à ce que l'email soit envoyé
-          do_not_record: !enable_ai_summary, // Respecter le choix de l'utilisateur
-        })
-        .select()
-        .single();
-
-      if (!inviteError && invitation) {
-        invitations.push(invitation);
-        
-        console.log(`📧 [CREATE-MEETING-V3] Préparation envoi email pour: ${participant.email} (invitation ID: ${invitation.id})`);
-        
-        // Préparer l'envoi d'email en parallèle
-        emailPromises.push(
-          processInvitation(invitation.id)
-            .then(result => {
-              console.log(`✅ [CREATE-MEETING-V3] Email envoyé avec succès à: ${participant.email}`);
-              return result;
-            })
-            .catch(err => {
-              console.error(`❌ [CREATE-MEETING-V3] Erreur envoi email à ${participant.email}:`, {
-                error: err.message,
-                stack: err.stack,
-                invitationId: invitation.id
-              });
-              // Marquer comme 'failed' dans la DB
-              supabase
-                .from('meeting_invitations')
-                .update({ status: 'failed' })
-                .eq('id', invitation.id)
-                .then(() => {})
-                .catch(updateErr => {
-                  console.error(`❌ [CREATE-MEETING-V3] Erreur mise à jour statut invitation:`, updateErr);
-                });
-              return { success: false, email: participant.email, error: err.message };
-            })
-        );
-      } else {
-        console.error(`❌ [CREATE-MEETING-V3] Erreur création invitation pour ${participant.email}:`, inviteError);
-      }
-    }
-
-    // Envoyer les emails en parallèle - IMPORTANT: attendre que tous soient envoyés
-    // Dans Netlify Functions, si on répond avant, la fonction peut se terminer et les emails ne seront pas envoyés
-    if (emailPromises.length > 0) {
-      console.log(`📧 [CREATE-MEETING-V3] Envoi de ${emailPromises.length} email(s) d'invitation...`);
-      
+    // (Option) Fire-and-forget webhook vers n8n pour notifier de la création
+    if (N8N_EVENTS_WEBHOOK) {
       try {
-        // ATTENDRE que tous les emails soient envoyés (avec timeout de sécurité)
-        const emailResults = await Promise.race([
-          Promise.all(emailPromises),
-          new Promise((resolve) => 
-            setTimeout(() => resolve({ timeout: true, results: [] }), 25000) // 25s timeout
-          )
-        ]);
+        console.log('🔔 [CREATE-MEETING-V3] Envoi notification n8n...');
         
-        if (emailResults.timeout) {
-          console.error(`❌ [CREATE-MEETING-V3] TIMEOUT: L'envoi des emails a pris plus de 25s`);
-          console.error(`❌ [CREATE-MEETING-V3] Les emails peuvent ne pas avoir été envoyés`);
-          console.error(`❌ [CREATE-MEETING-V3] Vérifiez les logs Netlify pour plus de détails`);
-        } else {
-          const results = emailResults;
-          const successCount = results.filter(r => r && r.success !== false).length;
-          const failedCount = results.filter(r => r && r.success === false).length;
-          console.log(`✅ [CREATE-MEETING-V3] ${successCount}/${emailPromises.length} email(s) envoyé(s) avec succès`);
-          if (failedCount > 0) {
-            console.error(`❌ [CREATE-MEETING-V3] ${failedCount} email(s) ont échoué:`, 
-              results.filter(r => r && r.success === false).map(r => ({ email: r.email, error: r.error }))
-            );
-          }
-        }
-      } catch (error) {
-        console.error(`❌ [CREATE-MEETING-V3] Erreur lors de l'envoi des emails:`, error);
-        console.error(`❌ [CREATE-MEETING-V3] Stack:`, error.stack);
+        // Extraire les informations des invités pour n8n
+        const organizer = sanitizedParticipants.find(p => p.role === 'organizer');
+        const guests = sanitizedParticipants.filter(p => p.role === 'guest');
+        
+        const notificationPayload = {
+          type: 'meeting.created',
+          meetingId: meeting.id,
+          roomName: dailyRoom.name,
+          room_url: dailyRoom.url,
+          participants: sanitizedParticipants,
+          title: meeting.title,
+          created_by: meeting.created_by,
+          timestamp: new Date().toISOString(),
+          // 📧 Nouvelles données pour l'email d'invitation
+          invited_by: organizer ? organizer.email : null,
+          invited_name: guests.length > 0 ? guests[0].name : null,
+          invited_email: guests.length > 0 ? guests[0].email : null,
+          // Si plusieurs invités, inclure la liste complète
+          all_invited: guests.map(g => ({ name: g.name, email: g.email }))
+        };
+
+        console.log('📧 [N8N-PAYLOAD] Données enrichies pour email:', {
+          invited_by: notificationPayload.invited_by,
+          invited_name: notificationPayload.invited_name,
+          invited_email: notificationPayload.invited_email,
+          roomName: notificationPayload.roomName,
+          all_invited_count: notificationPayload.all_invited.length
+        });
+
+        // Fire-and-forget - ne pas bloquer la création si ça échoue
+        fetch(N8N_EVENTS_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(notificationPayload)
+        }).catch(webhookError => {
+          console.warn('⚠️ [CREATE-MEETING-V3] Webhook n8n échoué (non bloquant):', webhookError.message);
+        });
+        
+      } catch (webhookError) {
+        console.warn('⚠️ [CREATE-MEETING-V3] Erreur webhook n8n (non bloquant):', webhookError);
       }
-    } else {
-      console.warn(`⚠️ [CREATE-MEETING-V3] Aucun email à envoyer (emailPromises.length = 0)`);
-      console.warn(`⚠️ [CREATE-MEETING-V3] Participants sanitizés:`, sanitizedParticipants.length);
-      console.warn(`⚠️ [CREATE-MEETING-V3] Participants à inviter (sans organizer):`, participantsToInvite.length);
-      console.warn(`⚠️ [CREATE-MEETING-V3] Invitations créées:`, invitations.length);
     }
 
-    // Si IA activée, créer une invitation "virtuelle" pour le système IA
-    if (enable_ai_summary) {
-      try {
-        await supabase
-          .from('meeting_invitations')
-          .insert({
-            meeting_id: meeting.id,
-            email: 'ai@centrinote.fr',
-            name: 'Assistant IA',
-            token: crypto.randomBytes(32).toString('base64url'),
-            status: 'sent',
-            do_not_record: false,
-          });
-      } catch (err) {
-        console.warn('⚠️ [CREATE-MEETING-V3] Erreur création invitation IA:', err);
-      }
-    }
-
+    console.log('🎉 [CREATE-MEETING-V3] Réponse complète:', {
+      meetingId: successResponse.meetingId,
+      roomName: successResponse.roomName,
+      roomUrl: successResponse.roomUrl,
+      redirectUrl: `/meeting/${successResponse.meetingId}`
+    });
+    
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        success: true,
-        meetingId: meeting.id,
-        roomName: dailyRoom.name,
-        roomUrl: dailyRoom.url,
-        meeting,
-        invitations,
-        emailsStatus: {
-          total: emailPromises.length,
-          sent: emailPromises.length > 0 ? 'en_cours' : 'aucun_a_envoyer',
-          invitationsCreated: invitations.length
-        }
-      })
+      body: JSON.stringify(successResponse)
     };
 
   } catch (error) {
-    console.error('❌ [CREATE-MEETING-V3] Erreur:', error);
+    console.error('❌ [CREATE-MEETING-V3] Erreur générale:', error);
+    console.error('Stack:', error.stack);
+    
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({
-        error: 'Erreur interne',
-        message: error.message
+      body: JSON.stringify({ 
+        error: 'Erreur interne du serveur',
+        message: error.message,
+        type: error.name,
+        debug: process.env.NODE_ENV === 'development' ? error.stack : undefined
       })
     };
   }
 };
-

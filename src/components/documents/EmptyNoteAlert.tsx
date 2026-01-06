@@ -13,6 +13,7 @@ interface EmptyNoteAlertProps {
   onClose: () => void;
   onGenerateWithAI?: () => Promise<void>;
   onCreateEmpty?: () => void; // Nouvelle prop pour créer la note sans contenu
+  onManualEntry?: () => void; // Nouvelle prop pour fermer et focus le champ de contenu
   hasAIAccess: boolean;
   darkMode?: boolean;
   isEditing?: boolean;
@@ -24,6 +25,7 @@ export function EmptyNoteAlert({
   onClose,
   onGenerateWithAI,
   onCreateEmpty,
+  onManualEntry,
   hasAIAccess,
   darkMode = false,
   isEditing = false,
@@ -194,6 +196,21 @@ export function EmptyNoteAlert({
                 </p>
               </div>
             </div>
+            
+            {/* Bouton Saisie manuelle */}
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (onManualEntry) {
+                  onManualEntry();
+                }
+                onClose();
+              }}
+              className="w-full gap-2"
+            >
+              <Edit className="w-4 h-4" />
+              Saisie manuelle
+            </Button>
           </div>
 
           {/* Actions */}

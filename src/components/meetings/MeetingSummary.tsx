@@ -174,27 +174,22 @@ export function MeetingSummary() {
       // Extraire le nom du destinataire de l'email
       const recipientName = shareEmail.split('@')[0];
 
-      // Appeler la fonction Netlify pour envoyer l'email
-      const response = await fetch('/.netlify/functions/send-summary-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      // Appeler la Supabase Edge Function pour envoyer l'email
+      const { supabase } = await import('../../lib/supabase');
+      const { data, error } = await supabase.functions.invoke('send-summary-email', {
+        body: {
           meetingId: id,
           recipientEmail: shareEmail,
           recipientName,
           customMessage: shareMessage.trim() || null
-        })
+        }
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || result.message || 'Erreur lors de l\'envoi');
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || data?.message || 'Erreur lors de l\'envoi');
       }
 
-      console.log('✅ [SHARE] Email envoyé avec succès:', result);
+      console.log('✅ [SHARE] Email envoyé avec succès:', data);
 
       setShareSuccess(true);
       setTimeout(() => {

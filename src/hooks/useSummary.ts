@@ -103,14 +103,41 @@ export function useSummary(meetingId: string | null, options?: {
     try {
       setError(null);
 
-      // Récupérer directement depuis Supabase (table meetings)
-      const { data: meeting, error: dbError } = await supabase
+      // Récupérer directement depuis Supabase (table meetings) avec timeout
+      const fetchPromise = supabase
         .from('meetings')
         .select('id, title, transcript, ai_summary, started_at, ended_at, participants, validated_by, validated_at')
         .eq('id', meetingId)
         .single();
 
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 8000)
+      );
+
+      const { data: meeting, error: dbError } = await Promise.race([
+        fetchPromise,
+        timeoutPromise
+      ]).catch((err) => {
+        if (err instanceof Error && err.message?.includes('Timeout')) {
+          return { data: null, error: { message: 'Timeout' } };
+        }
+        throw err;
+      }) as any;
+
       if (dbError) {
+        // Ignorer les erreurs réseau et timeout
+        if (dbError instanceof TypeError || dbError.message?.includes('Failed to fetch')) {
+          console.warn('⚠️ [USE-SUMMARY] Erreur réseau (ignorée)');
+          setSummary(null);
+          setLoading(false);
+          return;
+        }
+        if (dbError.message?.includes('Timeout')) {
+          console.warn('⚠️ [USE-SUMMARY] Timeout (ignoré)');
+          setSummary(null);
+          setLoading(false);
+          return;
+        }
         console.error('❌ [USE-SUMMARY] Erreur Supabase:', dbError);
         throw new Error('Erreur chargement résumé');
       }
@@ -121,22 +148,40 @@ export function useSummary(meetingId: string | null, options?: {
         return;
       }
 
-      // Vérifier si le résumé IA existe
-      if (!meeting.ai_summary || !meeting.transcript) {
+      // Vérifier si le résumé IA existe (transcript optionnel)
+      if (!meeting.ai_summary) {
         // Pas encore de résumé, c'est normal
+        console.log('⏳ [USE-SUMMARY] Pas encore de résumé pour:', meetingId);
         setSummary(null);
         setLoading(false);
         return;
       }
 
       // Parser les données JSONB de Supabase
-      const aiSummary = typeof meeting.ai_summary === 'string'
-        ? JSON.parse(meeting.ai_summary)
-        : meeting.ai_summary;
+      let aiSummary;
+      try {
+        aiSummary = typeof meeting.ai_summary === 'string'
+          ? JSON.parse(meeting.ai_summary)
+          : meeting.ai_summary;
+      } catch (parseError) {
+        console.error('❌ [USE-SUMMARY] Erreur parsing ai_summary:', parseError);
+        setError('Erreur format résumé');
+        setLoading(false);
+        return;
+      }
 
-      const transcript = typeof meeting.transcript === 'string'
-        ? JSON.parse(meeting.transcript)
-        : meeting.transcript;
+      // Transcript est optionnel
+      let transcript = null;
+      if (meeting.transcript) {
+        try {
+          transcript = typeof meeting.transcript === 'string'
+            ? JSON.parse(meeting.transcript)
+            : meeting.transcript;
+        } catch (parseError) {
+          console.warn('⚠️ [USE-SUMMARY] Erreur parsing transcript (ignoré):', parseError);
+          // Continuer sans transcript
+        }
+      }
 
       // Adapter au format attendu par le composant
       const formattedSummary: MeetingSummary = {
@@ -149,18 +194,29 @@ export function useSummary(meetingId: string | null, options?: {
           : meeting.participants,
         raw_transcript: transcript?.text || '',
         summary: {
-          title: aiSummary?.summary || '',
-          key_points: aiSummary?.key_points || [],
-          decisions: aiSummary?.decisions?.map((d: string) => ({
-            what: d,
-            who: undefined,
-            deadline: undefined,
-          })) || [],
-          actions: aiSummary?.action_items?.map((item: { task: string; assignee?: string }) => ({
-            task: item.task,
-            owner: item.assignee,
-            due: undefined,
-          })) || [],
+          // ✅ Support de différents formats de résumé
+          title: aiSummary?.summary || aiSummary?.title || aiSummary?.overview || '',
+          key_points: aiSummary?.key_points || aiSummary?.points || aiSummary?.highlights || [],
+          decisions: (aiSummary?.decisions || []).map((d: any) => {
+            if (typeof d === 'string') {
+              return { what: d, who: undefined, deadline: undefined };
+            }
+            return {
+              what: d.what || d.decision || d,
+              who: d.who || d.assignee,
+              deadline: d.deadline || d.due
+            };
+          }),
+          actions: (aiSummary?.action_items || aiSummary?.actions || []).map((item: any) => {
+            if (typeof item === 'string') {
+              return { task: item, owner: undefined, due: undefined };
+            }
+            return {
+              task: item.task || item.action || item,
+              owner: item.owner || item.assignee || item.who,
+              due: item.due || item.deadline
+            };
+          }),
         },
         generated_at: transcript?.transcribed_at || meeting.ended_at,
         validated_by: meeting.validated_by,
@@ -212,21 +268,82 @@ export function useSummary(meetingId: string | null, options?: {
 
       attempts++;
 
-      // Vérifier directement dans Supabase
-      const { data } = await supabase
-        .from('meetings')
-        .select('id, title, ai_summary, transcript, started_at, ended_at, participants, validated_by, validated_at')
-        .eq('id', meetingId)
-        .single();
+      try {
+        // Vérifier directement dans Supabase avec timeout
+        const pollPromise = supabase
+          .from('meetings')
+          .select('id, title, ai_summary, transcript, started_at, ended_at, participants, validated_by, validated_at')
+          .eq('id', meetingId)
+          .single();
 
-      if (data?.ai_summary && data?.transcript) {
-        console.log('✅ [USE-SUMMARY] Résumé trouvé, arrêt du polling');
-        hasStoppedPolling = true;
-        if (intervalId) clearInterval(intervalId);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 8000)
+        );
 
-        // Mettre à jour via fetchSummary pour formater et mettre en cache
-        await fetchSummary();
-        return;
+        const { data, error: pollError } = await Promise.race([
+          pollPromise,
+          timeoutPromise
+        ]).catch((err) => {
+          if (err instanceof Error && err.message?.includes('Timeout')) {
+            return { data: null, error: { message: 'Timeout' } };
+          }
+          throw err;
+        }) as any;
+
+        if (pollError) {
+          // Ignorer les erreurs réseau et timeout silencieusement
+          if (pollError instanceof TypeError || pollError.message?.includes('Failed to fetch')) {
+            return; // Continuer le polling
+          }
+          if (pollError.message?.includes('Timeout')) {
+            return; // Continuer le polling
+          }
+          console.warn('⚠️ [USE-SUMMARY] Erreur polling (ignorée):', pollError.message);
+          return;
+        }
+
+        // ✅ Accepter le résumé même si le transcript n'est pas encore disponible
+        // Vérifier si ai_summary existe et n'est pas vide/null
+        const hasValidSummary = data?.ai_summary && 
+          (typeof data.ai_summary === 'string' ? data.ai_summary.trim() !== '' : 
+           typeof data.ai_summary === 'object' ? Object.keys(data.ai_summary).length > 0 : false);
+
+        if (hasValidSummary) {
+          console.log('✅ [USE-SUMMARY] Résumé trouvé, arrêt du polling', {
+            hasAiSummary: !!data.ai_summary,
+            aiSummaryType: typeof data.ai_summary,
+            hasTranscript: !!data.transcript,
+            meetingId,
+            attempts
+          });
+          hasStoppedPolling = true;
+          if (intervalId) clearInterval(intervalId);
+
+          // Mettre à jour via fetchSummary pour formater et mettre en cache
+          await fetchSummary();
+          return;
+        }
+
+        // Log de debug pour comprendre pourquoi le résumé n'est pas trouvé
+        if (attempts === 1 || attempts % 10 === 0) {
+          console.log(`🔍 [USE-SUMMARY] Polling tentative ${attempts}/${maxAttempts}`, {
+            meetingId,
+            hasData: !!data,
+            hasAiSummary: !!data?.ai_summary,
+            hasTranscript: !!data?.transcript,
+            aiSummaryType: data?.ai_summary ? typeof data.ai_summary : 'null',
+            aiSummaryValue: data?.ai_summary ? (typeof data.ai_summary === 'string' ? data.ai_summary.substring(0, 50) : JSON.stringify(data.ai_summary).substring(0, 50)) : 'null'
+          });
+        }
+      } catch (err) {
+        // Ignorer les erreurs réseau et timeout
+        if (err instanceof TypeError || (err instanceof Error && err.message?.includes('Failed to fetch'))) {
+          return; // Continuer le polling
+        }
+        if (err instanceof Error && err.message?.includes('Timeout')) {
+          return; // Continuer le polling
+        }
+        console.warn('⚠️ [USE-SUMMARY] Erreur polling (ignorée):', err);
       }
 
       if (attempts >= maxAttempts) {

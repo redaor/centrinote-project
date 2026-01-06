@@ -33,14 +33,29 @@ export function useUserSync() {
         return null;
       }
 
-      // Récupérer le profil depuis la table profiles
-      const { data: profile, error } = await supabase
+      // Récupérer le profil depuis la table profiles avec timeout
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
+      // Timeout de 10 secondes pour éviter les blocages
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: requête trop longue')), 10000)
+      );
+
+      const { data: profile, error } = await Promise.race([
+        profilePromise,
+        timeoutPromise
+      ]) as any;
+
       if (error) {
+        // Ignorer les erreurs de navigation (Failed to fetch est normal si la page se démonte)
+        if (error instanceof TypeError && error.message?.includes('Failed to fetch')) {
+          DEBUG && console.warn('⚠️ Erreur réseau (ignorée):', error.message);
+          return null;
+        }
         console.error('❌ Erreur lors du chargement du profil:', error);
         return null;
       }
@@ -62,6 +77,15 @@ export function useUserSync() {
 
       return null;
     } catch (error) {
+      // Ignorer les erreurs de navigation et timeout (normales lors du démontage)
+      if (error instanceof TypeError && error.message?.includes('Failed to fetch')) {
+        DEBUG && console.warn('⚠️ Erreur réseau lors du chargement du profil (ignorée)');
+        return null;
+      }
+      if (error instanceof Error && error.message?.includes('Timeout')) {
+        DEBUG && console.warn('⚠️ Timeout lors du chargement du profil (ignoré)');
+        return null;
+      }
       console.error('❌ Erreur lors du chargement du profil:', error);
       return null;
     }
@@ -142,7 +166,7 @@ export function useUserSync() {
         throw new Error('Session expirée. Veuillez vous reconnecter.');
       }
 
-      const { data, error } = await supabase
+      const updatePromise = supabase
         .from('profiles')
         .update({
           ...updates,
@@ -152,7 +176,26 @@ export function useUserSync() {
         .select()
         .single();
 
+      // Timeout de 10 secondes
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 10000)
+      );
+
+      const { data, error } = await Promise.race([
+        updatePromise,
+        timeoutPromise
+      ]) as any;
+
       if (error) {
+        // Ignorer les erreurs réseau
+        if (error instanceof TypeError && error.message?.includes('Failed to fetch')) {
+          DEBUG && console.warn('⚠️ Erreur réseau lors de la mise à jour (ignorée)');
+          return; // Ne pas throw pour éviter de bloquer l'interface
+        }
+        if (error instanceof Error && error.message?.includes('Timeout')) {
+          DEBUG && console.warn('⚠️ Timeout lors de la mise à jour (ignoré)');
+          return;
+        }
         console.error('❌ Erreur lors de la mise à jour du profil:', error);
         throw error;
       } else {
@@ -272,6 +315,13 @@ export function useUserSync() {
           }
         }
       } catch (error) {
+        // Ignorer les erreurs réseau et timeout (normales)
+        if (error instanceof TypeError && error.message?.includes('Failed to fetch')) {
+          return; // Ignorer silencieusement
+        }
+        if (error instanceof Error && error.message?.includes('Timeout')) {
+          return; // Ignorer silencieusement
+        }
         DEBUG && console.error('[useUserSync] Error in polling:', error);
       }
     };

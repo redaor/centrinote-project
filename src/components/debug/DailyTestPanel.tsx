@@ -90,9 +90,9 @@ export function DailyTestPanel() {
       });
     }
 
-    // Test 3: Tester la fonction Netlify create-meeting
+    // Test 3: Tester la Supabase Edge Function create-meeting
     addResult({
-      step: 'Fonction Netlify',
+      step: 'Supabase Edge Function',
       status: 'testing',
       message: 'Test création réunion...'
     });
@@ -109,38 +109,40 @@ export function DailyTestPanel() {
 
       console.log('🧪 [DAILY-TEST] Envoi données test:', testData);
 
-      const response = await fetch('/.netlify/functions/create-meeting-v2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(testData)
+      // ✅ Utiliser la Supabase Edge Function (avec secrets Supabase)
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY
+      );
+
+      const { data: responseData, error: invokeError } = await supabase.functions.invoke('create-meeting', {
+        body: testData
       });
 
-      const responseData = await response.json();
-      console.log('📡 [DAILY-TEST] Réponse Netlify:', responseData);
+      console.log('📡 [DAILY-TEST] Réponse Supabase Edge Function:', responseData);
 
-      if (!response.ok) {
-        updateResult('Fonction Netlify', {
+      if (invokeError || !responseData?.success) {
+        updateResult('Supabase Edge Function', {
           status: 'error',
-          message: `Erreur ${response.status}: ${responseData.error}`,
-          data: responseData
+          message: `Erreur: ${invokeError?.message || responseData?.error || 'Inconnue'}`,
+          data: responseData || invokeError
         });
 
-        // Si erreur, essayer la v1
-        if (responseData.debug?.includes('DAILY_API_KEY')) {
+        // Vérifier si c'est un problème de secrets
+        if (responseData?.debug?.includes('DAILY_API_KEY')) {
           addResult({
-            step: 'Configuration Netlify',
+            step: 'Configuration Supabase',
             status: 'error',
-            message: 'DAILY_API_KEY non configurée sur Netlify Dashboard'
+            message: 'DAILY_API_KEY non configurée dans Supabase Secrets'
           });
         }
-        
+
         setTesting(false);
         return;
       }
 
-      updateResult('Fonction Netlify', {
+      updateResult('Supabase Edge Function', {
         status: 'success',
         message: 'Réunion créée avec succès!',
         data: {
@@ -202,22 +204,28 @@ export function DailyTestPanel() {
     if (!roomCreated) return;
 
     try {
-      const response = await fetch('/.netlify/functions/delete-meeting', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meetingId: roomCreated.meetingId })
+      const { supabase } = await import('../../lib/supabase');
+      const { data, error } = await supabase.functions.invoke('delete-meeting', {
+        body: { meetingId: roomCreated.meetingId }
       });
 
-      if (response.ok) {
+      if (!error && data?.success) {
         setRoomCreated(null);
         addResult({
           step: 'Nettoyage',
           status: 'success',
           message: 'Réunion de test supprimée'
         });
+      } else {
+        throw new Error(error?.message || data?.error || 'Erreur suppression');
       }
     } catch (error) {
       console.error('Erreur suppression:', error);
+      addResult({
+        step: 'Nettoyage',
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Erreur suppression'
+      });
     }
   };
 
@@ -343,26 +351,29 @@ export function DailyTestPanel() {
 
       {/* Instructions */}
       <div className={`mt-6 p-4 rounded-lg border ${
-        darkMode 
-          ? 'bg-gray-700/50 border-gray-600' 
+        darkMode
+          ? 'bg-gray-700/50 border-gray-600'
           : 'bg-yellow-50 border-yellow-200'
       }`}>
         <h3 className={`font-semibold mb-2 ${
           darkMode ? 'text-yellow-400' : 'text-yellow-800'
         }`}>
-          📋 Checklist Configuration Netlify
+          📋 Checklist Configuration Supabase Secrets
         </h3>
         <ul className={`text-sm space-y-1 ${
           darkMode ? 'text-yellow-300' : 'text-yellow-700'
         }`}>
-          <li>• DAILY_API_KEY (sans préfixe VITE_)</li>
-          <li>• REACT_APP_DAILY_DOMAIN</li>
-          <li>• REACT_APP_N8N_RECORDING_WEBHOOK</li>
-          <li>• REACT_APP_N8N_EVENTS_WEBHOOK</li>
-          <li>• REACT_APP_SUPABASE_URL</li>
-          <li>• REACT_APP_SUPABASE_ANON_KEY</li>
-          <li>• SUPABASE_SERVICE_ROLE_KEY</li>
+          <li>✅ DAILY_API_KEY (dans Supabase Secrets)</li>
+          <li>✅ SUPABASE_SERVICE_ROLE_KEY (dans Supabase Secrets)</li>
+          <li>✅ VITE_DAILY_DOMAIN (dans .env)</li>
+          <li>✅ VITE_N8N_DAILY_RECORDING (dans Supabase Secrets)</li>
+          <li>✅ VITE_N8N_DAILY_EVENTS (dans Supabase Secrets)</li>
+          <li>✅ VITE_SUPABASE_URL (dans .env)</li>
+          <li>✅ VITE_SUPABASE_ANON_KEY (dans .env)</li>
         </ul>
+        <p className={`text-xs mt-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          💡 Utilise maintenant la Supabase Edge Function au lieu de Netlify Functions
+        </p>
       </div>
     </div>
   );

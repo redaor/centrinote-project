@@ -234,14 +234,14 @@ export function useLongRecording(): UseLongRecordingReturn {
     const formData = new FormData();
     formData.append('file', audioFile);
 
-    // Appeler l'Edge Function Supabase
-    console.log('🎤 Appel Edge Function transcribe-audio...', {
-      url: `${supabaseUrl}/functions/v1/transcribe-audio`,
+    // Appeler l'Edge Function Supabase (upload)
+    console.log('🎤 Appel Edge Function transcribe-audio-upload...', {
+      url: `${supabaseUrl}/functions/v1/transcribe-audio-upload`,
       fileSize: audioBlob.size,
       fileType: audioBlob.type,
     });
 
-    const response = await fetch(`${supabaseUrl}/functions/v1/transcribe-audio`, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/transcribe-audio-upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,

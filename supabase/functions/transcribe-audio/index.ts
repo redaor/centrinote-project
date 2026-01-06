@@ -1,7 +1,16 @@
 /**
- * Edge Function pour transcrire l'audio via OpenAI Whisper API
- * Utilise OPENAI_TRANSCRIPTION_AUDIO_KEY depuis les secrets Supabase
- * Supporte les fichiers audio jusqu'à 25MB, formats multiples
+ * 🎤 Supabase Edge Function pour transcription automatique des enregistrements
+ *
+ * SOLUTION DEEPGRAM (2h d'audio en 1 appel):
+ * 1. Récupère l'URL de l'enregistrement Daily.co (depuis S3)
+ * 2. Envoie l'URL directement à Deepgram (pas de téléchargement local)
+ * 3. Deepgram transcrit directement depuis l'URL (modèle nova-2)
+ * 4. Génère un résumé IA avec GPT-4o-mini
+ * 5. Stocke tout dans Supabase (transcript + ai_summary)
+ *
+ * Endpoint: https://[votre-projet].supabase.co/functions/v1/transcribe-audio
+ * Method: POST
+ * Body: { meetingId: "uuid", audioUrl: "https://..." }
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -12,22 +21,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Configuration OpenAI Whisper
-const OPENAI_CONFIG = {
-  endpoint: 'https://api.openai.com/v1/audio/transcriptions',
-  model: 'whisper-1',
-  maxFileSize: 25 * 1024 * 1024, // 25MB max
-  supportedFormats: ['m4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'wav', 'webm'],
-};
-
-// Codes d'erreur OpenAI avec messages utilisateur
-const TRANSCRIPTION_ERRORS: Record<string, string> = {
-  'invalid_api_key': 'Clé API invalide - Vérifiez votre configuration',
-  'insufficient_quota': 'Quota dépassé - Contactez l\'administrateur',
-  'rate_limit_exceeded': 'Trop de requêtes - Réessayez dans 1 minute',
-  'invalid_file_format': 'Format audio non supporté',
-  'file_too_large': 'Fichier trop volumineux (max 25MB)',
-};
+interface DeepgramResponse {
+  request_id: string;
+  metadata: {
+    transaction_key: string;
+    request_id: string;
+    sha256: string;
+    created: string;
+    duration: number;
+    channels: number;
+  };
+  results: {
+    channels: Array<{
+      alternatives: Array<{
+        transcript: string;
+        confidence: number;
+        words?: Array<{
+          word: string;
+          start: number;
+          end: number;
+          confidence: number;
+          speaker?: number;
+        }>;
+      }>;
+    }>;
+  };
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -35,170 +54,248 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method Not Allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
-    // Vérifier l'authentification
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    console.log('🎤 [TRANSCRIBE] Fonction appelée');
+
+    // Parse request body
+    const { meetingId, audioUrl } = await req.json();
+
+    if (!meetingId || !audioUrl) {
       return new Response(
-        JSON.stringify({ error: 'Non autorisé' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          error: 'Missing required fields: meetingId and audioUrl'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Créer le client Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    console.log(`🎤 [TRANSCRIBE] Meeting ID: ${meetingId}`);
+    console.log(`🎤 [TRANSCRIBE] Audio URL: ${audioUrl.substring(0, 50)}...`);
 
-    // Vérifier l'utilisateur
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    // Vérifier les variables d'environnement
+    const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (userError || !user) {
+    if (!DEEPGRAM_API_KEY) {
+      console.error('❌ [TRANSCRIBE] DEEPGRAM_API_KEY manquante');
       return new Response(
-        JSON.stringify({ error: 'Utilisateur non authentifié' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Récupérer la clé OpenAI depuis les secrets Supabase
-    const openaiApiKey = Deno.env.get('OPENAI_TRANSCRIPTION_AUDIO_KEY');
-    if (!openaiApiKey) {
-      return new Response(
-        JSON.stringify({ error: 'OPENAI_TRANSCRIPTION_AUDIO_KEY non configurée dans Supabase' }),
+        JSON.stringify({ error: 'Deepgram API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Récupérer le fichier audio depuis le body
-    const formData = await req.formData();
-    const audioFile = formData.get('file') as File;
-
-    if (!audioFile) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+      console.error('❌ [TRANSCRIBE] Configuration Supabase manquante');
       return new Response(
-        JSON.stringify({ error: 'Aucun fichier audio fourni' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Supabase configuration missing' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validation de la taille du fichier (25MB max)
-    if (audioFile.size > OPENAI_CONFIG.maxFileSize) {
+    // Créer le client Supabase avec la clé service
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    // 1. Transcription directe avec Deepgram (pas de téléchargement)
+    console.log('🔊 [TRANSCRIBE] Transcription avec Deepgram...');
+    console.log('📡 [TRANSCRIBE] Envoi URL à Deepgram (modèle nova-2)...');
+
+    console.log('🔑 [DEBUG] Deepgram key length:', DEEPGRAM_API_KEY?.length);
+
+    const deepgramResponse = await fetch(
+      'https://api.deepgram.com/v1/listen?model=nova-2&language=fr&punctuate=true&diarize=true',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url: audioUrl
+        })
+      }
+    );
+
+    if (!deepgramResponse.ok) {
+      const errorText = await deepgramResponse.text();
+      console.error(`❌ [TRANSCRIBE] Erreur Deepgram (${deepgramResponse.status}):`, errorText);
+      throw new Error(`Deepgram API error: ${deepgramResponse.status} - ${errorText}`);
+    }
+
+    const deepgramData: DeepgramResponse = await deepgramResponse.json();
+
+    // Extraire la transcription complète
+    const fullTranscript = deepgramData.results.channels[0]?.alternatives[0]?.transcript || '';
+    const confidence = deepgramData.results.channels[0]?.alternatives[0]?.confidence || 0;
+    const words = deepgramData.results.channels[0]?.alternatives[0]?.words || [];
+    const duration = deepgramData.metadata?.duration || 0;
+
+    console.log(`✅ [TRANSCRIBE] Transcription réussie: ${fullTranscript.substring(0, 100)}...`);
+    console.log(`📊 [TRANSCRIBE] Confiance: ${(confidence * 100).toFixed(1)}%`);
+    console.log(`📊 [TRANSCRIBE] Mots: ${words.length}`);
+    console.log(`⏱️ [TRANSCRIBE] Durée: ${duration}s`);
+
+    // 2. Sauvegarder la transcription dans Supabase
+    console.log('💾 [TRANSCRIBE] Sauvegarde dans Supabase...');
+
+    const transcript = {
+      text: fullTranscript,
+      words: words,
+      confidence: confidence,
+      duration: duration,
+      language: 'fr',
+      transcribed_at: new Date().toISOString(),
+      provider: 'deepgram',
+      model: 'nova-2'
+    };
+
+    const { error: transcriptError } = await supabase
+      .from('meetings')
+      .update({ transcript })
+      .eq('id', meetingId);
+
+    if (transcriptError) {
+      console.error('❌ [TRANSCRIBE] Erreur sauvegarde transcript:', transcriptError);
+      throw transcriptError;
+    }
+
+    console.log('✅ [TRANSCRIBE] Transcript sauvegardé');
+
+    // 3. Générer un résumé IA avec GPT-4o-mini (optionnel)
+    console.log('🤖 [TRANSCRIBE] Génération du résumé IA...');
+
+    if (!OPENAI_API_KEY) {
+      console.warn('⚠️ [TRANSCRIBE] OPENAI_API_KEY manquante - résumé IA désactivé');
+
+      // Retour sans résumé IA
       return new Response(
-        JSON.stringify({ 
-          error: TRANSCRIPTION_ERRORS['file_too_large'],
-          maxSize: OPENAI_CONFIG.maxFileSize,
-          actualSize: audioFile.size,
+        JSON.stringify({
+          success: true,
+          meetingId,
+          transcript: {
+            text: fullTranscript.substring(0, 200) + '...',
+            words_count: words.length,
+            duration: duration,
+            confidence: confidence
+          },
+          ai_summary: null
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validation du format audio
-    const fileExtension = audioFile.name.split('.').pop()?.toLowerCase() || '';
-    if (!OPENAI_CONFIG.supportedFormats.includes(fileExtension)) {
-      return new Response(
-        JSON.stringify({ 
-          error: TRANSCRIPTION_ERRORS['invalid_file_format'],
-          supportedFormats: OPENAI_CONFIG.supportedFormats,
-          receivedFormat: fileExtension,
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const summaryPrompt = `Tu es un assistant qui résume des réunions professionnelles.
 
-    // Préparer le FormData pour OpenAI
-    const openaiFormData = new FormData();
-    openaiFormData.append('file', audioFile);
-    openaiFormData.append('model', OPENAI_CONFIG.model);
-    openaiFormData.append('response_format', 'text'); // Retour simple texte
-    // Ne pas forcer la langue pour permettre la détection automatique multilingue
-    // Whisper détecte automatiquement les langues dans un même flux audio
-    // openaiFormData.append('language', 'fr'); // Optionnel: détection auto si absent
+Voici la transcription complète d'une réunion (durée: ${Math.round(duration / 60)} minutes) :
 
-    // Appeler l'API OpenAI
-    const response = await fetch(OPENAI_CONFIG.endpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        // Pas de Content-Type ici - FormData le gère automatiquement
-      },
-      body: openaiFormData,
-    });
+${fullTranscript}
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: 'Erreur inconnue', code: 'unknown' } }));
-      const errorCode = errorData.error?.code || errorData.error?.type || 'unknown';
-      const errorMessage = TRANSCRIPTION_ERRORS[errorCode] || errorData.error?.message || `Erreur API: ${response.status}`;
-      
-      console.error('❌ Erreur Whisper API:', {
-        status: response.status,
-        code: errorCode,
-        message: errorData.error?.message,
+Génère un résumé structuré avec :
+1. **Sujets principaux** (3-5 points clés)
+2. **Décisions prises**
+3. **Actions à suivre** (qui fait quoi)
+4. **Points à clarifier**
+
+Format JSON :
+{
+  "summary": "résumé en 2-3 phrases",
+  "key_points": ["point 1", "point 2", ...],
+  "decisions": ["décision 1", ...],
+  "action_items": [{"task": "...", "assignee": "..."}],
+  "questions": ["question 1", ...]
+}`;
+
+    try {
+      const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'Tu es un assistant qui résume des réunions. Réponds toujours en JSON valide.' },
+            { role: 'user', content: summaryPrompt }
+          ],
+          temperature: 0.3,
+          response_format: { type: 'json_object' }
+        })
       });
 
+      if (!gptResponse.ok) {
+        throw new Error(`OpenAI API error: ${gptResponse.status}`);
+      }
+
+      const gptData = await gptResponse.json();
+      const aiSummary = JSON.parse(gptData.choices[0].message.content || '{}');
+
+      console.log('✅ [TRANSCRIBE] Résumé IA généré');
+
+      // Sauvegarder le résumé IA
+      const { error: summaryError } = await supabase
+        .from('meetings')
+        .update({ ai_summary: aiSummary })
+        .eq('id', meetingId);
+
+      if (summaryError) {
+        console.error('⚠️ [TRANSCRIBE] Erreur sauvegarde résumé (non bloquant):', summaryError);
+      } else {
+        console.log('✅ [TRANSCRIBE] Résumé IA sauvegardé');
+      }
+
+      // Retourner tout
       return new Response(
-        JSON.stringify({ 
-          error: errorMessage,
-          code: errorCode,
-          details: errorData.error?.message,
+        JSON.stringify({
+          success: true,
+          meetingId,
+          transcript: {
+            text: fullTranscript.substring(0, 200) + '...',
+            words_count: words.length,
+            duration: duration,
+            confidence: confidence
+          },
+          ai_summary: aiSummary
         }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (gptError) {
+      console.error('⚠️ [TRANSCRIBE] Erreur GPT (non bloquant):', gptError);
+
+      // Retour sans résumé IA si erreur
+      return new Response(
+        JSON.stringify({
+          success: true,
+          meetingId,
+          transcript: {
+            text: fullTranscript.substring(0, 200) + '...',
+            words_count: words.length,
+            duration: duration,
+            confidence: confidence
+          },
+          ai_summary: null
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Whisper retourne du texte simple avec response_format: 'text'
-    const transcribedText = await response.text();
-    const trimmedText = transcribedText.trim();
-
-    // Détection multilingue (optionnel, pour métadonnées)
-    let detectedLanguage = 'auto';
-    let isMultilingual = false;
-    
-    if (trimmedText) {
-      // Détecter les changements de langue potentiels (basé sur les caractères)
-      const hasArabic = /[\u0600-\u06FF]/.test(trimmedText);
-      const hasFrench = /[àâäéèêëïîôùûüÿç]/.test(trimmedText) || /[ÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ]/.test(trimmedText);
-      
-      if (hasArabic && hasFrench) {
-        console.log('🌍 Transcription multilingue détectée (arabe + français)');
-        isMultilingual = true;
-        detectedLanguage = 'multilingual';
-      } else if (hasFrench) {
-        detectedLanguage = 'fr';
-      } else if (hasArabic) {
-        detectedLanguage = 'ar';
-      }
-    }
-
-    console.log('✅ Transcription réussie:', {
-      textLength: trimmedText.length,
-      preview: trimmedText.slice(0, 50),
-      language: detectedLanguage,
-      isMultilingual,
-    });
-
-    return new Response(
-      JSON.stringify({ 
-        text: trimmedText,
-        language: detectedLanguage,
-        isMultilingual,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   } catch (error) {
-    console.error('❌ Erreur transcription:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+    console.error('❌ [TRANSCRIBE] Erreur:', error);
+
     return new Response(
-      JSON.stringify({ 
-        error: `Transcription échouée: ${errorMessage}`,
-        details: error instanceof Error ? error.stack : undefined,
+      JSON.stringify({
+        error: 'Transcription failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
-

@@ -52,7 +52,20 @@
       "Bash(npm run lint:*)",
       "WebFetch(domain:centrinote.fr)",
       "WebSearch",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(cp:*)",
+      "Bash(xargs:*)",
+      "Bash(for func in ghost-autocomplete send-email get-meeting share-summary suggest-improvements)",
+      "Bash(do)",
+      "Bash(if [ -f \"netlify/functions/$func.js\" ])",
+      "Bash([ -f \"netlify/functions/$func.ts\" ])",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(else)",
+      "Bash(done)",
+      "Bash(supabase secrets:*)",
+      "Bash(https://wjzlicokhxitmeoxkjzv.supabase.co/functions/v1/transcribe-audio )",
+      "Bash(source .env.local)"
     ],
     "deny": [],
     "ask": []

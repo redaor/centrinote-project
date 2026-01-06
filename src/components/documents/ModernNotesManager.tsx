@@ -61,6 +61,7 @@ import { EmptyNoteAlert } from './EmptyNoteAlert';
 import { useQuotaCheck } from '../../hooks/useQuotaCheck';
 import { useQuotaLimit } from '../../hooks/useQuotaLimit';
 import { GhostTextArea, GhostInput } from '../../features/ghost-text';
+import { supabase } from '../../lib/supabase';
 
 interface FilterChip {
   id: string;
@@ -2071,6 +2072,15 @@ export function ModernNotesManager() {
         <EmptyNoteAlert
           isOpen={showEmptyNoteAlert}
           onClose={() => setShowEmptyNoteAlert(false)}
+          onManualEntry={() => {
+            // Focus le champ de contenu après fermeture de la modale
+            // Utiliser setTimeout pour s'assurer que la modale est fermée avant le focus
+            setTimeout(() => {
+              if (contentTextareaRef.current) {
+                contentTextareaRef.current.focus();
+              }
+            }, 100);
+          }}
           onCreateEmpty={async () => {
             // Créer la note avec un contenu vide
             await createNoteWithContent(true);
@@ -2088,77 +2098,27 @@ export function ModernNotesManager() {
             }
 
             try {
-              // Générer le contenu depuis le titre via l'API
-              // En développement, utiliser l'URL de production si Netlify Dev n'est pas disponible
-              const isDev = import.meta.env.DEV;
-              const netlifyUrl = import.meta.env.VITE_APP_URL || 'https://centrinote.fr';
-              const functionUrl = isDev 
-                ? `${netlifyUrl}/.netlify/functions/improve-content`
-                : '/.netlify/functions/improve-content';
+              // Générer le contenu depuis le titre via Supabase Edge Function
+              console.log('🔗 [improve-content] Appel Supabase Edge Function...');
               
-              console.log('🔗 [improve-content] URL utilisée:', functionUrl);
-              
-              const response = await fetch(functionUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+              const { data, error } = await supabase.functions.invoke('improve-content', {
+                body: {
                   action: 'enrichir',
                   contentType: 'note',
                   content: '', // Contenu vide, on génère à partir du titre
                   title: formData.title.trim(),
                   generateFromTitle: true, // Flag pour indiquer qu'on génère depuis le titre
-                }),
+                },
               });
 
-              if (!response.ok) {
-                // Si la fonction Netlify n'est pas disponible (404), afficher un message explicite
-                if (response.status === 404) {
-                  throw new Error('La fonction de génération de contenu n\'est pas disponible en développement local. Veuillez utiliser "netlify dev" au lieu de "npm run dev" pour activer les fonctions Netlify.');
-                }
-                
-                // Essayer de parser le JSON pour obtenir le message d'erreur détaillé
-                let errorMessage = `Erreur serveur (${response.status})`;
-                let errorDetails = null;
-                
-                try {
-                  // Cloner la réponse pour pouvoir la lire plusieurs fois
-                  const responseClone = response.clone();
-                  const errorText = await responseClone.text();
-                  
-                  console.error('🔴 [improve-content] Erreur réponse:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: Object.fromEntries(response.headers.entries()),
-                    body: errorText.substring(0, 500)
-                  });
-                  
-                  if (errorText) {
-                    try {
-                      const errorData = JSON.parse(errorText);
-                      errorMessage = errorData.error || errorData.message || errorMessage;
-                      errorDetails = errorData;
-                    } catch (parseError) {
-                      // Si ce n'est pas du JSON, utiliser le texte brut
-                      errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
-                      console.warn('⚠️ Réponse d\'erreur n\'est pas du JSON:', errorText.substring(0, 100));
-                    }
-                  }
-                } catch (e) {
-                  // Si la lecture échoue, utiliser le message par défaut
-                  console.error('❌ Erreur lors de la lecture de la réponse:', e);
-                }
-                
-                // Créer un message d'erreur plus informatif
-                const fullErrorMessage = errorDetails 
-                  ? `${errorMessage}${errorDetails.stack ? '\n\n' + errorDetails.stack.substring(0, 200) : ''}`
-                  : errorMessage;
-                
-                throw new Error(fullErrorMessage);
+              if (error) {
+                console.error('🔴 [improve-content] Erreur Supabase:', error);
+                throw new Error(error.message || 'Erreur lors de la génération du contenu');
               }
 
-              const data = await response.json();
+              if (!data) {
+                throw new Error('Aucune donnée retournée par la fonction');
+              }
 
               if (!data.success) {
                 throw new Error(data.error || 'Erreur lors de la génération du contenu');

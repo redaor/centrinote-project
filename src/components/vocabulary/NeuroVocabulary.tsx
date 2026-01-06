@@ -118,6 +118,9 @@ export function NeuroVocabulary() {
   // Refs pour les textareas avec hauteur dynamique
   const definitionTextareaRef = React.useRef<HTMLTextAreaElement>(null);
   const examplesTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const termInputRef = React.useRef<HTMLInputElement>(null);
+  // Ref pour le champ définition dans le formulaire d'ajout
+  const newDefinitionTextareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   // ✅ Mémoïser le vocabulaire pour le mode révision pour éviter les re-renders non désirés
   const [flashcardVocabulary, setFlashcardVocabulary] = useState<VocabularyEntry[]>([]);
@@ -1568,6 +1571,7 @@ export function NeuroVocabulary() {
                     Mot ou expression *
                   </label>
                   <GhostInput
+                    ref={termInputRef}
                     id={`term-${termId}`}
                     value={newWord.term}
                     onChange={handleTermChange}
@@ -2457,32 +2461,23 @@ export function NeuroVocabulary() {
                           onClick={async () => {
                             setIsLoadingContext(true);
                             try {
-                              // En développement, utiliser l'URL de production si Netlify Dev n'est pas disponible
-                              const isDev = import.meta.env.DEV;
-                              const netlifyUrl = import.meta.env.VITE_APP_URL || 'https://centrinote.fr';
-                              const functionUrl = isDev 
-                                ? `${netlifyUrl}/.netlify/functions/improve-content`
-                                : '/.netlify/functions/improve-content';
-                              
-                              const response = await fetch(functionUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
+                              // Appel Supabase Edge Function
+                              const { data, error } = await supabase.functions.invoke('improve-content', {
+                                body: {
                                   action: 'enrichir',
                                   contentType: 'vocabulaire',
                                   content: `Génère une phrase complète utilisant le mot "${editingWord.word}" avec la définition "${editingWord.definition}".`,
                                   title: editingWord.word,
-                                }),
+                                },
                               });
 
-                              if (!response.ok) {
-                                // Fonction Netlify non disponible (404 en dev local)
+                              if (error || !data?.success) {
+                                // En cas d'erreur, utiliser un exemple par défaut
                                 setContextSentence(`Exemple : "${editingWord.word}" est utilisé dans le contexte de ${editingWord.definition}.`);
                                 return;
                               }
 
-                              const data = await response.json();
-                              if (data.success && data.improved) {
+                              if (data.improved) {
                                 setContextSentence(data.improved);
                               } else {
                                 setContextSentence(`Exemple : "${editingWord.word}" est utilisé dans le contexte de ${editingWord.definition}.`);
@@ -2759,6 +2754,22 @@ export function NeuroVocabulary() {
       <EmptyVocabularyAlert
         isOpen={showEmptyVocabAlert}
         onClose={() => setShowEmptyVocabAlert(false)}
+        onManualEntry={() => {
+          // Focus le champ approprié après fermeture de la modale
+          // Utiliser setTimeout pour s'assurer que la modale est fermée avant le focus
+          setTimeout(() => {
+            if (emptyField === 'definition') {
+              // Essayer d'abord le formulaire d'ajout, puis le formulaire d'édition
+              if (newDefinitionTextareaRef.current) {
+                newDefinitionTextareaRef.current.focus();
+              } else if (definitionTextareaRef.current) {
+                definitionTextareaRef.current.focus();
+              }
+            } else if (emptyField === 'term' && termInputRef.current) {
+              termInputRef.current.focus();
+            }
+          }, 100);
+        }}
         onGenerateWithAI={emptyField === 'definition' ? handleGenerateDefinitionWithAI : undefined}
         hasAIAccess={hasAIAccess}
         darkMode={darkMode}

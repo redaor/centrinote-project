@@ -15,8 +15,8 @@ interface UseRecordingPollingOptions {
 }
 
 /**
- * Hook pour poller le serveur toutes les 5s afin de récupérer l'URL
- * de téléchargement de l'enregistrement Daily.co
+ * Hook pour poller le serveur avec backoff exponentiel (2s → 5s → 10s → 15s)
+ * afin de récupérer l'URL de téléchargement de l'enregistrement Daily.co
  */
 export function useRecordingPolling({
   roomName,
@@ -28,9 +28,17 @@ export function useRecordingPolling({
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const maxAttemptsRef = useRef(0);
-  const MAX_POLLING_ATTEMPTS = 60; // 60 * 5s = 5 minutes max
+  const MAX_POLLING_ATTEMPTS = 40; // ~4-5 minutes avec backoff
+
+  // 🚀 OPTIMISATION: Backoff exponentiel pour réduire la charge
+  const getPollingDelay = (attemptNumber: number): number => {
+    if (attemptNumber <= 3) return 2000;   // 0-6s: toutes les 2s (rapide au début)
+    if (attemptNumber <= 10) return 5000;  // 6-50s: toutes les 5s
+    if (attemptNumber <= 20) return 10000; // 50-150s: toutes les 10s
+    return 15000;                          // 150s+: toutes les 15s (lent)
+  };
 
   useEffect(() => {
     // Ne pas démarrer le polling si désactivé ou si on n'a pas les infos nécessaires
@@ -48,142 +56,124 @@ export function useRecordingPolling({
     setError(null);
     maxAttemptsRef.current = 0;
 
-    // Fonction de polling
+    // Fonction de polling avec backoff exponentiel
     const pollRecordingUrl = async () => {
       try {
         maxAttemptsRef.current++;
-        console.log(`[POLLING] Tentative ${maxAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}`);
+        if (import.meta.env.DEV) {
+          console.log(`[POLLING] Tentative ${maxAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}`);
+        }
 
-        // Appeler la serverless function
-        const response = await fetch(
-          `/.netlify/functions/get-recording-url?roomName=${encodeURIComponent(roomName)}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+        // Appeler la Supabase Edge Function
+        const { data, error } = await supabase.functions.invoke('get-recording-url', {
+          body: { roomName }
+        });
 
-        if (response.ok) {
-          const data = await response.json();
-
-          if (data.success && data.downloadUrl) {
+        if (!error && data?.success && data.downloadUrl) {
+          if (import.meta.env.DEV) {
             console.log('[POLLING] ✅ Recording URL récupérée:', data.downloadUrl);
-            console.log('[POLLING] Recording ID:', data.recordingId);
-            console.log('[POLLING] Expires at:', data.expiresAtDate);
+          }
 
-            setDownloadUrl(data.downloadUrl);
-            setIsPolling(false);
+          setDownloadUrl(data.downloadUrl);
+          setIsPolling(false);
 
-            // Mettre à jour Supabase avec l'URL
-            try {
-              const { error: updateError } = await supabase
-                .from('meetings')
-                .update({
-                  recording_url: data.downloadUrl,
-                  recording_id: data.recordingId,
-                  recording_ready_at: new Date().toISOString(),
-                })
-                .eq('id', meetingId);
+          // Mettre à jour Supabase avec l'URL
+          try {
+            const { error: updateError } = await supabase
+              .from('meetings')
+              .update({
+                recording_url: data.downloadUrl,
+                recording_id: data.recordingId,
+                recording_ready_at: new Date().toISOString(),
+              })
+              .eq('id', meetingId);
 
-              if (updateError) {
+            if (updateError) {
+              if (import.meta.env.DEV) {
                 console.error('[POLLING] Erreur mise à jour Supabase:', updateError);
-              } else {
+              }
+            } else {
+              if (import.meta.env.DEV) {
                 console.log('[POLLING] ✅ Supabase mis à jour avec recording_url');
+              }
 
-                // 🎤 Déclencher la transcription automatique
-                console.log('[POLLING] 🎤 Lancement de la transcription automatique...');
-                try {
-                  const transcribeResponse = await fetch('/.netlify/functions/transcribe-audio', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      meetingId: meetingId,
-                      audioUrl: data.downloadUrl,
-                    }),
-                  });
+              // 🎤 Déclencher la transcription automatique via Supabase Edge Function
+              console.log('[POLLING] 🎤 Lancement de la transcription automatique...');
+              try {
+                const { data: transcribeData, error: transcribeError } = await supabase.functions.invoke('transcribe-audio', {
+                  body: {
+                    meetingId: meetingId,
+                    audioUrl: data.downloadUrl,
+                  }
+                });
 
-                  if (transcribeResponse.ok) {
-                    const transcribeData = await transcribeResponse.json();
-                    console.log('[POLLING] ✅ Transcription lancée:', transcribeData);
-                  } else {
-                    const errorData = await transcribeResponse.json();
-                    console.error('[POLLING] ⚠️ Erreur transcription (non bloquant):', errorData);
-                  }
-                } catch (transcribeError) {
-                  // Ignorer les erreurs de navigation (Failed to fetch est normal si la page se démonte)
-                  if (transcribeError instanceof TypeError && transcribeError.message?.includes('Failed to fetch')) {
-                    console.log('[POLLING] ℹ️ Transcription annulée par navigation (normal, webhook Daily.co s\'en chargera)');
-                  } else {
-                    console.error('[POLLING] ⚠️ Erreur appel transcription (non bloquant):', transcribeError);
-                  }
+                if (!transcribeError && transcribeData?.success) {
+                  console.log('[POLLING] ✅ Transcription lancée:', transcribeData);
+                } else {
+                  console.error('[POLLING] ⚠️ Erreur transcription (non bloquant):', transcribeError || transcribeData);
+                }
+              } catch (transcribeError) {
+                // Ignorer les erreurs de navigation (Failed to fetch est normal si la page se démonte)
+                if (transcribeError instanceof TypeError && transcribeError.message?.includes('Failed to fetch')) {
+                  console.log('[POLLING] ℹ️ Transcription annulée par navigation (normal, webhook Daily.co s\'en chargera)');
+                } else {
+                  console.error('[POLLING] ⚠️ Erreur appel transcription (non bloquant):', transcribeError);
                 }
               }
-            } catch (dbError) {
-              console.error('[POLLING] Erreur DB:', dbError);
             }
-
-            // Arrêter le polling
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
+          } catch (dbError) {
+            console.error('[POLLING] Erreur DB:', dbError);
           }
-        } else if (response.status === 404) {
-          // Recording pas encore prêt - continuer à poller
-          const data = await response.json();
-          console.log('[POLLING] Recording pas prêt, retry dans 5s...', data.message);
+
+          // Arrêter le polling
+          return; // Succès, pas de retry
+        } else if (error || (data && !data.success && data.error?.includes('No finished recording found'))) {
+          // Recording pas encore prêt - continuer à poller avec backoff
+          if (import.meta.env.DEV) {
+            console.log('[POLLING] Recording pas prêt, retry...', error?.message || data?.error);
+          }
 
           // Vérifier si on a atteint le max de tentatives
           if (maxAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
-            console.error('[POLLING] ❌ Max tentatives atteint, arrêt du polling');
+            if (import.meta.env.DEV) {
+              console.error('[POLLING] ❌ Max tentatives atteint, arrêt du polling');
+            }
             setError('Le serveur met trop de temps à traiter l\'enregistrement. Réessayez plus tard.');
             setIsPolling(false);
-
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
+            return;
           }
+
+          // 🚀 Schedule prochain poll avec backoff exponentiel
+          const nextDelay = getPollingDelay(maxAttemptsRef.current);
+          pollingTimeoutRef.current = setTimeout(pollRecordingUrl, nextDelay);
         } else {
           // Erreur serveur
-          const errorData = await response.json();
-          console.error('[POLLING] Erreur serveur:', errorData);
-          setError(errorData.error || 'Erreur lors de la récupération de l\'enregistrement');
-          setIsPolling(false);
-
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
+          if (import.meta.env.DEV) {
+            console.error('[POLLING] Erreur serveur:', error || data);
           }
+          setError(error?.message || data?.error || 'Erreur lors de la récupération de l\'enregistrement');
+          setIsPolling(false);
         }
       } catch (fetchError) {
-        console.error('[POLLING] Erreur fetch:', fetchError);
+        if (import.meta.env.DEV) {
+          console.error('[POLLING] Erreur fetch:', fetchError);
+        }
         setError('Erreur réseau lors de la récupération de l\'enregistrement');
         setIsPolling(false);
-
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
       }
     };
 
     // Premier appel immédiat
     pollRecordingUrl();
 
-    // Ensuite toutes les 5 secondes
-    pollingIntervalRef.current = setInterval(pollRecordingUrl, 5000);
-
     // Cleanup
     return () => {
-      if (pollingIntervalRef.current) {
-        console.log('[POLLING] Arrêt du polling (cleanup)');
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
+      if (pollingTimeoutRef.current) {
+        if (import.meta.env.DEV) {
+          console.log('[POLLING] Arrêt du polling (cleanup)');
+        }
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
       }
     };
   }, [roomName, meetingId, isRecordingStopped, enabled, downloadUrl]);

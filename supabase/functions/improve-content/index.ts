@@ -1,10 +1,26 @@
-// netlify/functions/improve-content.ts
-// Fonction pour améliorer/corriger/reformuler/enrichir le contenu des notes et vocabulaire
+/**
+ * Supabase Edge Function pour améliorer/corriger/reformuler/enrichir le contenu des notes et vocabulaire
+ * Utilise Aide_IA_OPENAI_KEY depuis les secrets Supabase
+ */
 
-import type { Handler } from '@netlify/functions';
-import OpenAI from 'openai';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import OpenAI from 'https://deno.land/x/openai@v4.20.0/mod.ts';
 
-// Nettoyer et valider la clé API OpenAI
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+/**
+ * Types d'actions possibles
+ */
+type ActionType = 'corriger' | 'améliorer' | 'reformuler' | 'enrichir';
+type ContentType = 'note' | 'vocabulaire';
+
+/**
+ * Nettoyer et valider la clé API OpenAI
+ */
 function cleanApiKey(key: string | undefined): string {
   if (!key) {
     throw new Error('Aide_IA_OPENAI_KEY environment variable is required');
@@ -18,33 +34,6 @@ function cleanApiKey(key: string | undefined): string {
 
   return cleaned;
 }
-
-// CORS headers
-function corsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = [
-    'https://centrinote.fr',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-  ];
-  const allowedOrigin = origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
-
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Vary': 'Origin',
-    'Cache-Control': 'no-store',
-    'Content-Type': 'application/json; charset=utf-8',
-  };
-}
-
-/**
- * Types d'actions possibles
- */
-type ActionType = 'corriger' | 'améliorer' | 'reformuler' | 'enrichir';
-type ContentType = 'note' | 'vocabulaire';
 
 /**
  * Nettoie le texte généré pour supprimer tous les astérisques utilisés pour le gras
@@ -161,42 +150,60 @@ Règles:
   return prompts[action];
 }
 
-/**
- * Handler principal
- */
-export const handler: Handler = async (event, context) => {
+serve(async (req) => {
   const startTime = Date.now();
-  const origin = event.headers.origin || event.headers.Origin;
 
-  // OPTIONS pour CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: corsHeaders(origin),
-      body: '',
-    };
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   // Vérifier la méthode
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders(origin),
-      body: JSON.stringify({ error: 'Method Not Allowed' }),
-    };
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method Not Allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
-    // Vérifier les variables d'environnement
-    // Utiliser uniquement Aide_IA_OPENAI_KEY (stockée dans Supabase Secrets)
-    const rawOpenAIKey = process.env.Aide_IA_OPENAI_KEY;
+    // Vérifier l'authentification
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Non autorisé' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Créer le client Supabase pour vérifier l'authentification
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    // Vérifier la session utilisateur
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Non autorisé' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Lire la clé API depuis les secrets Supabase
+    const rawOpenAIKey = Deno.env.get('Aide_IA_OPENAI_KEY');
     
     console.log('[improve-content] 🔍 Vérification clé API:', {
       hasOpenAIKey: !!rawOpenAIKey,
       keyLength: rawOpenAIKey?.length || 0,
       keyPrefix: rawOpenAIKey?.substring(0, 7) || 'none',
-      // Ne pas logger les noms de variables d'environnement sensibles
-      envVarName: 'Aide_IA_OPENAI_KEY'
+      userId: user.id,
     });
     
     const OPENAI_API_KEY = cleanApiKey(rawOpenAIKey);
@@ -206,17 +213,16 @@ export const handler: Handler = async (event, context) => {
     // Parser le body
     let body;
     try {
-      body = JSON.parse(event.body || '{}');
+      body = await req.json();
     } catch (parseError) {
       console.error('[improve-content] ❌ Erreur parsing body:', parseError);
-      return {
-        statusCode: 400,
-        headers: corsHeaders(origin),
-        body: JSON.stringify({
+      return new Response(
+        JSON.stringify({
           success: false,
           error: 'Body JSON invalide',
         }),
-      };
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     const { action, contentType, content, title, generateFromTitle } = body;
@@ -227,28 +233,27 @@ export const handler: Handler = async (event, context) => {
       hasContent: !!content,
       contentLength: content?.length || 0,
       hasTitle: !!title,
-      generateFromTitle: !!generateFromTitle
+      generateFromTitle: !!generateFromTitle,
+      userId: user.id,
     });
 
     // Validation
     if (!action || !['corriger', 'améliorer', 'reformuler', 'enrichir'].includes(action)) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders(origin),
-        body: JSON.stringify({
+      return new Response(
+        JSON.stringify({
           error: 'Action invalide. Doit être: corriger, améliorer, reformuler ou enrichir'
         }),
-      };
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     if (!contentType || !['note', 'vocabulaire'].includes(contentType)) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders(origin),
-        body: JSON.stringify({
+      return new Response(
+        JSON.stringify({
           error: 'Type de contenu invalide. Doit être: note ou vocabulaire'
         }),
-      };
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Si generateFromTitle est true, on génère le contenu à partir du titre
@@ -256,20 +261,18 @@ export const handler: Handler = async (event, context) => {
     
     if (shouldGenerateFromTitle) {
       if (!title || typeof title !== 'string' || title.trim().length === 0) {
-        return {
-          statusCode: 400,
-          headers: corsHeaders(origin),
-          body: JSON.stringify({ error: 'Un titre est requis pour générer le contenu' }),
-        };
+        return new Response(
+          JSON.stringify({ error: 'Un titre est requis pour générer le contenu' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     } else {
       // Validation normale : contenu requis si on n'est pas en mode génération
       if (!content || typeof content !== 'string' || content.trim().length === 0) {
-        return {
-          statusCode: 400,
-          headers: corsHeaders(origin),
-          body: JSON.stringify({ error: 'Contenu requis' }),
-        };
+        return new Response(
+          JSON.stringify({ error: 'Contenu requis' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     }
 
@@ -339,21 +342,20 @@ Localhost, également connu sous le nom de boucle locale...
     const duration = Date.now() - startTime;
 
     console.log(`[improve-content] ✅ Contenu amélioré en ${duration}ms`);
-    console.log(`[improve-content] 📊 Longueur: ${content.length} → ${improvedContent.length}`);
+    console.log(`[improve-content] 📊 Longueur: ${content?.length || 0} → ${improvedContent.length}`);
 
-    return {
-      statusCode: 200,
-      headers: corsHeaders(origin),
-      body: JSON.stringify({
+    return new Response(
+      JSON.stringify({
         success: true,
-        original: content,
+        original: content || '',
         improved: improvedContent,
         action,
         contentType,
         duration_ms: duration,
         timestamp: new Date().toISOString(),
       }),
-    };
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -366,16 +368,16 @@ Localhost, également connu sous le nom de boucle locale...
       timestamp: new Date().toISOString()
     });
 
-    return {
-      statusCode: 500,
-      headers: corsHeaders(origin),
-      body: JSON.stringify({
+    return new Response(
+      JSON.stringify({
         success: false,
         error: errorMessage,
         duration_ms: duration,
-        // En développement, inclure plus de détails
-        ...(process.env.NODE_ENV === 'development' && errorStack ? { stack: errorStack } : {}),
       }),
-    };
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
-};
+});
+
+
+

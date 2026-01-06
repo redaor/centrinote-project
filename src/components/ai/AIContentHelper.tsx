@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Sparkles, Check, X, Loader2, RefreshCw, Wand2, BookOpen, Zap } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { supabase } from '../../lib/supabase';
 
 interface AIContentHelperProps {
   content: string;
@@ -83,54 +84,26 @@ export function AIContentHelper({
         throw new Error('EMPTY_CONTENT');
       }
 
-      // En développement, utiliser l'URL de production si Netlify Dev n'est pas disponible
-      const isDev = import.meta.env.DEV;
-      const netlifyUrl = import.meta.env.VITE_APP_URL || 'https://centrinote.fr';
-      const functionUrl = isDev 
-        ? `${netlifyUrl}/.netlify/functions/improve-content`
-        : '/.netlify/functions/improve-content';
-      
-      console.log('🔗 [AIContentHelper] URL utilisée:', functionUrl);
+      // Appel Supabase Edge Function
+      console.log('🔗 [AIContentHelper] Appel Supabase Edge Function...');
 
-      const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('improve-content', {
+        body: {
           action,
           contentType,
           content: trimmedContent,
           title: title || undefined,
-        }),
+        },
       });
 
-      // Vérifier si la réponse est OK avant de parser le JSON
-      if (!response.ok) {
-        let errorMessage = `Erreur serveur (${response.status})`;
-        try {
-          const errorText = await response.text();
-          console.error('🔴 [AIContentHelper] Erreur réponse:', {
-            status: response.status,
-            statusText: response.statusText,
-            body: errorText.substring(0, 500)
-          });
-          
-          if (errorText) {
-            try {
-              const errorData = JSON.parse(errorText);
-              errorMessage = errorData.error || errorData.message || errorMessage;
-            } catch {
-              errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
-            }
-          }
-        } catch (e) {
-          console.error('❌ Erreur lors de la lecture de la réponse:', e);
-        }
-        throw new Error(errorMessage);
+      if (error) {
+        console.error('🔴 [AIContentHelper] Erreur Supabase:', error);
+        throw new Error(error.message || 'Erreur lors de l\'amélioration du contenu');
       }
 
-      const data = await response.json();
+      if (!data) {
+        throw new Error('Aucune donnée retournée par la fonction');
+      }
 
       if (!data.success) {
         // Améliorer le message d'erreur si c'est "Contenu requis"
@@ -174,33 +147,26 @@ export function AIContentHelper({
     try {
       console.log(`[AI-Helper] 🎨 Génération de contenu à partir du titre: ${title}`);
 
-      // En développement, utiliser l'URL de production si Netlify Dev n'est pas disponible
-      const isDev = import.meta.env.DEV;
-      const netlifyUrl = import.meta.env.VITE_APP_URL || 'https://centrinote.fr';
-      const functionUrl = isDev 
-        ? `${netlifyUrl}/.netlify/functions/improve-content`
-        : '/.netlify/functions/improve-content';
-      
-      console.log('🔗 [AIContentHelper] URL utilisée (génération titre):', functionUrl);
+      // Appel Supabase Edge Function
+      console.log('🔗 [AIContentHelper] Appel Supabase Edge Function (génération titre)...');
 
-      const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('improve-content', {
+        body: {
           action: 'enrichir',
           contentType,
           content: '', // Contenu vide, on génère à partir du titre
           title: title.trim(),
           generateFromTitle: true, // Flag pour indiquer qu'on génère depuis le titre
-        }),
+        },
       });
 
-      const data = await response.json();
+      if (error) {
+        console.error('🔴 [AIContentHelper] Erreur Supabase (génération titre):', error);
+        throw new Error(error.message || 'Erreur lors de la génération du contenu');
+      }
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Erreur lors de la génération du contenu');
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erreur lors de la génération du contenu');
       }
 
       console.log(`[AI-Helper] ✅ Contenu généré en ${data.duration_ms}ms`);

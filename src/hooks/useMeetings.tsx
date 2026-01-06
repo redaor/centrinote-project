@@ -73,8 +73,8 @@ async function fetchMeetingsHelper(
       return fetchMeetingsHelper(user, setLoading, setError, setMeetings); // Retry une fois
     }
 
-    // 🚀 PERFORMANCE: Optimiser la requête Supabase
-    const { data, error: fetchError } = await supabase
+    // 🚀 PERFORMANCE: Optimiser la requête Supabase avec timeout réduit
+    const fetchPromise = supabase
       .from('meetings')
       .select(`
         id, room_name, room_url, title, description, scheduled_at,
@@ -86,9 +86,30 @@ async function fetchMeetingsHelper(
       .order('created_at', { ascending: false })
       .limit(50); // Limiter à 50 réunions récentes
 
+    // Timeout réduit à 5 secondes pour réactivité
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout: requête trop longue')), 5000)
+    );
+
+    const { data, error: fetchError } = await Promise.race([
+      fetchPromise,
+      timeoutPromise
+    ]) as any;
+
     if (fetchError) {
+      // Ignorer les erreurs réseau et timeout
+      if (fetchError instanceof TypeError && fetchError.message?.includes('Failed to fetch')) {
+        console.warn('⚠️ [MEETINGS] Erreur réseau (ignorée)');
+        setMeetings([]);
+        return;
+      }
+      if (fetchError instanceof Error && fetchError.message?.includes('Timeout')) {
+        console.warn('⚠️ [MEETINGS] Timeout (ignoré)');
+        setMeetings([]);
+        return;
+      }
       // Si erreur d'auth, attendre et retry
-      if (fetchError.message.includes('401') || fetchError.message.includes('JWT')) {
+      if (fetchError.message?.includes('401') || fetchError.message?.includes('JWT')) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         return fetchMeetingsHelper(user, setLoading, setError, setMeetings);
       }
@@ -98,9 +119,20 @@ async function fetchMeetingsHelper(
 
     setMeetings(data || []);
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : 'Erreur de chargement';
-    setError(errorMsg);
-    console.error('❌ [MEETINGS] Erreur chargement:', err);
+    // Ignorer les erreurs réseau et timeout (normales)
+    if (err instanceof TypeError && err.message?.includes('Failed to fetch')) {
+      console.warn('⚠️ [MEETINGS] Erreur réseau (ignorée):', err.message);
+      setMeetings([]); // Utiliser un tableau vide plutôt que d'afficher une erreur
+      setError(null);
+    } else if (err instanceof Error && err.message?.includes('Timeout')) {
+      console.warn('⚠️ [MEETINGS] Timeout (ignoré)');
+      setMeetings([]);
+      setError(null);
+    } else {
+      const errorMsg = err instanceof Error ? err.message : 'Erreur de chargement';
+      setError(errorMsg);
+      console.error('❌ [MEETINGS] Erreur chargement:', err);
+    }
   } finally {
     setLoading(false);
   }
@@ -170,31 +202,31 @@ async function createMeetingHelper(
       created_by: user.id
     };
     
-    console.log(`📤 [MEETINGS] Payload envoyé à create-meeting-v3:`, {
+    console.log(`📤 [MEETINGS] Payload envoyé à Supabase Edge Function create-meeting:`, {
       title: payload.title,
       participantsCount: payload.participants?.length || 0,
       participants: payload.participants
     });
-    
-    // Appeler la fonction Netlify pour créer la salle Daily.co + entrée Supabase
-    const response = await fetch('/.netlify/functions/create-meeting-v3', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+
+    // Appeler la Edge Function Supabase pour créer la salle Daily.co + entrée Supabase
+    // ✅ Utilise les secrets Supabase (DAILY_API_KEY, SUPABASE_SERVICE_ROLE_KEY)
+    const { data, error } = await supabase.functions.invoke('create-meeting', {
+      body: payload
     });
 
-    const data = await response.json();
-    
-    if (!data.success) {
+    if (error) {
+      console.error('[DAILY] create failed error:', error);
+      throw new Error(`Erreur création réunion: ${error.message}`);
+    }
+
+    if (!data?.success) {
       console.error('[DAILY] create failed detail:', data);
-      throw new Error(`Erreur Daily (${response.status}): ${data.detail || data.reason || 'inconnue'}`);
+      throw new Error(`Erreur Daily: ${data?.error || data?.detail || data?.reason || 'inconnue'}`);
     }
 
     const result = data;
     console.log('✅ [MEETINGS] Réunion créée:', result);
-    
+
     return result;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Erreur création réunion';
@@ -215,49 +247,44 @@ async function updateMeetingHelper(
   }
 
   setError(null);
-  
+
   try {
     // Préparer les données de mise à jour
     const updateData = {
       ...updates,
       updated_at: new Date().toISOString()
     };
-    
-    console.log('📝 [MEETINGS] Mise à jour réunion:', { id, updateData, userId: user.id });
-    
-    // Première requête : UPDATE
-    const { error: updateError } = await supabase
+
+    if (import.meta.env.DEV) {
+      console.log('📝 [MEETINGS] Mise à jour réunion:', { id, updateData, userId: user.id });
+    }
+
+    // 🚀 OPTIMISATION: Une seule requête avec .select() pour retourner les données mises à jour
+    const { data, error: updateError } = await supabase
       .from('meetings')
       .update(updateData)
       .eq('id', id)
-      .eq('created_by', user.id);
-    
+      .eq('created_by', user.id)
+      .select()
+      .single();
+
     if (updateError) {
-      console.error('❌ [MEETINGS] Erreur UPDATE:', updateError);
+      if (import.meta.env.DEV) {
+        console.error('❌ [MEETINGS] Erreur UPDATE:', updateError);
+      }
       throw updateError;
     }
-    
-    // Deuxième requête : SELECT pour récupérer les données mises à jour
-    const { data, error: selectError } = await supabase
-      .from('meetings')
-      .select('*')
-      .eq('id', id)
-      .eq('created_by', user.id)
-      .single();
-    
-    if (selectError) {
-      console.error('❌ [MEETINGS] Erreur SELECT après UPDATE:', selectError);
-      // Ne pas échouer si la sélection échoue, l'update a réussi
-      console.warn('⚠️ [MEETINGS] UPDATE réussi mais SELECT échoué, continuation...');
-      return { data: null, error: null }; // L'update a réussi même si le select échoue
+
+    if (import.meta.env.DEV) {
+      console.log('✅ [MEETINGS] Réunion mise à jour:', data);
     }
-    
-    console.log('✅ [MEETINGS] Réunion mise à jour:', data);
     return { data, error: null };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Erreur mise à jour réunion';
-    const errorDetails = err instanceof Error ? err.toString() : String(err);
-    console.error('❌ [MEETINGS] Erreur mise à jour:', { errorMsg, errorDetails, err });
+    if (import.meta.env.DEV) {
+      const errorDetails = err instanceof Error ? err.toString() : String(err);
+      console.error('❌ [MEETINGS] Erreur mise à jour:', { errorMsg, errorDetails, err });
+    }
     setError(errorMsg);
     return { data: null, error: errorMsg };
   }
@@ -275,18 +302,17 @@ async function deleteMeetingHelper(
   setError(null);
   
   try {
-    // Appeler la fonction Netlify pour supprimer la salle Daily.co + entrée Supabase
-    const response = await fetch('/.netlify/functions/delete-meeting', {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ meetingId: id })
+    // Appeler la fonction Supabase Edge Function pour supprimer la salle Daily.co + entrée Supabase
+    const { data, error } = await supabase.functions.invoke('delete-meeting', {
+      body: { meetingId: id }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Erreur suppression réunion');
+    if (error) {
+      throw new Error(error.message || 'Erreur suppression réunion');
+    }
+
+    if (data && !data.success) {
+      throw new Error(data.error || 'Erreur suppression réunion');
     }
 
     console.log('✅ [MEETINGS] Réunion supprimée:', id);

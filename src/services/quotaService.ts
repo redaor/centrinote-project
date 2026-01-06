@@ -32,18 +32,48 @@ export async function checkQuota(
   feature: string,
   increment: number = 1
 ): Promise<QuotaCheckResult> {
-  const { data, error } = await supabase.rpc('check_quota', {
-    p_user_id: userId,
-    p_feature: feature,
-    p_increment: increment
-  });
+  try {
+    const rpcPromise = supabase.rpc('check_quota', {
+      p_user_id: userId,
+      p_feature: feature,
+      p_increment: increment
+    });
 
-  if (error) {
-    console.error('❌ Erreur check_quota:', error);
+    // Timeout de 8 secondes
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout: requête trop longue')), 8000)
+    );
+
+    const { data, error } = await Promise.race([
+      rpcPromise,
+      timeoutPromise
+    ]) as any;
+
+    if (error) {
+      // Ignorer les erreurs réseau (Failed to fetch est normal si connexion instable)
+      if (error instanceof TypeError && error.message?.includes('Failed to fetch')) {
+        console.warn('⚠️ Erreur réseau check_quota (ignorée):', error.message);
+        // Retourner un résultat par défaut qui permet l'action
+        return { allowed: true, remaining: 999, limit: 1000 };
+      }
+      console.error('❌ Erreur check_quota:', error);
+      throw error;
+    }
+
+    return data as QuotaCheckResult;
+  } catch (error) {
+    // Gérer les timeouts et erreurs réseau
+    if (error instanceof Error && error.message?.includes('Timeout')) {
+      console.warn('⚠️ Timeout check_quota (ignoré)');
+      // Retourner un résultat par défaut qui permet l'action
+      return { allowed: true, remaining: 999, limit: 1000 };
+    }
+    if (error instanceof TypeError && error.message?.includes('Failed to fetch')) {
+      console.warn('⚠️ Erreur réseau check_quota (ignorée)');
+      return { allowed: true, remaining: 999, limit: 1000 };
+    }
     throw error;
   }
-
-  return data as QuotaCheckResult;
 }
 
 /**

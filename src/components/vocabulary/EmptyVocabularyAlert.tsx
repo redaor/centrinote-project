@@ -12,6 +12,7 @@ interface EmptyVocabularyAlertProps {
   isOpen: boolean;
   onClose: () => void;
   onGenerateWithAI?: () => Promise<void>;
+  onManualEntry?: () => void; // Nouvelle prop pour fermer et focus le champ approprié
   hasAIAccess: boolean;
   darkMode?: boolean;
   emptyField: 'term' | 'definition'; // Quel champ est vide
@@ -22,6 +23,7 @@ export function EmptyVocabularyAlert({
   isOpen,
   onClose,
   onGenerateWithAI,
+  onManualEntry,
   hasAIAccess,
   darkMode = false,
   emptyField,
@@ -221,6 +223,21 @@ export function EmptyVocabularyAlert({
                 </p>
               </div>
             </div>
+            
+            {/* Bouton Saisie manuelle */}
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (onManualEntry) {
+                  onManualEntry();
+                }
+                onClose();
+              }}
+              className="w-full gap-2"
+            >
+              <Edit className="w-4 h-4" />
+              Saisie manuelle
+            </Button>
           </div>
 
           {/* Actions */}

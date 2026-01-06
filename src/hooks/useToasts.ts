@@ -20,6 +20,11 @@ export interface ToastState {
 export function useToasts(): ToastState {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+    console.log('🍞 [TOAST] Removed:', id);
+  }, []);
+
   const showToast = useCallback((toastData: Omit<Toast, 'id'>) => {
     const id = crypto.randomUUID();
     const toast: Toast = {
@@ -39,11 +44,6 @@ export function useToasts(): ToastState {
 
     console.log('🍞 [TOAST] Showing:', toast);
   }, [removeToast]);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-    console.log('🍞 [TOAST] Removed:', id);
-  }, []);
 
   const clearAll = useCallback(() => {
     setToasts([]);
