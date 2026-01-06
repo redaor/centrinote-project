@@ -1,13 +1,15 @@
 // 📧 Page de confirmation email robuste avec fallback OTP manuel
 // ================================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import authService from '../../services/authService';
+import * as authService from '../../services/authService';
+
+type Status = 'loading' | 'success' | 'expired' | 'manual' | 'error';
 
 const ConfirmEmailPage = () => {
   // États principaux
-  const [status, setStatus] = useState('loading'); // loading, success, expired, manual, error
+  const [status, setStatus] = useState<Status>('loading');
   const [message, setMessage] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [email, setEmail] = useState('');
@@ -17,23 +19,6 @@ const ConfirmEmailPage = () => {
   // Hooks de navigation
   const navigate = useNavigate();
   const location = useLocation();
-
-  // ==========================================
-  // 1. EFFET INITIAL - TENTATIVE AUTO-CONFIRMATION
-  // ==========================================
-
-  useEffect(() => {
-    handleAutoConfirmation();
-  }, [handleAutoConfirmation]);
-
-  // Timer pour le countdown des renvois d'email
-  useEffect(() => {
-    let timer;
-    if (countdown > 0) {
-      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-    }
-    return () => clearTimeout(timer);
-  }, [countdown, verifyToken]);
 
   // ==========================================
   // 2. CONFIRMATION AUTOMATIQUE (MAGIC LINK)
@@ -67,14 +52,15 @@ const ConfirmEmailPage = () => {
         return;
       }
 
-      // Sinon, essayer avec le token_hash
-      if (tokenHash && type) {
-        const result = await authService.confirmEmailWithToken(tokenHash, type);
+      // Sinon, essayer avec le token (Edge Function custom)
+      if (tokenHash) {
+        console.log('🚀 Utilisation de l\'Edge Function confirm-email');
+        const result = await authService.confirmEmailWithEdgeFunction(tokenHash);
 
         if (result.error) {
-          console.warn('⚠️ Erreur confirmation auto:', result.error);
+          console.warn('⚠️ Erreur confirmation Edge Function:', result.error);
 
-          if (result.error.isExpired) {
+          if ('isExpired' in result.error && result.error.isExpired) {
             setStatus('expired');
             setMessage('Le lien de confirmation a expiré. Utilisez le code reçu par email ou demandez un nouveau lien.');
           } else {
@@ -82,7 +68,7 @@ const ConfirmEmailPage = () => {
             setMessage(`Erreur de confirmation: ${result.error.message}`);
           }
         } else {
-          console.log('✅ Confirmation automatique réussie');
+          console.log('✅ Confirmation Edge Function réussie');
           setStatus('success');
           setMessage('Email confirmé avec succès !');
           setTimeout(() => navigate('/dashboard'), 2000);
@@ -105,9 +91,9 @@ const ConfirmEmailPage = () => {
   // 3. CONFIRMATION MANUELLE AVEC CODE OTP
   // ==========================================
 
-  const verifyToken = useCallback(async (email, otpCode) => {
+  const verifyToken = useCallback(async (email: string, otpCode: string) => {
     if (!email.trim() || !otpCode.trim() || otpCode.length !== 6) {
-      return { error: { message: 'Email et code OTP requis' } };
+      return { error: { message: 'Email et code OTP requis', type: 'ValidationError' } };
     }
 
     try {
@@ -115,11 +101,11 @@ const ConfirmEmailPage = () => {
       return result;
     } catch (err) {
       console.error('❌ Erreur vérification token:', err);
-      return { error: { message: 'Erreur lors de la vérification du code' } };
+      return { error: { message: 'Erreur lors de la vérification du code', type: 'NetworkError' } };
     }
   }, []);
 
-  const handleManualConfirmation = async (e) => {
+  const handleManualConfirmation = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation des champs
@@ -195,14 +181,33 @@ const ConfirmEmailPage = () => {
   // 5. HANDLERS UTILITAIRES
   // ==========================================
 
-  const handleOtpChange = (e) => {
+  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^0-9]/g, '').substring(0, 6);
     setOtpCode(value);
   };
 
-  const handleEmailChange = (e) => {
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value.toLowerCase().trim());
   };
+
+  // ==========================================
+  // 1. EFFET INITIAL - TENTATIVE AUTO-CONFIRMATION
+  // ==========================================
+
+  useEffect(() => {
+    handleAutoConfirmation();
+  }, [handleAutoConfirmation]);
+
+  // Timer pour le countdown des renvois d'email
+  useEffect(() => {
+    let timer: NodeJS.Timeout | undefined;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [countdown]);
 
   // ==========================================
   // 6. RENDU DES COMPOSANTS
@@ -291,7 +296,7 @@ const ConfirmEmailPage = () => {
                   onChange={handleOtpChange}
                   placeholder="123456"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-xl font-mono tracking-widest"
-                  maxLength="6"
+                  maxLength={6}
                   pattern="[0-9]{6}"
                   required
                 />

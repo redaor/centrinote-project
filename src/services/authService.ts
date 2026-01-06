@@ -4,7 +4,19 @@
 import { supabase } from '../lib/supabase';
 import { createAndSendConfirmation } from './customEmailConfirmation';
 
-const resolveVerificationMode = () => {
+interface UserData {
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  [key: string]: any;
+}
+
+interface AuthResult {
+  data: any;
+  error: { message: string; type: string } | null;
+}
+
+const resolveVerificationMode = (): 'n8n' | 'supabase' | 'custom' => {
   const rawValue = (import.meta.env?.VITE_EMAIL_VERIFICATION_MODE || '').toString().toLowerCase();
   if (rawValue === 'n8n' || rawValue === 'webhook') return 'n8n';
   if (rawValue === 'supabase' || rawValue === 'native') return 'supabase';
@@ -15,7 +27,11 @@ const resolveVerificationMode = () => {
 // 1. INSCRIPTION ROBUSTE AVEC PROTECTION ANTI-EXPIRATION
 // ==========================================
 
-export const signUpWithRobustEmail = async (email, password, userData = {}) => {
+export const signUpWithRobustEmail = async (
+  email: string,
+  password: string,
+  userData: UserData = {}
+): Promise<AuthResult> => {
   try {
     // Normaliser l'email (éviter les erreurs de casse)
     const normalizedEmail = email.toLowerCase().trim();
@@ -167,9 +183,104 @@ export const signUpWithRobustEmail = async (email, password, userData = {}) => {
 // 2. CONFIRMATION AUTOMATIQUE (MAGIC LINK)
 // ==========================================
 
-export const confirmEmailWithToken = async (tokenHash, type = 'signup') => {
+// 🆕 Nouvelle méthode : Confirmation via Edge Function custom
+export const confirmEmailWithEdgeFunction = async (
+  token: string
+): Promise<AuthResult> => {
   try {
-    console.log('🔍 Tentative confirmation automatique:', {
+    console.log('🔍 Tentative confirmation via Edge Function:', {
+      token: token?.substring(0, 16) + '...'
+    });
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL non défini');
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/confirm-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'apikey': supabaseAnonKey
+      },
+      body: JSON.stringify({ token })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+      const errorMessage = errorData.error || `HTTP ${response.status}`;
+
+      console.error('❌ Erreur Edge Function:', errorMessage);
+
+      // Détecter si c'est une expiration
+      const isExpired = errorMessage.includes('expired') ||
+                       errorMessage.includes('invalid') ||
+                       errorMessage.includes('already used');
+
+      return {
+        data: null,
+        error: {
+          message: errorMessage,
+          type: 'EdgeFunctionError',
+          isExpired
+        }
+      };
+    }
+
+    const result = await response.json();
+
+    if (!result.success) {
+      return {
+        data: null,
+        error: {
+          message: result.error || 'Confirmation échouée',
+          type: 'EdgeFunctionError',
+          isExpired: false
+        }
+      };
+    }
+
+    console.log('✅ Confirmation Edge Function réussie:', result.email);
+
+    // Rafraîchir la session après confirmation
+    const { data: sessionData, error: sessionError } = await supabase.auth.refreshSession();
+
+    if (sessionError) {
+      console.warn('⚠️ Impossible de rafraîchir la session:', sessionError);
+    }
+
+    return {
+      data: {
+        email: result.email,
+        session: sessionData?.session,
+        user: sessionData?.user
+      },
+      error: null
+    };
+
+  } catch (err) {
+    console.error('❌ Erreur inattendue Edge Function:', err);
+    return {
+      data: null,
+      error: {
+        message: err instanceof Error ? err.message : 'Erreur de confirmation',
+        type: 'NetworkError',
+        isExpired: false
+      }
+    };
+  }
+};
+
+// ⚠️ ANCIENNE MÉTHODE - Garde pour compatibilité avec OTP Supabase standard
+export const confirmEmailWithToken = async (
+  tokenHash: string,
+  type: 'signup' | 'magiclink' | 'recovery' | 'email_change' = 'signup'
+): Promise<AuthResult> => {
+  try {
+    console.log('🔍 Tentative confirmation automatique (Supabase OTP):', {
       token: tokenHash?.substring(0, 16) + '...',
       type
     });
@@ -181,14 +292,14 @@ export const confirmEmailWithToken = async (tokenHash, type = 'signup') => {
 
     if (error) {
       console.error('❌ Erreur confirmation auto:', error);
-      
+
       // Détecter si c'est une expiration
-      const isExpired = error.message.includes('expired') || 
+      const isExpired = error.message.includes('expired') ||
                        error.message.includes('invalid') ||
                        error.message.includes('malformed');
-      
-      return { 
-        data: null, 
+
+      return {
+        data: null,
         error: {
           message: error.message,
           type: error.name || 'AuthError',
@@ -202,8 +313,8 @@ export const confirmEmailWithToken = async (tokenHash, type = 'signup') => {
 
   } catch (err) {
     console.error('❌ Erreur inattendue confirmation:', err);
-    return { 
-      data: null, 
+    return {
+      data: null,
       error: {
         message: 'Erreur de confirmation',
         type: 'NetworkError',
@@ -217,7 +328,7 @@ export const confirmEmailWithToken = async (tokenHash, type = 'signup') => {
 // 3. CONFIRMATION MANUELLE (OTP 6 CHIFFRES)
 // ==========================================
 
-export const confirmEmailWithOTP = async (email, token) => {
+export const confirmEmailWithOTP = async (email: string, token: string): Promise<AuthResult> => {
   try {
     // Valider le format du token
     if (!token || !/^\d{6}$/.test(token)) {
@@ -283,7 +394,7 @@ export const confirmEmailWithOTP = async (email, token) => {
 // 4. RENVOYER EMAIL DE CONFIRMATION
 // ==========================================
 
-export const resendConfirmationEmail = async (email) => {
+export const resendConfirmationEmail = async (email: string): Promise<{ error: { message: string; type: string } | null }> => {
   try {
     const normalizedEmail = email.toLowerCase().trim();
     
@@ -333,7 +444,7 @@ export const resendConfirmationEmail = async (email) => {
 // 5. CONNEXION ROBUSTE
 // ==========================================
 
-export const signInWithEmail = async (email, password) => {
+export const signInWithEmail = async (email: string, password: string): Promise<AuthResult> => {
   try {
     const normalizedEmail = email.toLowerCase().trim();
     
@@ -455,6 +566,7 @@ export const debugAuthState = async () => {
 export default {
   signUpWithRobustEmail,
   confirmEmailWithToken,
+  confirmEmailWithEdgeFunction,
   confirmEmailWithOTP,
   resendConfirmationEmail,
   signInWithEmail,

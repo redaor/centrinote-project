@@ -16,52 +16,87 @@ export default function AuthConfirm() {
         setLoading(true);
         setError(null);
 
-        // Supabase détecte automatiquement les tokens dans l'URL hash
-        // On vérifie d'abord s'il y a une session existante
+        if (import.meta.env.DEV) {
+          console.log('🔍 [AUTH-CONFIRM] Début de la confirmation');
+          console.log('🔍 [AUTH-CONFIRM] Hash:', window.location.hash);
+          console.log('🔍 [AUTH-CONFIRM] Search params:', window.location.search);
+        }
+
+        // Attendre que Supabase traite automatiquement le hash de l'URL
+        // Supabase détecte automatiquement les tokens dans l'URL (#access_token=...)
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Vérifier s'il y a une session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
-          console.error('❌ Erreur session:', sessionError);
+          if (import.meta.env.DEV) {
+            console.error('❌ [AUTH-CONFIRM] Erreur session:', sessionError);
+          }
           throw new Error('Erreur lors de la récupération de la session.');
         }
 
         if (session) {
-          // Session déjà créée par Supabase depuis l'URL
-          console.log('✅ Session créée depuis le lien magique');
+          // Session créée avec succès
+          if (import.meta.env.DEV) {
+            console.log('✅ [AUTH-CONFIRM] Session créée:', {
+              userId: session.user.id,
+              email: session.user.email,
+              emailConfirmed: !!session.user.email_confirmed_at
+            });
+          }
+
           setSuccess(true);
-          
-          // Rediriger vers le dashboard après 1 seconde
+
+          // Rediriger vers le dashboard après 1.5 secondes
           setTimeout(() => {
             navigate('/dashboard', { replace: true });
-          }, 1000);
+          }, 1500);
           return;
         }
 
-        // Si pas de session, vérifier s'il y a des tokens dans l'URL
+        // Si pas de session, vérifier les tokens dans l'URL
         const hash = window.location.hash;
-        if (!hash || !hash.includes('access_token')) {
-          throw new Error('Lien de connexion invalide ou expiré. Aucun token trouvé dans l\'URL.');
+        const searchParamsStr = window.location.search;
+
+        // Vérifier si on a un token dans le hash ou les query params
+        const hasToken = hash.includes('access_token') ||
+                        hash.includes('token_hash') ||
+                        searchParamsStr.includes('token_hash') ||
+                        searchParamsStr.includes('access_token');
+
+        if (!hasToken) {
+          throw new Error('Lien de confirmation invalide ou expiré. Aucun token trouvé dans l\'URL.');
         }
 
-        // Attendre un peu pour que Supabase traite l'URL
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Attendre encore un peu pour que Supabase finalise
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Vérifier à nouveau la session
         const { data: { session: newSession }, error: newSessionError } = await supabase.auth.getSession();
 
         if (newSessionError || !newSession) {
+          if (import.meta.env.DEV) {
+            console.error('❌ [AUTH-CONFIRM] Session non créée après attente:', newSessionError);
+          }
           throw new Error('Impossible de créer la session. Le lien peut être expiré ou invalide.');
         }
 
-        console.log('✅ Session créée depuis le lien magique');
+        if (import.meta.env.DEV) {
+          console.log('✅ [AUTH-CONFIRM] Session créée après retry');
+        }
+
         setSuccess(true);
 
-        // Rediriger vers le dashboard après 1 seconde
+        // Rediriger vers le dashboard
         setTimeout(() => {
           navigate('/dashboard', { replace: true });
-        }, 1000);
+        }, 1500);
+
       } catch (err) {
-        console.error('❌ Erreur confirmation lien magique:', err);
+        if (import.meta.env.DEV) {
+          console.error('❌ [AUTH-CONFIRM] Erreur confirmation:', err);
+        }
         setError(err instanceof Error ? err.message : 'Erreur lors de la confirmation du lien.');
       } finally {
         setLoading(false);

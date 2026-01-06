@@ -17,18 +17,7 @@ export default function ConfirmEmailPage() {
   const [message, setMessage] = useState('Vérification de votre email en cours...');
   const [email, setEmail] = useState('');
 
-  useEffect(() => {
-    const token = searchParams.get('token');
-
-    if (!token) {
-      setStatus('error');
-      setMessage('Lien de confirmation invalide. Aucun token fourni.');
-      return;
-    }
-
-    verifyToken(token);
-  }, [searchParams, verifyToken]);
-
+  // Définir la fonction AVANT le useEffect qui l'utilise
   const verifyToken = useCallback(async (token: string) => {
     try {
       console.log('🔍 Vérification du token de confirmation...');
@@ -69,6 +58,19 @@ export default function ConfirmEmailPage() {
       );
     }
   }, [navigate]);
+
+  // useEffect APRÈS la définition de verifyToken
+  useEffect(() => {
+    const token = searchParams.get('token');
+
+    if (!token) {
+      setStatus('error');
+      setMessage('Lien de confirmation invalide. Aucun token fourni.');
+      return;
+    }
+
+    verifyToken(token);
+  }, [searchParams, verifyToken]);
 
   const getIcon = () => {
     switch (status) {
