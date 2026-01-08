@@ -55,33 +55,8 @@ interface User {
 interface MessageBubbleUserProps {
   /** Message à afficher */
   message: Message;
-  /** Mode sombre activé */
-  darkMode: boolean;
   /** Informations utilisateur */
   user: User | null;
-}
-
-/**
- * Composant Avatar Utilisateur
- * Gère l'affichage de l'avatar avec fallback en cas d'erreur
- */
-function UserAvatar({ user }: { user: User | null }) {
-  const [imgError, setImgError] = useState(false);
-
-  return (
-    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center overflow-hidden">
-      {user?.avatar && !imgError ? (
-        <img
-          src={user.avatar}
-          alt={user.name || 'Utilisateur'}
-          className="w-full h-full object-cover"
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        <span className="text-white text-xs">👤</span>
-      )}
-    </div>
-  );
 }
 
 /**
@@ -89,26 +64,20 @@ function UserAvatar({ user }: { user: User | null }) {
  */
 export function MessageBubbleUser({
   message,
-  darkMode,
   user,
 }: MessageBubbleUserProps) {
   return (
     <motion.div
       key={message.id}
-      className="w-full mb-8"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+      className="w-full mb-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      <div className="flex items-start gap-4">
-        {/* Avatar User - Minimaliste */}
-        <UserAvatar user={user} />
-
-        {/* Contenu du message - Texte fluide type Kimi */}
-        <div className="flex-1 min-w-0">
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <div className="whitespace-pre-wrap leading-relaxed break-words text-gray-800 dark:text-gray-200">
+      <div className="flex justify-end">
+        <div className="max-w-[80%]">
+          <div className="bg-stone-200 dark:bg-stone-700 rounded-lg px-4 py-3">
+            <div className="text-sm leading-relaxed whitespace-pre-wrap break-words text-stone-900 dark:text-stone-100">
               {message.content}
             </div>
           </div>

@@ -12,7 +12,6 @@ import {
   Users,
   Shield,
   Zap,
-  Quote,
   Menu,
   X
 } from 'lucide-react';
@@ -61,27 +60,25 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
     }
   ];
 
-  const testimonials = [
+  // Bénéfices attendus pour les futurs utilisateurs (pas de faux témoignages)
+  const benefits = [
     {
-      name: "Marie Dubois",
-      role: "Étudiante en médecine",
-      content: "Centrinote a révolutionné ma façon d'étudier. Je retiens 3x plus d'informations qu'avant !",
-      avatar: "MD",
-      rating: 5
+      icon: BookOpen,
+      title: "Organisation claire et intuitive",
+      content: "Retenez plus d'informations grâce à une structure de notes pensée pour l'apprentissage efficace.",
+      gradient: "from-blue-500 to-blue-600"
     },
     {
-      name: "Thomas Martin",
-      role: "Développeur",
-      content: "L'organisation des notes et la collaboration en équipe sont exceptionnelles. Un outil indispensable !",
-      avatar: "TM",
-      rating: 5
+      icon: Users,
+      title: "Collaboration simplifiée",
+      content: "Travaillez facilement avec votre équipe, même à distance, grâce aux outils de partage en temps réel.",
+      gradient: "from-teal-500 to-teal-600"
     },
     {
-      name: "Sophie Chen",
-      role: "Professeure",
-      content: "Mes étudiants adorent utiliser Centrinote pour leurs projets collaboratifs. Interface intuitive et puissante.",
-      avatar: "SC",
-      rating: 5
+      icon: Zap,
+      title: "Transcription automatique",
+      content: "Ne perdez plus rien de vos réunions grâce à la transcription et aux résumés générés automatiquement.",
+      gradient: "from-purple-500 to-purple-600"
     }
   ];
 
@@ -277,52 +274,67 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
         </div>
       </section>
 
-      {/* Testimonials Section */}
+      {/* Benefits Section */}
       <section id="testimonials" className="py-20 bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Ce que disent nos utilisateurs
+              Ce que vous allez découvrir avec Centrinote
             </h2>
-            <p className="text-xl text-gray-600">
-              Rejoignez des milliers d'étudiants qui ont transformé leur apprentissage
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Rejoignez les premiers utilisateurs et explorez une nouvelle façon d'apprendre et de collaborer
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="bg-white/80 backdrop-blur-sm p-8 rounded-2xl border border-white/50 hover:shadow-xl transition-all duration-300"
-              >
-                <div className="flex items-center mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
-                  ))}
-                </div>
-                
-                <Quote className="w-8 h-8 text-blue-500 mb-4" />
-                
-                <p className="text-gray-700 mb-6 leading-relaxed">
-                  "{testimonial.content}"
-                </p>
-                
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-teal-500 rounded-full flex items-center justify-center text-white font-semibold">
-                    {testimonial.avatar}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+            {benefits.map((benefit, index) => {
+              const Icon = benefit.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  viewport={{ once: true }}
+                  className="bg-white/80 backdrop-blur-sm p-8 rounded-2xl border border-white/50 hover:shadow-xl transition-all duration-300"
+                >
+                  <div className={`w-14 h-14 bg-gradient-to-r ${benefit.gradient} rounded-xl flex items-center justify-center mb-6`}>
+                    <Icon className="w-7 h-7 text-white" />
                   </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">{testimonial.name}</div>
-                    <div className="text-gray-600 text-sm">{testimonial.role}</div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">
+                    {benefit.title}
+                  </h3>
+
+                  <p className="text-gray-700 leading-relaxed italic">
+                    « {benefit.content} »
+                  </p>
+                </motion.div>
+              );
+            })}
           </div>
+
+          {/* Call to early adopters */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            viewport={{ once: true }}
+            className="bg-gradient-to-r from-blue-500 to-teal-500 rounded-2xl p-8 text-center text-white"
+          >
+            <div className="max-w-2xl mx-auto">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6">
+                <Users className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold mb-4">
+                Aidez-nous à construire la plateforme idéale
+              </h3>
+              <p className="text-blue-50 text-lg leading-relaxed">
+                Vos retours nous aideront à améliorer Centrinote et à construire une plateforme qui vous ressemble.
+                Rejoignez notre communauté de premiers utilisateurs et participez à façonner l'avenir de l'apprentissage collaboratif.
+              </p>
+            </div>
+          </motion.div>
         </div>
       </section>
 

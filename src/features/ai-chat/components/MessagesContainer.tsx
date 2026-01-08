@@ -237,19 +237,17 @@ export function MessagesContainer({
               return (
                 <motion.div
                   key={message.id}
-                  className="w-full mb-8"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="w-full mb-6"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-red-500 flex items-center justify-center">
-                      <AlertCircle className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-red-700 dark:text-red-400 whitespace-pre-wrap leading-relaxed break-words">
-                        {message.content}
-                      </p>
+                  <div className="flex justify-start">
+                    <div className="max-w-[80%]">
+                      <div className="bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-3 border border-red-200 dark:border-red-800">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words text-red-700 dark:text-red-400">
+                          {message.content}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -261,19 +259,17 @@ export function MessagesContainer({
               return (
                 <motion.div
                   key={message.id}
-                  className="w-full mb-8"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="w-full mb-6"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
-                      <span className="text-white text-xs font-mono">{'</>'}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <pre className="text-sm text-slate-800 dark:text-slate-200 font-mono whitespace-pre-wrap leading-relaxed break-all">
-                        <code>{message.content}</code>
-                      </pre>
+                  <div className="flex justify-start">
+                    <div className="max-w-[80%]">
+                      <div className="bg-stone-100 dark:bg-stone-800 rounded-lg px-4 py-3">
+                        <pre className="text-sm leading-relaxed font-mono whitespace-pre-wrap break-all text-stone-800 dark:text-stone-200">
+                          <code>{message.content}</code>
+                        </pre>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -284,24 +280,18 @@ export function MessagesContainer({
           })}
         </AnimatePresence>
 
-        {/* Indicateur de chargement - Style épuré */}
+        {/* Indicateur de chargement - Minimaliste */}
         {isLoading && (
           <motion.div
-            className="w-full mb-8"
+            className="w-full mb-6"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
           >
-            <div className="flex items-start gap-4">
-              {/* Avatar Brain */}
-              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-                <Brain className="w-4 h-4 text-white" />
-              </div>
-              {/* Texte de chargement */}
-              <div className="flex-1 min-w-0">
+            <div className="flex justify-start">
+              <div className="max-w-[80%]">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                  <Loader2 className="w-4 h-4 animate-spin text-stone-500 dark:text-stone-400" />
+                  <span className="text-sm leading-relaxed text-stone-600 dark:text-stone-400">
                     L'IA réfléchit...
                   </span>
                 </div>

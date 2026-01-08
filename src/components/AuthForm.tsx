@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
-import { signUpWithRobustEmail } from '../services/authService';
 import { AlertCircle, Mail, Lock, Eye, EyeOff, Loader, ArrowRight, User } from 'lucide-react';
 import { ForgotPasswordModal } from './auth/ForgotPasswordModal';
 
@@ -115,52 +114,71 @@ export default function AuthForm() {
         logger.info('Connexion réussie');
         navigate('/dashboard');
       } else {
-        logger.debug('Tentative d\'inscription avec flux personnalisé');
+        logger.debug('🚀 Tentative d\'inscription via Edge Function create-user');
 
         // Construire le nom complet à partir du prénom et nom
         const fullName = `${firstName.trim()} ${lastName.trim()}`.trim() || email.split('@')[0];
 
-        const { data, error } = await signUpWithRobustEmail(email, password, {
-          name: fullName,
-          firstName: firstName.trim(),
-          lastName: lastName.trim()
+        // 🔴 Appeler l'Edge Function au lieu de signUpWithRobustEmail()
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'apikey': supabaseAnonKey,
+          },
+          body: JSON.stringify({
+            email: email.toLowerCase().trim(),
+            password,
+            name: fullName,
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+          }),
         });
 
-        if (error) {
-          throw new Error(error.message || 'Erreur lors de la création du compte');
+        const result = await response.json();
+
+        if (result.error || !response.ok) {
+          logger.error('❌ Erreur Edge Function create-user:', result.error);
+          throw new Error(result.error?.message || 'Erreur lors de la création du compte');
         }
 
-        const createdUserId = data?.user?.id;
-
-        logger.info('Inscription (mode confirmation manuelle) réalisée', {
-          userId: createdUserId,
-          email,
-          sessionReturned: !!data?.session,
-          requiresEmailVerification: data?.requiresEmailVerification
-        });
-
-        if (data?.session) {
-          logger.warn('Une session Supabase a été renvoyée — fermeture pour imposer la vérification email');
-          try {
-            await supabase.auth.signOut();
-          } catch (signOutError) {
-            logger.warn('Échec signOut post-signup (non bloquant)', {
-              error: signOutError?.message,
-            });
-          }
-        }
+        const createdUserId = result.user?.id;
 
         if (!createdUserId) {
           throw new Error('Erreur lors de la création du compte');
         }
 
-        setSuccess('Inscription réussie ! Un email de confirmation vous a été envoyé.');
+        logger.info('✅ Inscription réussie via Edge Function', {
+          userId: createdUserId,
+          email: result.user.email,
+          hasSession: result.hasSession, // Devrait être false
+          emailSent: result.emailSent,
+          emailConfirmedAt: result.user.email_confirmed_at // Devrait être null
+        });
 
+        // 📩 Log explicite pour vérifier le comportement
+        if (result.hasSession) {
+          logger.warn('⚠️ ATTENTION : Une session a été créée alors qu\'elle ne devrait pas !');
+        } else {
+          logger.info('✅ Aucune session créée - comportement attendu');
+        }
+
+        logger.info('📧 Email de confirmation envoyé:', result.emailSent ? 'OUI' : 'NON');
+        logger.info('🚫 Accès dashboard bloqué sans validation');
+
+        // 💾 Stocker l'email pour la page de vérification
+        localStorage.setItem('pendingVerificationEmail', email);
+        localStorage.setItem('pendingVerificationUserId', createdUserId);
+
+        logger.info('🔄 Redirection vers /email-sent');
+
+        // Navigation directe (pas de hard reload nécessaire car aucune session)
         navigate('/email-sent', {
-          state: {
-            email,
-            userId: createdUserId
-          },
+          state: { email, userId: createdUserId },
           replace: true
         });
       }

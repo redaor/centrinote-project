@@ -457,58 +457,109 @@ export default function AIChatContainer() {
           return;
         }
 
-        // Mode normal sans fichier - Utiliser l'orchestrateur Noteo
+        // Mode normal sans fichier - Utiliser ai-chat avec Brave Search
         const problemType = chatSegmentationService.analyzeProblem(message);
 
-        console.log('🔄 [AIChatContainer] Appel orchestrateur Noteo...');
+        console.log('🔄 [AIChatContainer] Appel ai-chat avec Brave Search...');
 
         let memoryResponse;
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) {
-            throw new Error('Non authentifié');
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+          console.log('🔐 [AIChatContainer] Session check:', {
+            hasSession: !!session,
+            hasAccessToken: !!session?.access_token,
+            tokenPreview: session?.access_token?.substring(0, 20) + '...',
+            sessionError: sessionError?.message,
+          });
+
+          if (sessionError) {
+            throw new Error(`Session error: ${sessionError.message}`);
           }
 
-          const { data: orchestratorData, error: orchestratorError } = await supabase.functions.invoke('noteo-orchestrator', {
+          if (!session?.access_token) {
+            throw new Error('Non authentifié - pas de token');
+          }
+
+          // Construire l'historique de conversation pour ai-chat
+          const conversationHistory = [...messages, userMessage]
+            .filter((msg) => msg.content && msg.content.trim().length > 0)
+            .map((msg) => ({
+              role: msg.type === 'user' ? 'user' : 'assistant',
+              content: msg.content,
+            }));
+
+          console.log('📤 [AIChatContainer] Appel ai-chat avec:', {
+            question: message.substring(0, 50),
+            hasToken: !!session.access_token,
+            historyLength: conversationHistory.length,
+            sessionId: sessionIdRef.current,
+          });
+
+          // Créer un timeout de 20 secondes pour l'appel (ai-chat peut être plus long avec recherche web)
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout de 20s dépassé pour l\'appel à ai-chat')), 20000)
+          );
+
+          const aiChatPromise = supabase.functions.invoke('ai-chat', {
             body: {
-              message,
-              service: 'chat',
+              question: message,
+              messages: conversationHistory,
+              session_id: sessionIdRef.current,
             },
           });
 
-          console.log('🔍 [AIChatContainer] Debug orchestrateur:', {
-            hasData: !!orchestratorData,
-            hasError: !!orchestratorError,
-            errorMessage: orchestratorError?.message,
-            dataType: typeof orchestratorData,
-            dataKeys: orchestratorData ? Object.keys(orchestratorData) : [],
-            reply: orchestratorData?.reply,
-            error: orchestratorData?.error,
+          const { data: aiChatData, error: aiChatError } = await Promise.race([
+            aiChatPromise,
+            timeoutPromise
+          ]) as { data: any; error: any };
+
+          console.log('🔍 [AIChatContainer] Debug ai-chat:', {
+            hasData: !!aiChatData,
+            hasError: !!aiChatError,
+            errorMessage: aiChatError?.message,
+            errorDetails: aiChatError,
+            dataType: typeof aiChatData,
+            dataKeys: aiChatData ? Object.keys(aiChatData) : [],
+            reply: aiChatData?.reply,
+            replyLength: aiChatData?.reply?.length,
+            searched: aiChatData?.searched,
+            enrichmentUsed: aiChatData?.enrichment_used,
+            error: aiChatData?.error,
           });
 
-          if (orchestratorError) {
-            throw new Error(`Orchestrateur error: ${orchestratorError.message}`);
+          if (aiChatError) {
+            throw new Error(`AI Chat error: ${aiChatError.message}`);
           }
 
-          // Vérifier si l'orchestrateur a retourné une erreur dans le body
-          if (orchestratorData?.error) {
-            throw new Error(`Orchestrateur error: ${orchestratorData.error}`);
+          // Vérifier si ai-chat a retourné une erreur dans le body
+          if (aiChatData?.error) {
+            throw new Error(`AI Chat error: ${aiChatData.error}`);
+          }
+
+          // Mettre à jour le sessionId si retourné par ai-chat
+          if (aiChatData?.session_id) {
+            sessionIdRef.current = aiChatData.session_id;
           }
 
           memoryResponse = {
             success: true,
-            response: orchestratorData?.reply || '',
-            error: orchestratorData?.error,
+            response: aiChatData?.reply || '',
+            error: aiChatData?.error,
+            searched: aiChatData?.searched || false,
+            enrichmentUsed: aiChatData?.enrichment_used || false,
           };
 
-          console.log('📥 [AIChatContainer] Réponse orchestrateur:', {
+          console.log('📥 [AIChatContainer] Réponse ai-chat:', {
             success: memoryResponse.success,
             hasResponse: !!memoryResponse.response,
             responseLength: memoryResponse.response?.length || 0,
             responsePreview: memoryResponse.response?.substring(0, 100),
+            searched: memoryResponse.searched,
+            enrichmentUsed: memoryResponse.enrichmentUsed,
           });
         } catch (error) {
-          console.error('❌ [AIChatContainer] Erreur lors de l\'appel orchestrateur:', error);
+          console.error('❌ [AIChatContainer] Erreur lors de l\'appel ai-chat:', error);
 
           // Fallback vers l'Edge Function directement
           const conversationMessages = [...messages, userMessage]
@@ -576,77 +627,41 @@ export default function AIChatContainer() {
           return;
         }
 
-        // Traiter la réponse avec useMessageProcessor
-        setLastMessageSegmented(true);
+        // Créer le message IA immédiatement pour affichage rapide
+        const newMessage: Message = {
+          id: `ai-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          type: 'ai',
+          content: memoryResponse.response,
+          timestamp: new Date(),
+          metadata: {
+            securityScore: 1,
+            isValid: true,
+            isSegmented: false,
+          },
+        };
 
-        const processed = await processMessage({
+        // Afficher immédiatement le message
+        setMessages(prev => [...prev, newMessage]);
+
+        // Sauvegarder en arrière-plan (non-bloquant)
+        if (userIdRef.current && sessionIdRef.current) {
+          aiConversationService.saveMessage(
+            userIdRef.current,
+            sessionIdRef.current,
+            newMessage
+          ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
+        }
+
+        // Traiter le message en arrière-plan pour détecter les actions (non-bloquant)
+        processMessage({
           rawContent: memoryResponse.response,
           mode: 'chat',
           problemType,
-        });
-
-        console.log('✅ [AIChatContainer] Contenu traité:', processed.processedContent.substring(0, 50));
-
-        // Segmentation si message long
-        if (processed.shouldSegment && processed.segments) {
-          console.log('📦 [AIChatContainer] Message long détecté, segmentation en cours...');
-
-          clearSegments();
-          await addSegments(processed.segments, 1500);
-
-          const newMessage: Message = {
-            id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: processed.messageType,
-            content: processed.processedContent,
-            timestamp: new Date(),
-            metadata: {
-              securityScore: 1,
-              isValid: true,
-              isSegmented: true,
-            },
-          };
-
-          setMessages(prev => [...prev, newMessage]);
-
-          if (userIdRef.current && sessionIdRef.current) {
-            aiConversationService.saveMessage(
-              userIdRef.current,
-              sessionIdRef.current,
-              newMessage
-            ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
+        }).then(processed => {
+          if (mode === 'chat' && processed.processedContent) {
+            detectAIActions(processed.processedContent);
           }
-
-          setLastMessageSegmented(false);
-        } else {
-          // Message court
-          const newMessage: Message = {
-            id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: processed.messageType,
-            content: processed.processedContent,
-            timestamp: new Date(),
-            metadata: {
-              securityScore: 1,
-              isValid: true,
-            },
-          };
-
-          setMessages(prev => [...prev, newMessage]);
-
-          if (userIdRef.current && sessionIdRef.current) {
-            aiConversationService.saveMessage(
-              userIdRef.current,
-              sessionIdRef.current,
-              newMessage
-            ).catch(err => console.warn('⚠️ Erreur sauvegarde message IA:', err));
-          }
-
-          setLastMessageSegmented(false);
-        }
-
-        // Détecter les actions proposées par l'IA
-        if (mode === 'chat' && processed.processedContent) {
-          detectAIActions(processed.processedContent);
-        }
+        }).catch(err => console.warn('⚠️ Erreur traitement message:', err));
       }
     } catch (err) {
       console.error('❌ [AIChatContainer] Erreur lors de l\'envoi:', err);

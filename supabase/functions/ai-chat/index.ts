@@ -376,52 +376,20 @@ serve(async (req) => {
       }
     }
 
-    // 1️⃣ Vérifier si la question nécessite une recherche web (sauf si fichier fourni)
+    // 1️⃣ OPTIMISATION : Détection locale de besoin de recherche web (évite un appel OpenAI inutile)
     let finalReply = "";
     let searched = false;
 
     if (!fileProcessed) {
-      // Pas de fichier → comportement normal avec recherche web possible
-      const toolQuery = {
-        model: "gpt-4o-mini", // Plus rapide et moins cher que gpt-4
-        messages: [
-          {
-            role: "system",
-            content: `Il est ${now}. Analyse si la question nécessite des informations actualisées ou en temps réel (météo, prix, actualités, résultats sportifs, événements récents, etc.). Si OUI, réponds uniquement : <<SEARCH>>[question reformulée pour recherche]<<SEARCH>>. Si NON, réponds normalement à la question.`
-          },
-          { role: "user", content: effectiveQuestion }
-        ],
-        temperature: 0,
-        max_tokens: 150 // Réduit de 200 à 150
-      };
-
-      console.log("🔍 Vérification besoin de recherche...");
-      const checkRes = await fetch(OPENAI_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(toolQuery)
-      });
-
-      if (!checkRes.ok) {
-        const txt = await checkRes.text();
-        console.error(`❌ OpenAI check error ${checkRes.status}:`, txt);
-        throw new Error(`OpenAI ${checkRes.status}: ${txt}`);
-      }
-
-      const checkJson = await checkRes.json();
-      const checkReply = checkJson.choices?.[0]?.message?.content?.trim() ?? "";
-
-      finalReply = checkReply;
-      const needSearch = checkReply.includes("<<SEARCH>>") && checkReply.split("<<SEARCH>>").length >= 3;
+      // Détection rapide via mots-clés si recherche web nécessaire
+      const searchKeywords = /\b(météo|meteo|temps\s+qu'il\s+fait|température|temperature|climat|prix|combien\s+coûte|combien\s+coute|valeur|cours|actualité|actualite|news|nouvelles|dernières?\s+info|dernieres?\s+info|aujourd'?hui|ce\s+matin|ce\s+soir|hier|demain|cette\s+semaine|résultat|resultat|match|score|horaire|heure|ouvert|fermé|ferme)\b/i;
+      const needSearch = BRAVE_KEY && searchKeywords.test(effectiveQuestion);
 
       // 2️⃣ Si besoin de recherche ET clé Brave disponible
-      if (needSearch && BRAVE_KEY) {
-        console.log("🌐 Recherche web détectée !");
+      if (needSearch) {
+        console.log("🌐 Recherche web détectée via mots-clés !");
 
-        const searchQuery = checkReply.split("<<SEARCH>>")[1]?.trim() || effectiveQuestion;
+        const searchQuery = effectiveQuestion;
         console.log("🔎 Requête Brave:", searchQuery.slice(0, 80));
 
         try {
@@ -564,8 +532,8 @@ Voici les résultats de recherche web actualisés :\n\n${snippets}\n\nUtilise ce
         console.log("💬 Réponse directe (sans recherche web)");
       }
 
-      // Si pas de recherche web ET pas de réponse générée, générer une réponse avec notes/vocabulaire si disponibles
-      if (!searched && !finalReply && (userNotes || userVocabulary)) {
+      // Si pas de recherche web, générer une réponse avec notes/vocabulaire si disponibles ou réponse standard
+      if (!searched) {
         const memoryContext = chatMemory?.summary 
           ? `\n\nMémoire utilisateur :\n{memory}\n${chatMemory.summary}${chatMemory.key_topics && chatMemory.key_topics.length > 0 ? `\nConcepts clés : ${chatMemory.key_topics.join(', ')}` : ''}`
           : '\n\nMémoire utilisateur :\n{memory}\n';
@@ -644,35 +612,27 @@ Il est ${now} (heure française).${memoryContext}${languageInstruction}${memoryO
           max_tokens: 500
         };
 
-        try {
-          const directRes = await fetch(OPENAI_URL, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${OPENAI_KEY}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(directPayload)
-          });
+        const directRes = await fetch(OPENAI_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OPENAI_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(directPayload)
+        });
 
-          if (directRes.ok) {
-            const directJson = await directRes.json();
-            let rawReply = directJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
-            
-            // Nettoyer les astérisques utilisés pour le gras
-            finalReply = rawReply.replace(/\*\*([^*]+?)\*\*/g, '$1');
-            console.log("✅ Réponse avec notes/vocabulaire générée:", finalReply.slice(0, 100));
-          } else {
-            // Si erreur, utiliser la réponse du check initial
-            finalReply = checkReply;
-          }
-        } catch (directError: any) {
-          console.error("❌ Erreur génération réponse directe:", directError.message);
-          // Si erreur, utiliser la réponse du check initial
-          finalReply = checkReply;
+        if (!directRes.ok) {
+          const txt = await directRes.text();
+          console.error(`❌ OpenAI direct error ${directRes.status}:`, txt);
+          throw new Error(`OpenAI ${directRes.status}: ${txt}`);
         }
-      } else if (!searched && !finalReply) {
-        // Si pas de notes/vocabulaire et pas de recherche, utiliser la réponse du check
-        finalReply = checkReply;
+
+        const directJson = await directRes.json();
+        let rawReply = directJson.choices?.[0]?.message?.content?.trim() ?? "Pas de réponse";
+
+        // Nettoyer les astérisques utilisés pour le gras
+        finalReply = rawReply.replace(/\*\*([^*]+?)\*\*/g, '$1');
+        console.log("✅ Réponse générée:", finalReply.slice(0, 100));
       }
     } else {
       // 3️⃣ Fichier fourni → réponse basée sur le document
@@ -788,47 +748,29 @@ L'utilisateur t'a fourni un document à analyser. Réponds de manière concise, 
       console.log("✅ Réponse basée sur document générée:", finalReply.slice(0, 100));
     }
 
-    // MEM-FIX: Sauvegarder l'historique dans la BDD (user + assistant)
+    // OPTIMISATION: Sauvegarde BDD en batch (non-bloquant) - Plus rapide avec insert multiple
     if (userId && sessionId) {
-      try {
-        console.log(`🔍 [DEBUG] Tentative sauvegarde historique pour session_id: ${sessionId.substring(0, 8)}...`);
-
-        // Insérer le message user d'abord
-        const { error: userSaveError } = await supabase.from('chat_history').insert({
+      // Sauvegarder en batch (2 messages d'un coup) au lieu de 2 appels séquentiels
+      supabase.from('chat_history').insert([
+        {
           session_id: sessionId,
           user_id: userId,
           role: 'user',
           content: effectiveQuestion
-        });
-
-        if (userSaveError) {
-          console.error("❌ [DEBUG] Erreur sauvegarde user:", userSaveError.message);
-        }
-
-        // Micro-délai pour garantir created_at différent
-        await new Promise(resolve => setTimeout(resolve, 10));
-
-        // Insérer le message assistant ensuite
-        const { error: assistantSaveError } = await supabase.from('chat_history').insert({
+        },
+        {
           session_id: sessionId,
           user_id: userId,
           role: 'assistant',
           content: finalReply
-        });
-
-        if (assistantSaveError) {
-          console.error("❌ [DEBUG] Erreur sauvegarde assistant:", assistantSaveError.message);
         }
-
-        if (!userSaveError && !assistantSaveError) {
-          console.log("💾 Historique sauvegardé dans la BDD (user + assistant)");
+      ]).then(({ error }) => {
+        if (error) {
+          console.error("❌ Erreur sauvegarde batch:", error.message);
+        } else {
+          console.log("💾 Historique sauvegardé (batch)");
         }
-      } catch (saveError: any) {
-        console.error("⚠️ [DEBUG] Exception sauvegarde historique:", saveError.message, saveError.stack);
-        // Ne pas bloquer la réponse si la sauvegarde échoue
-      }
-    } else {
-      console.warn(`⚠️ [DEBUG] Sauvegarde ignorée - userId: ${userId ? 'OK' : 'NULL'}, sessionId: ${sessionId ? 'OK' : 'NULL'}`);
+      }).catch(err => console.warn("⚠️ Exception sauvegarde:", err.message));
     }
 
     return new Response(

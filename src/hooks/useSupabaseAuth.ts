@@ -30,8 +30,19 @@ export function useSupabaseAuth() {
           // Vérifier si l'email est confirmé (colonne native Supabase)
           const emailConfirmed = !!session.user.email_confirmed_at;
 
+          logger.debug('🔍 Vérification confirmation email', {
+            userId: session.user.id,
+            email: session.user.email,
+            emailConfirmed,
+            email_confirmed_at: session.user.email_confirmed_at
+          });
+
           if (!emailConfirmed) {
             // Email non confirmé - redirection nécessaire
+            logger.warn('❌ Email non confirmé - accès refusé', {
+              userId: session.user.id,
+              email: session.user.email
+            });
             setNeedsEmailVerification(true);
             setUser(null);
             dispatch({ type: 'SET_USER', payload: null });
@@ -106,14 +117,29 @@ export function useSupabaseAuth() {
       logger.debug("Changement d'état d'authentification", { event });
       
       if (event === 'SIGNED_IN' && session?.user) {
-        // 🔒 Vérifier la confirmation email (colonne native Supabase)
+        // 🔒 GARDE CRITIQUE : Vérifier la confirmation email (colonne native Supabase)
         const emailConfirmed = !!session.user.email_confirmed_at;
 
+        logger.debug('🔍 SIGNED_IN event - Vérification email', {
+          userId: session.user.id,
+          email: session.user.email,
+          emailConfirmed,
+          email_confirmed_at: session.user.email_confirmed_at
+        });
+
         if (!emailConfirmed) {
-          logger.warn("Utilisateur connecté mais email non confirmé");
+          logger.warn("❌ SIGNED_IN event - Email non confirmé - DÉCONNEXION FORCÉE", {
+            userId: session.user.id,
+            email: session.user.email
+          });
+
+          // ⚠️ DÉCONNECTER IMMÉDIATEMENT l'utilisateur
+          await supabase.auth.signOut();
+
           setNeedsEmailVerification(true);
           setUser(null);
           dispatch({ type: 'SET_USER', payload: null });
+          logger.info('🚫 Accès dashboard bloqué sans validation');
           return;
         }
 

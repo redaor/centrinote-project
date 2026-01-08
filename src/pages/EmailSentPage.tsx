@@ -17,8 +17,18 @@ export default function EmailSentPage() {
   const [resendMessage, setResendMessage] = useState('');
   const [countdown, setCountdown] = useState(0);
 
-  const email = state?.email || '';
-  const userId = state?.userId || '';
+  // ⚡ Récupérer email/userId depuis location.state OU localStorage (fallback après hard reload)
+  const email = state?.email || localStorage.getItem('pendingVerificationEmail') || '';
+  const userId = state?.userId || localStorage.getItem('pendingVerificationUserId') || '';
+
+  // 🧹 Nettoyer localStorage après lecture (usage unique)
+  useEffect(() => {
+    if (!state?.email && email) {
+      console.log('🧹 Nettoyage localStorage après récupération des données');
+      localStorage.removeItem('pendingVerificationEmail');
+      localStorage.removeItem('pendingVerificationUserId');
+    }
+  }, [state?.email, email]);
 
   // Countdown timer for resend button (60 seconds)
   useEffect(() => {

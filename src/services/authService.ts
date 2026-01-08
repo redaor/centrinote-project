@@ -43,17 +43,17 @@ export const signUpWithRobustEmail = async (
           ? 'supabase_email'
           : 'custom_email';
 
-    // ⚡ NOUVEAU : Configuration flexible - Supabase Auth + provider externe
+    // ⚡ CRITIQUE : Configuration pour EMPÊCHER la création de session automatique
+    // On utilise emailRedirectTo avec une valeur pour forcer Supabase à NE PAS créer de session
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
-        // Par défaut, laisser Supabase gérer le redirect si nécessaire
-        emailRedirectTo: verificationMode === 'supabase'
-          ? `${window.location.origin}/verify-email`
-          : undefined,
+        // 🔒 CLEF : emailRedirectTo force Supabase à NE PAS créer de session automatique
+        // L'utilisateur doit obligatoirement cliquer sur le lien d'email pour se connecter
+        emailRedirectTo: `${window.location.origin}/auth/confirm-email`,
         captchaToken: undefined,
-        
+
         // 📊 Métadonnées enrichies pour système hybride
         data: {
           signup_time: new Date().toISOString(),
@@ -69,8 +69,8 @@ export const signUpWithRobustEmail = async (
 
     if (error) {
       console.error('❌ Erreur signup Supabase:', error);
-      return { 
-        data: null, 
+      return {
+        data: null,
         error: {
           message: error.message,
           type: error.name || 'AuthError'
@@ -78,10 +78,12 @@ export const signUpWithRobustEmail = async (
       };
     }
 
-    console.log('✅ Inscription Supabase réussie:', {
+    console.log('📩 Inscription réussie, en attente de validation email', {
       user: data.user?.id,
       email: normalizedEmail,
-      verificationMode
+      verificationMode,
+      hasSession: !!data.session,
+      emailConfirmedAt: data.user?.email_confirmed_at
     });
 
     if (!data.user?.id) {
@@ -93,6 +95,15 @@ export const signUpWithRobustEmail = async (
           type: 'AuthError'
         }
       };
+    }
+
+    // ⚠️ VÉRIFICATION CRITIQUE : Une session NE DOIT PAS être créée
+    if (data.session) {
+      console.warn('⚠️ ATTENTION : Une session a été créée malgré emailRedirectTo - cela ne devrait pas arriver !');
+      console.warn('🚫 Accès dashboard bloqué sans validation');
+    } else {
+      console.log('✅ Aucune session créée - comportement attendu');
+      console.log('🚫 Accès dashboard bloqué sans validation');
     }
 
     // 🚀 Déclencher l'envoi du lien de vérification selon le mode choisi
@@ -127,7 +138,7 @@ export const signUpWithRobustEmail = async (
           console.warn('⚠️ Erreur n8n (non bloquante):', errorDetail);
         } else {
           const n8nData = await n8nResponse.json();
-          console.log('✅ Lien de vérification envoyé via n8n:', n8nData);
+          console.log('✅ Email de confirmation envoyé via n8n');
         }
       } else if (verificationMode === 'supabase') {
         console.log('📧 Demande d\'email de vérification via Supabase:', normalizedEmail);
@@ -142,15 +153,15 @@ export const signUpWithRobustEmail = async (
         if (resendError) {
           console.warn('⚠️ Erreur renvoi email Supabase (non bloquante):', resendError.message);
         } else {
-          console.log('✅ Supabase a renvoyé un email de confirmation');
+          console.log('✅ Email de confirmation envoyé via Supabase');
         }
       } else {
-        console.log('📧 Envoi de confirmation via flux interne (Netlify functions) pour:', normalizedEmail);
+        console.log('📧 Envoi de confirmation via flux interne (Edge Functions) pour:', normalizedEmail);
         const result = await createAndSendConfirmation(data.user.id, normalizedEmail);
         if (!result.success) {
           console.warn('⚠️ Échec envoi email personnalisé (non bloquant):', result.error);
         } else {
-          console.log('✅ Email de confirmation personnalisé envoyé');
+          console.log('✅ Email de confirmation envoyé via Edge Function');
         }
       }
     } catch (sendError) {
