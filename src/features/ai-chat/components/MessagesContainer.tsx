@@ -32,8 +32,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, Loader2, AlertCircle } from 'lucide-react';
 import { SegmentedMessage } from '../../../components/ai/SegmentedMessage';
-import { NoteoMessageWrapper } from '../../../components/ai/NoteoMessageWrapper';
-import { analyzeMessage } from '../../../utils/noteoMessageDetector';
 import { MessageBubbleAI } from './MessageBubbleAI';
 import { MessageBubbleUser } from './MessageBubbleUser';
 import type { ChatSegment } from '../../../hooks/useChatSegmentation';
@@ -169,47 +167,7 @@ export function MessagesContainer({
 
             // Message AI (afficher si pas segmenté OU si les segments sont vides)
             if (message.type === 'ai' && (!message.metadata?.isSegmented || segments.length === 0)) {
-              // Détecter si le message doit utiliser le format EnhancedNoteoMessage
-              const messageAnalysis = analyzeMessage(message.content);
-
-              if (messageAnalysis.shouldUseEnhanced) {
-                return (
-                  <motion.div
-                    key={message.id}
-                    className="flex justify-center gap-2 w-full"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <motion.div
-                      className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center"
-                      whileHover={{ scale: 1.05 }}
-                    >
-                      <Brain className="w-3.5 h-3.5 text-white" />
-                    </motion.div>
-                    <div className="flex justify-center w-full">
-                      <div className="max-w-3xl w-full">
-                        <div className="mb-4">
-                          <NoteoMessageWrapper
-                            content={message.content}
-                            problemType={messageAnalysis.problemType || 'general'}
-                            userName={user?.name}
-                            onSuccess={() => {
-                              console.log('✅ Problème résolu');
-                            }}
-                            onFailure={() => {
-                              console.log('❌ Problème persiste');
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              }
-
-              // Format standard pour les messages sans étapes
+              // Utiliser toujours le format minimaliste MessageBubbleAI
               return (
                 <MessageBubbleAI
                   key={message.id}

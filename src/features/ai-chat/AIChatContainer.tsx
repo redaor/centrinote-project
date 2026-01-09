@@ -117,6 +117,7 @@ export default function AIChatContainer() {
   const [mode, setMode] = useState<'chat' | 'analyze'>('chat');
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [lastMessageSegmented, setLastMessageSegmented] = useState(false);
+  const [isAIThinking, setIsAIThinking] = useState(false); // État pour loader pendant recherche IA
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -150,7 +151,7 @@ export default function AIChatContainer() {
   });
 
   const aiError = edgeError ?? sdkError;
-  const isLoading = mode === 'chat' ? edgeLoading : sdkLoading;
+  const isLoading = (mode === 'chat' ? edgeLoading : sdkLoading) || isAIThinking;
 
   const clearAllErrors = useCallback(() => {
     clearEdgeError();
@@ -462,6 +463,21 @@ export default function AIChatContainer() {
 
         console.log('🔄 [AIChatContainer] Appel ai-chat avec Brave Search...');
 
+        // Activer l'indicateur de chargement
+        setIsAIThinking(true);
+
+        // Message de patience après 6 secondes
+        const patienceTimer = setTimeout(() => {
+          console.log('⏱️ [AIChatContainer] Traitement long détecté, affichage message de patience...');
+          const patienceMessage: Message = {
+            id: `patience-${Date.now()}`,
+            type: 'ai',
+            content: '⏳ Le traitement prend plus de temps que prévu, merci de patienter...',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, patienceMessage]);
+        }, 6000);
+
         let memoryResponse;
         try {
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -481,38 +497,83 @@ export default function AIChatContainer() {
             throw new Error('Non authentifié - pas de token');
           }
 
-          // Construire l'historique de conversation pour ai-chat
-          const conversationHistory = [...messages, userMessage]
+          // ✨ OPTIMISATION: Utiliser cache local au lieu de recharger l'historique depuis la BDD
+          // Garder seulement les 20 derniers messages pour réduire la payload
+          const recentMessages = [...messages, userMessage]
             .filter((msg) => msg.content && msg.content.trim().length > 0)
+            .slice(-20)
             .map((msg) => ({
               role: msg.type === 'user' ? 'user' : 'assistant',
               content: msg.content,
             }));
 
+          // ✨ OPTIMISATION: Détecter si la question nécessite un enrichissement (notes/vocabulaire)
+          const needsEnrichment = /\b(note|notes|vocabulaire|rappelle|souviens|mémorise|trouve|cherche|retrouve)\b/i.test(message);
+          const skipEnrichment = !needsEnrichment;
+
           console.log('📤 [AIChatContainer] Appel ai-chat avec:', {
             question: message.substring(0, 50),
             hasToken: !!session.access_token,
-            historyLength: conversationHistory.length,
+            historyLength: recentMessages.length,
             sessionId: sessionIdRef.current,
+            skipEnrichment,
           });
 
-          // Créer un timeout de 20 secondes pour l'appel (ai-chat peut être plus long avec recherche web)
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout de 20s dépassé pour l\'appel à ai-chat')), 20000)
-          );
+          // ✨ OPTIMISATION: Timeout augmenté de 15s à 20s
+          let aiChatData: any = null;
+          let aiChatError: any = null;
+          let retryCount = 0;
+          const maxRetries = 2;
 
-          const aiChatPromise = supabase.functions.invoke('ai-chat', {
-            body: {
-              question: message,
-              messages: conversationHistory,
-              session_id: sessionIdRef.current,
-            },
-          });
+          while (retryCount <= maxRetries && !aiChatData) {
+            try {
+              console.log(`🔄 Tentative ${retryCount + 1}/${maxRetries + 1}...`);
 
-          const { data: aiChatData, error: aiChatError } = await Promise.race([
-            aiChatPromise,
-            timeoutPromise
-          ]) as { data: any; error: any };
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout de 20s dépassé')), 20000)
+              );
+
+              const aiChatPromise = supabase.functions.invoke('ai-chat', {
+                body: {
+                  question: message,
+                  messages: recentMessages,
+                  session_id: sessionIdRef.current,
+                  skip_enrichment: skipEnrichment,
+                },
+              });
+
+              const result = await Promise.race([
+                aiChatPromise,
+                timeoutPromise
+              ]) as { data: any; error: any };
+
+              aiChatData = result.data;
+              aiChatError = result.error;
+
+              // Si succès, sortir de la boucle
+              if (aiChatData && !aiChatError) {
+                break;
+              }
+
+              // Si erreur mais qu'on peut retry
+              if (retryCount < maxRetries) {
+                console.warn(`⚠️ Erreur, retry dans 1s...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                retryCount++;
+              } else {
+                throw new Error(aiChatError?.message || 'Échec après 3 tentatives');
+              }
+            } catch (err: any) {
+              aiChatError = err;
+              if (retryCount < maxRetries) {
+                console.warn(`⚠️ Timeout ou erreur réseau, retry dans 1s...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                retryCount++;
+              } else {
+                throw err;
+              }
+            }
+          }
 
           console.log('🔍 [AIChatContainer] Debug ai-chat:', {
             hasData: !!aiChatData,
@@ -561,6 +622,12 @@ export default function AIChatContainer() {
         } catch (error) {
           console.error('❌ [AIChatContainer] Erreur lors de l\'appel ai-chat:', error);
 
+          // Nettoyer le timer de patience
+          clearTimeout(patienceTimer);
+
+          // Désactiver l'indicateur de chargement en cas d'erreur
+          setIsAIThinking(false);
+
           // Fallback vers l'Edge Function directement
           const conversationMessages = [...messages, userMessage]
             .filter((msg) => msg.content && msg.content.trim().length > 0)
@@ -608,6 +675,12 @@ export default function AIChatContainer() {
         }
 
         if (!memoryResponse.success || !memoryResponse.response || memoryResponse.response.trim().length === 0) {
+          // Nettoyer le timer de patience
+          clearTimeout(patienceTimer);
+
+          // Désactiver l'indicateur de chargement en cas d'erreur
+          setIsAIThinking(false);
+
           const errorMessage: Message = {
             id: `error-${Date.now()}`,
             type: 'error',
@@ -640,8 +713,17 @@ export default function AIChatContainer() {
           },
         };
 
-        // Afficher immédiatement le message
-        setMessages(prev => [...prev, newMessage]);
+        // Afficher immédiatement le message et supprimer le message de patience s'il existe
+        setMessages(prev => {
+          const filtered = prev.filter(msg => !msg.id.startsWith('patience-'));
+          return [...filtered, newMessage];
+        });
+
+        // Nettoyer le timer de patience
+        clearTimeout(patienceTimer);
+
+        // Désactiver l'indicateur de chargement
+        setIsAIThinking(false);
 
         // Sauvegarder en arrière-plan (non-bloquant)
         if (userIdRef.current && sessionIdRef.current) {
@@ -665,6 +747,9 @@ export default function AIChatContainer() {
       }
     } catch (err) {
       console.error('❌ [AIChatContainer] Erreur lors de l\'envoi:', err);
+
+      // Désactiver l'indicateur de chargement en cas d'erreur
+      setIsAIThinking(false);
 
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
 

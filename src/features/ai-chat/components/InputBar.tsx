@@ -127,9 +127,8 @@ export function InputBar({
         {/* Zone de saisie - Style Kimi/Copilot épuré */}
         <div className="flex justify-center">
           <div className="max-w-3xl w-full">
-            <motion.div
+            <div
               className="flex items-center gap-3 w-full bg-white dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 focus-within:border-blue-500 dark:focus-within:border-blue-400 focus-within:shadow-lg focus-within:shadow-blue-500/10 transition-all duration-200 px-5 py-3"
-              whileFocus={{ scale: 1.01 }}
             >
               {/* Bouton Pièce jointe */}
               <motion.button
@@ -145,12 +144,12 @@ export function InputBar({
                 <Paperclip className="w-4 h-4" />
               </motion.button>
 
-              {/* Zone de saisie avec ghost-text auto-completion */}
+              {/* Zone de saisie simple sans ghost-text */}
               <div className="flex-1 flex items-center gap-1.5 relative overflow-hidden">
-                <GhostTextArea
+                <textarea
                   id="rechercheIA"
                   value={inputValue}
-                  onChange={onInputChange}
+                  onChange={(e) => onInputChange(e.target.value)}
                   onKeyDown={(e) => {
                     // Entrée sans Shift = envoyer le message
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -179,9 +178,6 @@ export function InputBar({
                     boxSizing: 'border-box',
                   }}
                   aria-label="Zone de saisie de message"
-                  context="chat"
-                  userId={user?.id}
-                  enabled={false}
                 />
                 {/* Bouton de reconnaissance vocale */}
                 <VoiceRecognition inputId="rechercheIA" submitButtonId="notes" />
@@ -207,7 +203,7 @@ export function InputBar({
                   <Send className="w-4 h-4" />
                 )}
               </motion.button>
-            </motion.div>
+            </div>
           </div>
         </div>
       </form>

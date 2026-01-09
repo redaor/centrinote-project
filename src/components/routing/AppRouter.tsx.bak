@@ -182,13 +182,13 @@ export function AppRouter() {
           path="/ghost-text-demo" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <MeetingsProvider>
                   <LanguageProvider>
                     <AppLayout />
                   </LanguageProvider>
                 </MeetingsProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -211,13 +211,13 @@ export function AppRouter() {
           path="/notes" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <MeetingsProvider>
                   <LanguageProvider>
                     <AppLayout />
                   </LanguageProvider>
                 </MeetingsProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -226,13 +226,13 @@ export function AppRouter() {
           path="/vocabulary" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <MeetingsProvider>
                   <LanguageProvider>
                     <AppLayout />
                   </LanguageProvider>
                 </MeetingsProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -241,13 +241,13 @@ export function AppRouter() {
           path="/meetings" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <MeetingsProvider>
                   <LanguageProvider>
                     <AppLayout />
                   </LanguageProvider>
                 </MeetingsProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -256,13 +256,13 @@ export function AppRouter() {
           path="/meetings/new" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <MeetingsProvider>
                   <LanguageProvider>
                     <AppLayout />
                   </LanguageProvider>
                 </MeetingsProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -271,11 +271,11 @@ export function AppRouter() {
           path="/meetings/settings" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -285,11 +285,11 @@ export function AppRouter() {
           path="/meeting/:id"
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <MeetingsProvider>
                   <MeetingRoom />
                 </MeetingsProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           }
         />
@@ -299,11 +299,11 @@ export function AppRouter() {
           path="/meetings/:id/summary" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -312,11 +312,11 @@ export function AppRouter() {
           path="/search" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -325,11 +325,11 @@ export function AppRouter() {
           path="/plan" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -338,11 +338,11 @@ export function AppRouter() {
           path="/planning" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -351,11 +351,11 @@ export function AppRouter() {
           path="/automation" 
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           } 
         />
@@ -364,11 +364,11 @@ export function AppRouter() {
           path="/settings"
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           }
         />
@@ -377,11 +377,11 @@ export function AppRouter() {
           path="/help"
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           }
         />
@@ -391,11 +391,11 @@ export function AppRouter() {
           path="/admin/support"
           element={
             <ProtectedRoute>
-              
+              <AppProvider>
                 <LanguageProvider>
                   <AppLayout />
                 </LanguageProvider>
-              
+              </AppProvider>
             </ProtectedRoute>
           }
         />

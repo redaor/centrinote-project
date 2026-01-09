@@ -87,6 +87,7 @@ serve(async (req) => {
     let messages = null;
     let fileText = "";
     let fileProcessed = false;
+    let skipEnrichment = false; // ✨ OPTIMISATION: Flag pour skip enrichissement
 
     if (contentType.includes("multipart/form-data")) {
       console.log("📤 Requête avec fichier détectée");
@@ -108,6 +109,7 @@ serve(async (req) => {
       context = body.context || "";
       messages = body.messages;
       sessionId = body.session_id || null; // MEM-FIX: Récupérer session_id depuis body
+      skipEnrichment = body.skip_enrichment || false; // ✨ OPTIMISATION: Flag pour skip enrichissement
     }
 
     // MEM-FIX: Générer ou réutiliser un session_id
@@ -317,9 +319,11 @@ serve(async (req) => {
     let userNotes: string = "";
     let userVocabulary: string = "";
 
-    if (userId) { // MEM-FIX: userId est déjà récupéré plus haut
+    // ✨ OPTIMISATION: Skip enrichissement si le flag est activé
+    if (userId && !skipEnrichment) { // MEM-FIX: userId est déjà récupéré plus haut
       try {
           // Récupérer les notes et vocabulaire pertinents via recherche vectorielle
+          console.log("🔍 Recherche vectorielle activée (skip_enrichment = false)");
           try {
             // Générer l'embedding de la question
             const embeddingRes = await fetch(OPENAI_URL, {
