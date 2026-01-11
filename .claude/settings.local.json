@@ -66,7 +66,8 @@
       "Bash(supabase secrets:*)",
       "Bash(https://wjzlicokhxitmeoxkjzv.supabase.co/functions/v1/transcribe-audio )",
       "Bash(source .env.local)",
-      "Bash('https://wjzlicokhxitmeoxkjzv.supabase.co/functions/v1/noteo-orchestrator' )"
+      "Bash('https://wjzlicokhxitmeoxkjzv.supabase.co/functions/v1/noteo-orchestrator' )",
+      "Bash(https://wjzlicokhxitmeoxkjzv.supabase.co/functions/v1/delete-user-account )"
     ],
     "deny": [],
     "ask": []

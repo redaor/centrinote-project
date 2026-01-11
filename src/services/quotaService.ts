@@ -8,12 +8,13 @@ import { supabase } from '../lib/supabase';
 export interface QuotaCheckResult {
   allowed: boolean;
   usage: number;
-  limit: number | 'unlimited';
+  limit: number | 'unlimited' | 'error';
   percentage: number;
   message?: string;
   plan_name?: string;
   plan_display_name?: string;
   upgrade_required?: boolean;
+  error?: string;
 }
 
 export interface MeetingDurationCheckResult {
@@ -50,29 +51,35 @@ export async function checkQuota(
     ]) as any;
 
     if (error) {
-      // Ignorer les erreurs réseau (Failed to fetch est normal si connexion instable)
-      if (error instanceof TypeError && error.message?.includes('Failed to fetch')) {
-        console.warn('⚠️ Erreur réseau check_quota (ignorée):', error.message);
-        // Retourner un résultat par défaut qui permet l'action
-        return { allowed: true, remaining: 999, limit: 1000 };
-      }
+      // ✅ FIX #2: Fail-safe strict - bloquer au lieu d'autoriser
       console.error('❌ Erreur check_quota:', error);
-      throw error;
+      return {
+        allowed: false,
+        usage: 0,
+        limit: 'error',
+        percentage: 0,
+        error: error instanceof Error ? error.message : 'Erreur lors de la vérification du quota'
+      };
     }
 
-    return data as QuotaCheckResult;
+    const result = data as QuotaCheckResult;
+    
+    // ✅ FIX #3: Monitoring à 90% - alerte console
+    if (result.percentage >= 90 && result.limit !== 'unlimited' && result.limit !== 'error') {
+      console.warn(`⚠️ QUOTA ALERT: User ${userId} at ${result.percentage}% of ${feature} limit (${result.usage}/${result.limit})`);
+    }
+    
+    return result;
   } catch (error) {
-    // Gérer les timeouts et erreurs réseau
-    if (error instanceof Error && error.message?.includes('Timeout')) {
-      console.warn('⚠️ Timeout check_quota (ignoré)');
-      // Retourner un résultat par défaut qui permet l'action
-      return { allowed: true, remaining: 999, limit: 1000 };
-    }
-    if (error instanceof TypeError && error.message?.includes('Failed to fetch')) {
-      console.warn('⚠️ Erreur réseau check_quota (ignorée)');
-      return { allowed: true, remaining: 999, limit: 1000 };
-    }
-    throw error;
+    // ✅ FIX #2: Fail-safe strict - bloquer au lieu d'autoriser
+    console.error('❌ Erreur check_quota (catch):', error);
+    return {
+      allowed: false,
+      usage: 0,
+      limit: 'error',
+      percentage: 0,
+      error: error instanceof Error ? error.message : 'Erreur inconnue lors de la vérification du quota'
+    };
   }
 }
 

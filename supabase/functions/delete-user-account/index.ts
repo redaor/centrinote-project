@@ -102,75 +102,76 @@ serve(async (req) => {
     console.log(`🗑️ Début de la suppression du compte utilisateur: ${userId}`)
 
     // Étape 1: Supprimer toutes les données utilisateur dans les tables personnalisées
-    console.log('📄 Suppression des documents...')
-    const { error: documentsError } = await supabaseAdmin
-      .from('documents')
-      .delete()
-      .eq('user_id', userId)
+    // ORDRE IMPORTANT: Supprimer les tables enfants AVANT les tables parentes
+    // NOTE: On ignore toutes les erreurs pour les tables qui n'existent pas ou sont vides
 
-    if (documentsError) {
-      console.warn('Erreur suppression documents:', documentsError)
-    }
+    // Liste des tables à supprimer
+    const tablesToDelete = [
+      'user_quotas',
+      'user_subscriptions',
+      'notes',
+      'documents',
+      'vocabulary',
+      'study_sessions',
+      'meetings',
+      'ai_conversations',
+      'user_automations',
+      'user_settings',
+      'collaborations',
+      'tasks'
+    ]
 
-    console.log('📚 Suppression du vocabulaire...')
-    const { error: vocabularyError } = await supabaseAdmin
-      .from('vocabulary')
-      .delete()
-      .eq('user_id', userId)
+    // Supprimer toutes les tables en ignorant les erreurs
+    for (const table of tablesToDelete) {
+      try {
+        console.log(`🗑️ Suppression de ${table}...`)
+        const { error } = await supabaseAdmin
+          .from(table)
+          .delete()
+          .eq('user_id', userId)
 
-    if (vocabularyError) {
-      console.warn('Erreur suppression vocabulaire:', vocabularyError)
-    }
-
-    console.log('📅 Suppression des sessions d\'étude...')
-    const { error: sessionsError } = await supabaseAdmin
-      .from('study_sessions')
-      .delete()
-      .eq('user_id', userId)
-
-    if (sessionsError) {
-      console.warn('Erreur suppression sessions:', sessionsError)
-    }
-
-    console.log('⚙️ Suppression des paramètres utilisateur...')
-    const { error: settingsError } = await supabaseAdmin
-      .from('user_settings')
-      .delete()
-      .eq('user_id', userId)
-
-    if (settingsError) {
-      console.warn('Erreur suppression paramètres:', settingsError)
-    }
-
-    console.log('🤝 Suppression des collaborations...')
-    const { error: collaborationsError } = await supabaseAdmin
-      .from('collaborations')
-      .delete()
-      .eq('user_id', userId)
-
-    if (collaborationsError) {
-      console.warn('Erreur suppression collaborations:', collaborationsError)
+        if (error) {
+          console.warn(`⚠️ Erreur ${table}:`, error.message)
+        }
+      } catch (e) {
+        console.warn(`⚠️ Exception ${table}:`, e instanceof Error ? e.message : String(e))
+      }
     }
 
     // Étape 2: Supprimer le compte utilisateur de la table auth.users
-    console.log('👤 Suppression du compte utilisateur...')
-    const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+    console.log('👤 Suppression du compte utilisateur de auth.users...')
+    try {
+      const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userId)
 
-    if (deleteUserError) {
-      console.error('Erreur suppression utilisateur:', deleteUserError)
+      if (deleteUserError) {
+        console.error('❌ Erreur auth.admin.deleteUser:', deleteUserError)
+        return new Response(
+          JSON.stringify({
+            error: 'Erreur lors de la suppression du compte utilisateur',
+            details: deleteUserError.message,
+            code: deleteUserError.status || 500
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+
+      console.log('✅ Compte utilisateur supprimé avec succès de auth.users')
+    } catch (authError) {
+      console.error('❌ Exception lors de auth.admin.deleteUser:', authError)
       return new Response(
-        JSON.stringify({ 
-          error: 'Erreur lors de la suppression du compte utilisateur',
-          details: deleteUserError.message 
+        JSON.stringify({
+          error: 'Exception lors de la suppression du compte',
+          details: authError instanceof Error ? authError.message : String(authError)
         }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
-
-    console.log('✅ Compte utilisateur supprimé avec succès')
 
     // Retourner une réponse de succès
     return new Response(

@@ -203,14 +203,20 @@ export function ModernNotesManager() {
   // 🚀 PERFORMANCE: Vérifier l'accès à l'Aide IA de manière non-bloquante
   // Utiliser un délai pour ne pas ralentir le chargement initial
   useEffect(() => {
+    console.log('🔍 DEBUG QUOTA - useEffect démarré');
+    console.log('🔍 user.role:', user?.role);
+    console.log('🔍 user.id:', user?.id);
+
     // Vérifier immédiatement pour les admins
     if (user?.role === 'admin') {
+      console.log('🔍 Admin détecté - accès IA forcé à true');
       setHasAIAccess(true);
       setCheckingAIAccess(false);
       return;
     }
 
     if (!user?.id) {
+      console.log('🔍 Pas d\'user.id - accès IA forcé à false');
       setHasAIAccess(false);
       setCheckingAIAccess(false);
       return;
@@ -219,11 +225,18 @@ export function ModernNotesManager() {
     // Pour les non-admins, vérifier après un court délai (non-bloquant)
     const timeoutId = setTimeout(async () => {
       try {
+        console.log('🔍 Vérification quota pour user:', user?.id);
         setCheckingAIAccess(true);
         const result = await checkQuota('ai_help_count', 0); // Check without incrementing
-        setHasAIAccess(result.allowed);
+        console.log('🔍 Résultat checkQuota:', result);
+        console.log('🔍 result.allowed:', result.allowed);
+        console.log('🔍 result.percentage:', result.percentage);
+        // ✅ FIX: Vérifier à la fois allowed ET que le quota n'est pas à 100%
+        const hasAccess = result.allowed && result.percentage < 100;
+        console.log('🔍 hasAIAccess vaudra:', hasAccess);
+        setHasAIAccess(hasAccess);
       } catch (err) {
-        console.error('Error checking AI Help quota:', err);
+        console.error('🔍 ERREUR checkQuota:', err);
         setHasAIAccess(false);
       } finally {
         setCheckingAIAccess(false);
@@ -729,13 +742,21 @@ export function ModernNotesManager() {
                     disabled={!hasAIAccess}
                     onApply={async (improvedContent) => {
                       try {
+                        console.log('🔍 DEBUG - AIContentHelper onApply appelé');
+                        console.log('🔍 hasAIAccess:', hasAIAccess);
+                        console.log('🔍 user.role:', user?.role);
+
                         // 🔓 Les administrateurs n'ont pas besoin de vérifier le quota
                         if (user?.role !== 'admin') {
+                          console.log('🔍 Vérification quota AVANT amélioration (non-admin)');
                           const canUse = await checkQuotaWithModal('ai_help', 1);
+                          console.log('🔍 canUse:', canUse);
                           if (!canUse) {
+                            console.log('🔍 BLOCAGE - canUse=false');
                             return;
                           }
                         }
+                        console.log('🔍 PAS DE BLOCAGE - application du contenu amélioré');
                         handleFormDataChange('content', improvedContent);
                         setHasUnsavedChanges(true);
                         setMessage({ type: 'success', text: 'Contenu amélioré par l\'IA. N\'oubliez pas de sauvegarder.' });
@@ -2086,16 +2107,27 @@ export function ModernNotesManager() {
             await createNoteWithContent(true);
           }}
           onGenerateWithAI={hasAIAccess ? async () => {
+            console.log('🔍 DEBUG - onGenerateWithAI appelé');
+            console.log('🔍 hasAIAccess:', hasAIAccess);
+            console.log('🔍 user.role:', user?.role);
+            console.log('🔍 formData.title:', formData.title);
+
             // 🔓 Les administrateurs n'ont pas besoin de vérifier le quota
             if (user?.role !== 'admin') {
+              console.log('🔍 Vérification quota AVANT génération (non-admin)');
               const canUse = await checkQuotaWithModal('ai_help', 1);
+              console.log('🔍 canUse:', canUse);
               if (!canUse || !formData.title.trim()) {
+                console.log('🔍 BLOCAGE - canUse=false ou titre vide');
                 return;
               }
             }
             if (!formData.title.trim()) {
+              console.log('🔍 BLOCAGE - titre vide');
               return;
             }
+
+            console.log('🔍 PAS DE BLOCAGE - continuation vers génération IA');
 
             try {
               // Générer le contenu depuis le titre via Supabase Edge Function

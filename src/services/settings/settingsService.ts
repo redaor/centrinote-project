@@ -503,26 +503,51 @@ class SettingsService {
    */
   async deleteAccount(userId: string, password: string): Promise<void> {
     try {
-      // Vérifier le mot de passe en tentant une ré-authentification
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user?.email) {
-        throw new Error('Email non trouvé');
+      console.log('[SettingsService] Début de la suppression du compte:', userId);
+
+      // Récupérer le token d'authentification actuel
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Session non trouvée. Veuillez vous reconnecter.');
       }
 
-      // Supprimer toutes les données utilisateur
-      const { error: deleteError } = await supabase
-        .from('user_settings')
-        .delete()
-        .eq('user_id', userId);
+      // Appeler l'Edge Function pour supprimer le compte
+      const { data, error } = await supabase.functions.invoke('delete-user-account', {
+        body: { confirmation: password }, // Le password est la confirmation "SUPPRIMER"
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
 
-      if (deleteError) throw deleteError;
+      if (error) {
+        console.error('[SettingsService] Erreur Edge Function:', error);
+        console.error('[SettingsService] Détails erreur:', JSON.stringify(error, null, 2));
+        throw new Error(error.message || 'Erreur lors de la suppression du compte');
+      }
 
-      // Supprimer le compte via l'API Admin (nécessite une fonction Edge)
-      // Pour l'instant, on déconnecte juste l'utilisateur
+      if (!data?.success) {
+        console.error('[SettingsService] Réponse inattendue:', data);
+        console.error('[SettingsService] Détails data:', JSON.stringify(data, null, 2));
+        const errorMessage = data?.details || data?.error || 'La suppression a échoué';
+        throw new Error(errorMessage);
+      }
+
+      console.log('[SettingsService] Compte supprimé avec succès:', data);
+
+      // Déconnexion locale après suppression réussie
       await this.logout();
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      throw new Error('Impossible de supprimer le compte');
+    } catch (error: any) {
+      console.error('[SettingsService] Error deleting account:', error);
+
+      // Messages d'erreur personnalisés
+      if (error.message?.includes('confirmation')) {
+        throw new Error('Confirmation invalide. Tapez "SUPPRIMER" pour confirmer.');
+      }
+      if (error.message?.includes('session') || error.message?.includes('authentif')) {
+        throw new Error('Session expirée. Veuillez vous reconnecter.');
+      }
+
+      throw new Error(error.message || 'Impossible de supprimer le compte');
     }
   }
 }

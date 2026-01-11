@@ -64,7 +64,10 @@ export function useQuotaLimit(): UseQuotaLimitResult {
         // Utiliser 'ai_tokens' comme fallback si 'ai_help_count' n'existe pas encore
         try {
           const quotaCheck = await checkQuota(user.id, 'ai_help_count', increment);
-          if (!quotaCheck.allowed) {
+          // ✅ FIX: Vérifier à la fois allowed ET percentage < 100 (car allowed peut être true même à 100%)
+          const isAllowed = quotaCheck.allowed && quotaCheck.percentage < 100;
+
+          if (!isAllowed) {
             setModalData({
               feature: 'ai_help',
               currentUsage: quotaCheck.usage,
@@ -74,11 +77,20 @@ export function useQuotaLimit(): UseQuotaLimitResult {
             setIsModalOpen(true);
             return false;
           }
+          // ✅ FIX #3: Monitoring à 90%
+          if (quotaCheck.percentage >= 90 && quotaCheck.limit !== 'unlimited' && quotaCheck.limit !== 'error') {
+            console.warn(`⚠️ QUOTA ALERT: User ${user.id} at ${quotaCheck.percentage}% of ai_help_count limit`);
+          }
           return true;
         } catch (error) {
           // Si 'ai_help_count' n'existe pas, utiliser 'ai_tokens' comme fallback
-          const quotaCheck = await checkQuota(user.id, 'ai_tokens', increment);
-          if (!quotaCheck.allowed) {
+          // ✅ FIX #1: Marge de sécurité 1.5x sur l'estimation des tokens
+          const safeIncrement = Math.ceil(increment * 1.5);
+          const quotaCheck = await checkQuota(user.id, 'ai_tokens', safeIncrement);
+          // ✅ FIX: Vérifier à la fois allowed ET percentage < 100
+          const isAllowed = quotaCheck.allowed && quotaCheck.percentage < 100;
+
+          if (!isAllowed) {
             setModalData({
               feature: 'ai_help',
               currentUsage: quotaCheck.usage,
@@ -87,15 +99,27 @@ export function useQuotaLimit(): UseQuotaLimitResult {
             });
             setIsModalOpen(true);
             return false;
+          }
+          // ✅ FIX #3: Monitoring à 90%
+          if (quotaCheck.percentage >= 90 && quotaCheck.limit !== 'unlimited' && quotaCheck.limit !== 'error') {
+            console.warn(`⚠️ QUOTA ALERT: User ${user.id} at ${quotaCheck.percentage}% of ai_tokens limit`);
           }
           return true;
         }
       }
 
       // Pour les autres features, utiliser checkQuota normal
-      const quotaCheck = await checkQuota(user.id, feature, increment);
+      // ✅ FIX #1: Marge de sécurité 1.5x pour ai_tokens uniquement
+      let safeIncrement = increment;
+      if (feature === 'ai_tokens') {
+        safeIncrement = Math.ceil(increment * 1.5);
+      }
       
-      if (!quotaCheck.allowed) {
+      const quotaCheck = await checkQuota(user.id, feature, safeIncrement);
+      // ✅ FIX: Vérifier à la fois allowed ET percentage < 100
+      const isAllowed = quotaCheck.allowed && quotaCheck.percentage < 100;
+
+      if (!isAllowed) {
         setModalData({
           feature,
           currentUsage: quotaCheck.usage,
@@ -104,6 +128,11 @@ export function useQuotaLimit(): UseQuotaLimitResult {
         });
         setIsModalOpen(true);
         return false;
+      }
+
+      // ✅ FIX #3: Monitoring à 90%
+      if (quotaCheck.percentage >= 90 && quotaCheck.limit !== 'unlimited' && quotaCheck.limit !== 'error') {
+        console.warn(`⚠️ QUOTA ALERT: User ${user.id} at ${quotaCheck.percentage}% of ${feature} limit (${quotaCheck.usage}/${quotaCheck.limit})`);
       }
 
       return true;

@@ -42,7 +42,20 @@ export function useQuotaCheck(): UseQuotaCheckResult {
     try {
       setLoading(true);
       setError(null);
-      const result = await checkQuota(user.id, feature, increment);
+      
+      // ✅ FIX #1: Marge de sécurité 1.5x pour ai_tokens uniquement
+      let safeIncrement = increment;
+      if (feature === 'ai_tokens') {
+        safeIncrement = Math.ceil(increment * 1.5);
+      }
+      
+      const result = await checkQuota(user.id, feature, safeIncrement);
+      
+      // ✅ FIX #3: Monitoring à 90% - alerte console
+      if (result.percentage >= 90 && result.limit !== 'unlimited' && result.limit !== 'error') {
+        console.warn(`⚠️ QUOTA ALERT: User ${user.id} at ${result.percentage}% of ${feature} limit (${result.usage}/${result.limit})`);
+      }
+      
       return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur lors de la vérification du quota';
